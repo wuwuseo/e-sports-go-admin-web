@@ -2,14 +2,16 @@
   <a-modal
     :visible="visible"
     :title="$t('system.attachment.upload.title')"
-    :ok-loading="uploading"
-    :on-before-ok="handleBeforeOk"
+    :footer="false"
+    :mask-closable="!isUploading"
     @cancel="handleCancel"
   >
     <a-upload
       draggable
       :auto-upload="false"
-      :file-list="fileList"
+      :file-list="arcoFileList"
+      :multiple="true"
+      :disabled="isUploading"
       @change="handleFileChange"
     >
       <template #upload-button>
@@ -23,15 +25,91 @@
         </div>
       </template>
     </a-upload>
+
+    <!-- 文件列表与进度 -->
+    <div v-if="uploadItems.length > 0" class="file-list">
+      <div v-for="(item, index) in uploadItems" :key="index" class="file-item">
+        <div class="file-info">
+          <span class="file-name">{{ item.file.name }}</span>
+          <span class="file-size">{{ formatSize(item.file.size) }}</span>
+          <a-tag
+            v-if="item.method"
+            :color="item.method === 'chunk' ? 'orange' : 'blue'"
+            size="small"
+          >
+            {{ item.method === 'chunk' ? '分片' : '直接' }}
+          </a-tag>
+        </div>
+        <div class="file-status">
+          <!-- 上传中 -->
+          <template v-if="item.status === 'uploading'">
+            <a-progress :percent="item.progress" :width="'100%'" size="small" />
+            <span v-if="item.chunkInfo" class="chunk-hint">
+              分片 {{ item.chunkInfo.current }}/{{ item.chunkInfo.total }}
+            </span>
+          </template>
+          <!-- 等待中 -->
+          <span v-else-if="item.status === 'pending'" class="status-pending">
+            等待上传
+          </span>
+          <!-- 成功 -->
+          <span v-else-if="item.status === 'success'" class="status-success">
+            <icon-check-circle-fill /> 上传成功
+          </span>
+          <!-- 失败 -->
+          <span v-else-if="item.status === 'error'" class="status-error">
+            <icon-close-circle-fill /> {{ item.errorMsg || '上传失败' }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部按钮 -->
+    <div class="modal-footer">
+      <a-button :disabled="isUploading" @click="handleCancel">
+        {{ $t('system.attachment.upload.cancel') || '取消' }}
+      </a-button>
+      <a-button
+        type="primary"
+        :loading="isUploading"
+        :disabled="uploadItems.length === 0 || allUploaded"
+        @click="handleStartUpload"
+      >
+        {{
+          isUploading
+            ? '上传中...'
+            : $t('system.attachment.upload.confirm') || '确定上传'
+        }}
+      </a-button>
+    </div>
   </a-modal>
 </template>
 
 <script lang="ts" setup>
-  import { ref } from 'vue';
+  import { ref, computed, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import type { FileItem } from '@arco-design/web-vue/es/upload/interfaces';
   import { useI18n } from 'vue-i18n';
-  import { uploadAttachment } from '@/api/attachment';
+  import { uploadAttachment, uploadAttachmentChunk } from '@/api/attachment';
+  import { getConfigByKey } from '@/api/config';
+  import { formatSize } from '@/utils';
+
+  const CHUNK_SIZE_DEFAULT = 5 * 1024 * 1024; // 5MB 每片
+  const CHUNK_THRESHOLD_DEFAULT = 10 * 1024 * 1024; // 10MB 阈值
+
+  interface ChunkInfo {
+    current: number;
+    total: number;
+  }
+
+  interface UploadItem {
+    file: File;
+    method?: 'simple' | 'chunk';
+    status: 'pending' | 'uploading' | 'success' | 'error';
+    progress: number;
+    errorMsg?: string;
+    chunkInfo?: ChunkInfo;
+  }
 
   const props = defineProps<{
     visible: boolean;
@@ -44,40 +122,200 @@
   }>();
 
   const { t } = useI18n();
-  const fileList = ref<FileItem[]>([]);
-  const uploading = ref(false);
 
-  const handleFileChange = (list: FileItem[]) => {
-    fileList.value = list;
-  };
+  // Arco 组件使用的文件列表
+  const arcoFileList = ref<FileItem[]>([]);
+  // 内部管理的上传队列
+  const uploadItems = ref<UploadItem[]>([]);
+  const isUploading = ref(false);
+  const chunkThreshold = ref(CHUNK_THRESHOLD_DEFAULT);
+  const chunkSize = ref(CHUNK_SIZE_DEFAULT);
 
-  const handleBeforeOk = async (done: (closed: boolean) => void) => {
-    if (fileList.value.length === 0) {
-      done(false);
-      return;
+  // 是否全部上传完毕
+  const allUploaded = computed(
+    () =>
+      uploadItems.value.length > 0 &&
+      uploadItems.value.every(
+        (item) => item.status === 'success' || item.status === 'error'
+      )
+  );
+
+  // 监听弹窗打开，获取配置
+  watch(
+    () => props.visible,
+    async (visible) => {
+      if (visible) {
+        await fetchUploadConfig();
+      } else {
+        // 关闭时重置
+        arcoFileList.value = [];
+        uploadItems.value = [];
+        isUploading.value = false;
+      }
     }
-    uploading.value = true;
+  );
+
+  // 从系统配置获取分片上传相关参数
+  const fetchUploadConfig = async () => {
     try {
-      const uploadPromises = fileList.value.map((item) => {
-        if (item.file) {
-          return uploadAttachment(item.file, props.groupId);
-        }
-        return Promise.resolve();
-      });
-      await Promise.all(uploadPromises);
-      Message.success(t('system.attachment.uploadSuccess'));
-      fileList.value = [];
-      emit('success');
-      done(true);
-    } catch (err) {
-      done(false);
-    } finally {
-      uploading.value = false;
+      const keys = ['attachment.chunk_threshold', 'attachment.chunk_size'];
+      const results = await Promise.allSettled(
+        keys.map((key) => getConfigByKey(key))
+      );
+
+      if (
+        results[0].status === 'fulfilled' &&
+        results[0].value.data.data?.value
+      ) {
+        const val = Number(results[0].value.data.data.value);
+        if (val > 0) chunkThreshold.value = val;
+      }
+
+      if (
+        results[1].status === 'fulfilled' &&
+        results[1].value.data.data?.value
+      ) {
+        const val = Number(results[1].value.data.data.value);
+        if (val > 0) chunkSize.value = val;
+      }
+    } catch {
+      // 配置不存在时使用默认值
     }
   };
 
+  // 处理文件选择
+  const handleFileChange = (list: FileItem[]) => {
+    arcoFileList.value = list;
+    uploadItems.value = list
+      .filter((item) => item.file)
+      .map((item) => ({
+        file: item.file as File,
+        status: 'pending' as const,
+        progress: 0,
+      }));
+  };
+
+  // 开始上传
+  const handleStartUpload = async () => {
+    if (uploadItems.value.length === 0) return;
+    isUploading.value = true;
+
+    let allSuccess = true;
+
+    // 筛选待上传项，使用 reduce 串行处理（避免 no-await-in-loop）
+    const pendingItems = uploadItems.value.filter(
+      (item) => item.status !== 'success'
+    );
+    await pendingItems.reduce(async (prev, item) => {
+      await prev;
+
+      try {
+        item.status = 'uploading';
+
+        if (item.file.size >= chunkThreshold.value) {
+          item.method = 'chunk';
+          await uploadByChunks(item);
+        } else {
+          item.method = 'simple';
+          await uploadSimple(item);
+        }
+
+        item.status = 'success';
+        item.progress = 100;
+      } catch (err: any) {
+        item.status = 'error';
+        item.errorMsg =
+          err?.response?.data?.message || err?.message || '上传失败';
+        allSuccess = false;
+      }
+    }, Promise.resolve());
+
+    isUploading.value = false;
+
+    if (allSuccess) {
+      Message.success(t('system.attachment.uploadSuccess'));
+      emit('success');
+      // 全部成功后自动关闭
+      emit('update:visible', false);
+    } else {
+      Message.warning('部分文件上传失败，请检查后重试');
+    }
+  };
+
+  // 简单上传
+  const uploadSimple = async (item: UploadItem) => {
+    await uploadAttachment(item.file, props.groupId);
+    item.progress = 100;
+  };
+
+  // 分片上传
+  const uploadByChunks = async (item: UploadItem) => {
+    const { file } = item;
+    const totalChunks = Math.ceil(file.size / chunkSize.value);
+    let uploadId: string | undefined;
+
+    const chunkInfo: ChunkInfo = { current: 0, total: totalChunks };
+    item.chunkInfo = chunkInfo;
+
+    // 使用 Array.from + reduce 串行上传分片
+    const chunkIndices = Array.from({ length: totalChunks }, (_, i) => i);
+    await chunkIndices.reduce(async (prev, i) => {
+      await prev;
+
+      chunkInfo.current = i + 1;
+
+      const start = i * chunkSize.value;
+      const end = Math.min(start + chunkSize.value, file.size);
+      const chunkBlob = file.slice(start, end);
+
+      const isFirstChunk = i === 0;
+
+      // 单分片上传进度回调
+      const res = await uploadAttachmentChunk(
+        chunkBlob,
+        {
+          groupId: isFirstChunk ? props.groupId : undefined,
+          uploadId,
+          chunkIndex: i,
+          totalChunks: isFirstChunk ? totalChunks : undefined,
+          filename: isFirstChunk ? file.name : undefined,
+          fileSize: isFirstChunk ? file.size : undefined,
+          chunkSize: isFirstChunk ? chunkSize.value : undefined,
+        },
+        (progressEvent) => {
+          if (progressEvent.total) {
+            // 当前分片的进度占比
+            const chunkWeight = 1 / totalChunks;
+            const chunkProgress = progressEvent.loaded / progressEvent.total;
+            item.progress = Math.min(
+              Math.round((i * chunkWeight + chunkProgress * chunkWeight) * 100),
+              99
+            );
+          }
+        }
+      );
+
+      const { data: chunkData } = res.data;
+
+      if (isFirstChunk) {
+        uploadId = chunkData.upload_id;
+      }
+
+      // 最后一片：响应包含 attachment 字段表示合并完成
+      if (chunkData.attachment) {
+        item.progress = 100;
+      } else {
+        // 更新整体进度（基于已上传的分片数）
+        item.progress = Math.min(Math.round(((i + 1) / totalChunks) * 100), 99);
+      }
+    }, Promise.resolve());
+  };
+
+  // 取消
   const handleCancel = () => {
-    fileList.value = [];
+    arcoFileList.value = [];
+    uploadItems.value = [];
+    isUploading.value = false;
     emit('update:visible', false);
   };
 </script>
@@ -100,5 +338,84 @@
     &:hover {
       border-color: rgb(var(--primary-6));
     }
+  }
+
+  .file-list {
+    margin-top: 16px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .file-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--color-border-2);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgb(var(--gray-8));
+  }
+
+  .file-size {
+    color: rgb(var(--gray-5));
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .file-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 4px;
+
+    .arco-progress {
+      flex: 1;
+    }
+  }
+
+  .chunk-hint {
+    font-size: 11px;
+    color: rgb(var(--gray-5));
+    white-space: nowrap;
+  }
+
+  .status-success {
+    color: rgb(var(--green-6));
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .status-error {
+    color: rgb(var(--red-6));
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
   }
 </style>

@@ -28,6 +28,61 @@ export function uploadAttachment(file: File, groupId?: number) {
   );
 }
 
+// 分片上传 - 上传单个分片
+export function uploadAttachmentChunk(
+  file: Blob,
+  options: {
+    groupId?: number;
+    uploadId?: string;
+    chunkIndex: number;
+    totalChunks?: number;
+    filename?: string;
+    fileSize?: number;
+    chunkSize?: number;
+  },
+  onProgress?: (progressEvent: { loaded: number; total?: number }) => void
+) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('chunk_index', String(options.chunkIndex));
+
+  if (options.uploadId) {
+    formData.append('upload_id', options.uploadId);
+  } else {
+    // 首片：携带初始化参数
+    formData.append('total_chunks', String(options.totalChunks));
+    if (options.filename) {
+      formData.append('filename', options.filename);
+    }
+    formData.append('file_size', String(options.fileSize));
+    formData.append('chunk_size', String(options.chunkSize));
+  }
+
+  if (options.groupId) {
+    formData.append('group_id', String(options.groupId));
+  }
+
+  return axios.post<ApiResponse<any>>(
+    '/api/v1/admin/auth/attachments/upload',
+    formData,
+    { onUploadProgress: onProgress }
+  );
+}
+
+// 查询分片上传状态
+export function getChunkStatus(uploadId: string) {
+  return axios.get<ApiResponse<import('@/types/api').ChunkStatusResponse>>(
+    `/api/v1/admin/auth/attachments/chunk/status/${uploadId}`
+  );
+}
+
+// 取消分片上传
+export function cancelChunkUpload(uploadId: string) {
+  return axios.delete<ApiResponse<null>>(
+    `/api/v1/admin/auth/attachments/chunk/${uploadId}`
+  );
+}
+
 // 获取附件详情
 export function getAttachmentDetail(id: number) {
   return axios.get<ApiResponse<AttachmentResponse>>(

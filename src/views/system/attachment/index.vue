@@ -167,7 +167,7 @@
               </a-table-column>
               <a-table-column
                 :title="$t('system.attachment.operations')"
-                :width="200"
+                :width="250"
                 fixed="right"
               >
                 <template #cell="{ record }">

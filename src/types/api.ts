@@ -165,6 +165,31 @@ export interface UpdateAttachmentGroupRequest {
   sort?: number;
 }
 
+// ===== 分片上传相关 =====
+export interface ChunkInitData {
+  upload_id: string;
+  chunk_index: number;
+  received: boolean;
+  total_chunks: number;
+}
+
+export interface ChunkProgressData {
+  upload_id: string;
+  chunk_index: number;
+  received: boolean;
+}
+
+export interface ChunkUploadResult {
+  attachment: AttachmentResponse;
+}
+
+export interface ChunkStatusResponse {
+  upload_id: string;
+  total_chunks: number;
+  received_chunks: number[];
+  is_completed: boolean;
+}
+
 // ===== 定时任务相关 =====
 export type CronJobType = 'shell' | 'curl' | 'task';
 
