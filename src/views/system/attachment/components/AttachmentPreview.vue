@@ -16,6 +16,7 @@
         <a-button
           type="primary"
           style="margin-top: 12px"
+          :loading="downloadLoading"
           @click="handleDownload"
         >
           <template #icon><icon-download /></template>
@@ -46,9 +47,10 @@
 </template>
 
 <script lang="ts" setup>
-  import { computed } from 'vue';
+  import { ref, computed, watch } from 'vue';
   import type { AttachmentResponse } from '@/types/api';
-  import { getAttachmentPreviewUrl } from '@/api/attachment';
+  import { downloadAttachment } from '@/api/attachment';
+  import { formatSize } from '@/utils';
 
   const props = defineProps<{
     visible: boolean;
@@ -59,28 +61,56 @@
     (e: 'update:visible', val: boolean): void;
   }>();
 
+  const previewUrl = ref('');
+  const downloadLoading = ref(false);
+
   const isImage = computed(() => {
     return props.attachment?.mime_type?.startsWith('image/');
   });
 
-  const previewUrl = computed(() => {
-    if (props.attachment) {
-      return getAttachmentPreviewUrl(props.attachment.id);
+  // 通过 axios 带认证获取图片 blob 并生成 object URL
+  const loadPreview = async () => {
+    if (!props.attachment) return;
+    try {
+      const res = await downloadAttachment(props.attachment.id);
+      const blob = res.data;
+      previewUrl.value = URL.createObjectURL(blob);
+    } catch {
+      previewUrl.value = '';
     }
-    return '';
-  });
-
-  const formatSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    const k = 1024;
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / k ** i).toFixed(2)} ${units[i]}`;
   };
 
-  const handleDownload = () => {
-    if (props.attachment) {
-      window.open(getAttachmentPreviewUrl(props.attachment.id));
+  watch(
+    () => props.visible && props.attachment,
+    (val) => {
+      if (val) {
+        loadPreview();
+      } else if (previewUrl.value) {
+        // 组件关闭时释放 object URL
+        URL.revokeObjectURL(previewUrl.value);
+        previewUrl.value = '';
+      }
+    }
+  );
+
+  const handleDownload = async () => {
+    if (!props.attachment) return;
+    downloadLoading.value = true;
+    try {
+      const res = await downloadAttachment(props.attachment.id);
+      const blob = res.data;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = props.attachment.original_name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // error handled by interceptor
+    } finally {
+      downloadLoading.value = false;
     }
   };
 

@@ -23,11 +23,8 @@ export function uploadAttachment(file: File, groupId?: number) {
   formData.append('file', file);
   if (groupId) formData.append('group_id', String(groupId));
   return axios.post<ApiResponse<AttachmentResponse>>(
-    '/api/v1/admin/auth/attachments',
-    formData,
-    {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }
+    '/api/v1/admin/auth/attachments/upload',
+    formData
   );
 }
 
@@ -62,8 +59,20 @@ export function moveAttachment(id: number, groupId?: number | null) {
 }
 
 // 预览/下载附件
+// 直接生成 URL（不携带 JWT，仅用于非认证场景）
 export function getAttachmentPreviewUrl(id: number) {
   return `/api/v1/admin/auth/attachments/${id}/preview`;
+}
+
+// 通过 axios 带认证下载附件（返回 Blob）
+export function downloadAttachment(
+  id: number,
+  onProgress?: (progressEvent: { loaded: number; total?: number }) => void
+) {
+  return axios.get<Blob>(`/api/v1/admin/auth/attachments/${id}/preview`, {
+    responseType: 'blob',
+    onDownloadProgress: onProgress,
+  });
 }
 
 // 获取附件分组列表

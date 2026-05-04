@@ -268,7 +268,7 @@
     AttachmentResponse,
     AttachmentGroupResponse,
   } from '@/types/api';
-  import { formatDateTime } from '@/utils';
+  import { formatDateTime, formatSize } from '@/utils';
   import {
     getAttachments,
     deleteAttachment,
@@ -316,14 +316,6 @@
     name: '',
     description: '',
   });
-
-  const formatSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    const k = 1024;
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / k ** i).toFixed(2)} ${units[i]}`;
-  };
 
   const getGroupName = (groupId: number | undefined | null): string => {
     if (!groupId) return '-';
