@@ -1,0 +1,33 @@
+export default {
+  'system.permission.searchPlaceholder': 'Search role name',
+  'system.permission.create': 'Create Permission',
+  'system.permission.roleName': 'Role Name',
+  'system.permission.domain': 'Domain',
+  'system.permission.object': 'Object',
+  'system.permission.action': 'Action',
+  'system.permission.type': 'Type',
+  'system.permission.description': 'Description',
+  'system.permission.operations': 'Operations',
+  'system.permission.filterType': 'Permission Type',
+  'system.permission.filterType.all': 'All',
+  'system.permission.deleteConfirm': 'Are you sure to delete this permission?',
+  'system.permission.form.title.create': 'Create Permission',
+  'system.permission.form.title.edit': 'Edit Permission',
+  'system.permission.form.roleName.placeholder': 'Enter role name',
+  'system.permission.form.roleName.required': 'Role name is required',
+  'system.permission.form.domain.placeholder': 'Enter domain',
+  'system.permission.form.domain.required': 'Domain is required',
+  'system.permission.form.object.placeholder':
+    'Enter object (API path / menu path / button identifier)',
+  'system.permission.form.object.required': 'Object is required',
+  'system.permission.form.action.placeholder':
+    'Enter action (HTTP method / menu / button)',
+  'system.permission.form.action.required': 'Action is required',
+  'system.permission.form.type.placeholder': 'Select type',
+  'system.permission.form.type.required': 'Type is required',
+  'system.permission.form.description.placeholder':
+    'Enter description (optional)',
+  'system.permission.createSuccess': 'Created successfully',
+  'system.permission.updateSuccess': 'Updated successfully',
+  'system.permission.deleteSuccess': 'Deleted successfully',
+};
