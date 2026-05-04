@@ -42,7 +42,12 @@ axios.interceptors.response.use(
     // 检查业务状态码，非零 code 视为业务错误
     const res = response.data as HttpResponse;
     // 业务状态码 1 和 2 均为成功
-    if (res && typeof res.code === 'number' && res.code !== 1 && res.code !== 2) {
+    if (
+      res &&
+      typeof res.code === 'number' &&
+      res.code !== 1 &&
+      res.code !== 2
+    ) {
       Message.error({
         content: res.message || 'Request Error',
         duration: 5 * 1000,

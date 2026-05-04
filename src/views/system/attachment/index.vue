@@ -249,7 +249,12 @@
       </a-form>
       <template #footer>
         <a-button @click="groupFormVisible = false">取消</a-button>
-        <a-button type="primary" :loading="submitting" @click="handleGroupFormSubmit">确定</a-button>
+        <a-button
+          type="primary"
+          :loading="submitting"
+          @click="handleGroupFormSubmit"
+          >确定</a-button
+        >
       </template>
     </a-modal>
   </div>

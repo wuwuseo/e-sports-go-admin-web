@@ -93,11 +93,7 @@
           <!-- 底部操作按钮 -->
           <div class="bottom-actions">
             <a-space>
-              <a-button
-                type="outline"
-                size="large"
-                @click="addBlock"
-              >
+              <a-button type="outline" size="large" @click="addBlock">
                 <template #icon><icon-plus /></template>
                 {{ $t('system.dict.block.addBlock') }}
               </a-button>
@@ -339,7 +335,8 @@
                   updateDictData(row.id, {
                     label: row.label,
                     value: row.value,
-                    dict_type: newBlockName !== dictType ? newBlockName : undefined,
+                    dict_type:
+                      newBlockName !== dictType ? newBlockName : undefined,
                   })
                 );
               }

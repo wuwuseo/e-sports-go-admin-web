@@ -103,12 +103,8 @@
     dict_type: [
       { required: true, message: t('system.dict.form.dictType.required') },
     ],
-    label: [
-      { required: true, message: t('system.dict.form.label.required') },
-    ],
-    value: [
-      { required: true, message: t('system.dict.form.value.required') },
-    ],
+    label: [{ required: true, message: t('system.dict.form.label.required') }],
+    value: [{ required: true, message: t('system.dict.form.value.required') }],
   }));
 
   watch(

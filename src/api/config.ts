@@ -56,9 +56,7 @@ export function updateConfig(id: number, data: UpdateConfigRequest) {
 
 // 删除配置
 export function deleteConfig(id: number) {
-  return axios.delete<ApiResponse<null>>(
-    `/api/v1/admin/auth/configs/${id}`
-  );
+  return axios.delete<ApiResponse<null>>(`/api/v1/admin/auth/configs/${id}`);
 }
 
 // 获取配置分组选项

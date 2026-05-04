@@ -306,7 +306,13 @@ export interface DictDataQuery extends PaginationQuery {
 }
 
 // ===== 系统配置相关 =====
-export type ConfigValueType = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'array2d';
+export type ConfigValueType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'json'
+  | 'array'
+  | 'array2d';
 
 export interface ConfigResponse {
   id: number;

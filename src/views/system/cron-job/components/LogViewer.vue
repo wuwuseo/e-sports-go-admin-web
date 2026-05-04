@@ -39,7 +39,13 @@
                 class="log-file-item"
               >
                 <icon-file />
-                <span class="log-file-item-name" :title="file.filename + ' - ' + formatDateTime(file.created_at)">{{ file.filename }}</span>
+                <span
+                  class="log-file-item-name"
+                  :title="
+                    file.filename + ' - ' + formatDateTime(file.created_at)
+                  "
+                  >{{ file.filename }}</span
+                >
                 <span class="log-file-item-size">
                   {{ formatSize(file.size) }}
                 </span>
