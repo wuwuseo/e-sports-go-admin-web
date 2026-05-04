@@ -158,9 +158,6 @@
   // 区块名称映射（编辑后的名称）
   const blockNames = reactive<Record<string, string>>({});
 
-  // 已删除的区块名称集合
-  const removedBlocks = reactive<Set<string>>(new Set());
-
   // 获取指定类型的行
   const getRows = (dictType: string): EditableRow[] => {
     return editableRows[dictType] || [];
@@ -229,27 +226,6 @@
     });
   };
 
-  // 复制行
-  const copyRow = (dictType: string, record: EditableRow) => {
-    if (!editableRows[dictType]) {
-      editableRows[dictType] = [];
-    }
-    const index = editableRows[dictType].indexOf(record);
-    const copy: EditableRow = {
-      value: record.value,
-      label: record.label,
-      dictType,
-      originValue: '',
-      originLabel: '',
-      isNewRow: true,
-    };
-    if (index >= 0) {
-      editableRows[dictType].splice(index + 1, 0, copy);
-    } else {
-      editableRows[dictType].push(copy);
-    }
-  };
-
   // 删除行（标记删除）
   const removeRow = (dictType: string, record: EditableRow) => {
     const rows = editableRows[dictType];
@@ -276,18 +252,6 @@
     blockNames[newType] = '';
     editableRows[newType] = [];
     deletedRowIds[newType] = new Set();
-  };
-
-  // 删除区块（标记删除）
-  const removeBlock = (dictType: string) => {
-    const index = blockKeys.value.indexOf(dictType);
-    if (index >= 0) {
-      blockKeys.value.splice(index, 1);
-    }
-    removedBlocks.add(dictType);
-    delete editableRows[dictType];
-    delete deletedRowIds[dictType];
-    delete blockNames[dictType];
   };
 
   // 保存所有修改
