@@ -41,7 +41,8 @@ axios.interceptors.response.use(
     // HTTP 2xx means the request succeeded, return the full AxiosResponse
     // 检查业务状态码，非零 code 视为业务错误
     const res = response.data as HttpResponse;
-    if (res && typeof res.code === 'number' && res.code !== 1) {
+    // 业务状态码 1 和 2 均为成功
+    if (res && typeof res.code === 'number' && res.code !== 1 && res.code !== 2) {
       Message.error({
         content: res.message || 'Request Error',
         duration: 5 * 1000,
