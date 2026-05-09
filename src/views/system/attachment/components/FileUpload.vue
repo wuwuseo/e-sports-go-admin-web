@@ -37,7 +37,11 @@
             :color="item.method === 'chunk' ? 'orange' : 'blue'"
             size="small"
           >
-            {{ item.method === 'chunk' ? '分片' : '直接' }}
+            {{
+              item.method === 'chunk'
+                ? $t('system.attachment.upload.method.chunk')
+                : $t('system.attachment.upload.method.simple')
+            }}
           </a-tag>
         </div>
         <div class="file-status">
@@ -45,20 +49,27 @@
           <template v-if="item.status === 'uploading'">
             <a-progress :percent="item.progress" :width="'100%'" size="small" />
             <span v-if="item.chunkInfo" class="chunk-hint">
-              分片 {{ item.chunkInfo.current }}/{{ item.chunkInfo.total }}
+              {{
+                $t('system.attachment.upload.chunkInfo', {
+                  current: item.chunkInfo.current,
+                  total: item.chunkInfo.total,
+                })
+              }}
             </span>
           </template>
           <!-- 等待中 -->
           <span v-else-if="item.status === 'pending'" class="status-pending">
-            等待上传
+            {{ $t('system.attachment.upload.pending') }}
           </span>
           <!-- 成功 -->
           <span v-else-if="item.status === 'success'" class="status-success">
-            <icon-check-circle-fill /> 上传成功
+            <icon-check-circle-fill />
+            {{ $t('system.attachment.uploadSuccess') }}
           </span>
           <!-- 失败 -->
           <span v-else-if="item.status === 'error'" class="status-error">
-            <icon-close-circle-fill /> {{ item.errorMsg || '上传失败' }}
+            <icon-close-circle-fill />
+            {{ item.errorMsg || $t('system.attachment.upload.failed') }}
           </span>
         </div>
       </div>
@@ -77,7 +88,7 @@
       >
         {{
           isUploading
-            ? '上传中...'
+            ? $t('system.attachment.upload.uploading')
             : $t('system.attachment.upload.confirm') || '确定上传'
         }}
       </a-button>
@@ -238,7 +249,7 @@
       // 全部成功后自动关闭
       emit('update:visible', false);
     } else {
-      Message.warning('部分文件上传失败，请检查后重试');
+      Message.warning(t('system.attachment.upload.partialFail'));
     }
   };
 
@@ -266,7 +277,7 @@
 
       const start = i * chunkSize.value;
       const end = Math.min(start + chunkSize.value, file.size);
-      const chunkBlob = file.slice(start, end);
+      const chunkBlob = file.slice(start, end, file.type);
 
       const isFirstChunk = i === 0;
 
@@ -274,13 +285,13 @@
       const res = await uploadAttachmentChunk(
         chunkBlob,
         {
-          groupId: isFirstChunk ? props.groupId : undefined,
+          groupId: props.groupId,
           uploadId,
           chunkIndex: i,
-          totalChunks: isFirstChunk ? totalChunks : undefined,
-          filename: isFirstChunk ? file.name : undefined,
-          fileSize: isFirstChunk ? file.size : undefined,
-          chunkSize: isFirstChunk ? chunkSize.value : undefined,
+          totalChunks,
+          filename: file.name,
+          fileSize: file.size,
+          chunkSize: chunkSize.value,
         },
         (progressEvent) => {
           if (progressEvent.total) {

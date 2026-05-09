@@ -379,7 +379,7 @@
                                         record.values[colIndex].value === 'true'
                                       "
                                       size="small"
-                                      @change="(val: boolean) => { record.values[colIndex].value = String(val); }"
+                                      @change="(val: string | number | boolean) => { record.values[colIndex].value = String(val); }"
                                     />
                                     <template
                                       v-else-if="
@@ -557,7 +557,7 @@
                                                     subRecord.value === 'true'
                                                   "
                                                   size="small"
-                                                  @change="(val: boolean) => { subRecord.value = String(val); }"
+                                                  @change="(val: string | number | boolean) => { subRecord.value = String(val); }"
                                                 />
                                                 <a-textarea
                                                   v-else-if="
@@ -914,7 +914,7 @@
                         v-if="record.values[colIndex].type === 'boolean'"
                         :model-value="record.values[colIndex].value === 'true'"
                         size="small"
-                        @change="(val: boolean) => { record.values[colIndex].value = String(val); }"
+                        @change="(val: string | number | boolean) => { record.values[colIndex].value = String(val); }"
                       />
                       <a-textarea
                         v-else-if="record.values[colIndex].type === 'json'"

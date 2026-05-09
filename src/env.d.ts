@@ -6,6 +6,17 @@ declare module '*.vue' {
   const component: DefineComponent<{}, {}, any>;
   export default component;
 }
+
+// 声明 JSX IntrinsicElements 以支持 .vue 文件中的 TSX 渲染函数
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace JSX {
+    interface IntrinsicElements {
+      [elem: string]: any;
+    }
+  }
+}
+
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string;
 }

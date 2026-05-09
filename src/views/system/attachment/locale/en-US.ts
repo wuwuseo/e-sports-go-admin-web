@@ -34,6 +34,16 @@ export default {
   'system.attachment.preview.title': 'Attachment Preview',
   'system.attachment.upload.title': 'Upload File',
   'system.attachment.upload.drag': 'Click or drag file to this area to upload',
+  'system.attachment.upload.cancel': 'Cancel',
+  'system.attachment.upload.confirm': 'Upload',
+  'system.attachment.upload.uploading': 'Uploading...',
+  'system.attachment.upload.pending': 'Pending',
+  'system.attachment.upload.failed': 'Upload failed',
+  'system.attachment.upload.method.chunk': 'Chunk',
+  'system.attachment.upload.method.simple': 'Direct',
+  'system.attachment.upload.chunkInfo': 'Chunk {current}/{total}',
+  'system.attachment.upload.partialFail':
+    'Some files failed to upload, please check and retry',
   'system.attachment.moveTo': 'Move to Group',
   'system.attachment.moveSuccess': 'Moved successfully',
 };

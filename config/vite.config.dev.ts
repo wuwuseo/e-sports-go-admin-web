@@ -14,6 +14,10 @@ export default mergeConfig(
         '/api': {
           target: 'http://127.0.0.1:9501',
           changeOrigin: true,
+          // 代理请求超时 5 分钟（处理大文件上传）
+          proxyTimeout: 300_000,
+          // 上游请求超时 5 分钟
+          timeout: 300_000,
         },
       },
     },

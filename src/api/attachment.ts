@@ -48,13 +48,18 @@ export function uploadAttachmentChunk(
 
   if (options.uploadId) {
     formData.append('upload_id', options.uploadId);
-  } else {
-    // 首片：携带初始化参数
+  }
+  // 每片都携带，方便后端校验
+  if (options.totalChunks !== undefined) {
     formData.append('total_chunks', String(options.totalChunks));
-    if (options.filename) {
-      formData.append('filename', options.filename);
-    }
+  }
+  if (options.filename) {
+    formData.append('filename', options.filename);
+  }
+  if (options.fileSize !== undefined) {
     formData.append('file_size', String(options.fileSize));
+  }
+  if (options.chunkSize !== undefined) {
     formData.append('chunk_size', String(options.chunkSize));
   }
 

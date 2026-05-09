@@ -15,6 +15,9 @@ if (import.meta.env.VITE_API_BASE_URL) {
   axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL;
 }
 
+// 全局请求超时：5 分钟（兼顾小请求与大文件上传）
+axios.defaults.timeout = 300_000;
+
 axios.interceptors.request.use(
   (config: AxiosRequestConfig) => {
     // let each request carry token
