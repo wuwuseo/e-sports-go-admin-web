@@ -127,6 +127,7 @@
     updateDictData,
     deleteDictData,
   } from '@/api/dict-data';
+  import { notifyDictChange } from '@/hooks/dict';
 
   const { t } = useI18n();
 
@@ -259,6 +260,9 @@
     saving.value = true;
     try {
       const promises: Promise<any>[] = [];
+      // 收集本次保存涉及到的字典类型，保存成功后广播变更事件，
+      // 触发其他页面（如操作日志的模块下拉）通过 useDict 自动刷新
+      const affectedDictTypes = new Set<string>();
 
       blockKeys.value.forEach((dictType) => {
         const rows = editableRows[dictType] || [];
@@ -270,6 +274,7 @@
           delIds.forEach((id) => {
             promises.push(deleteDictData(id));
           });
+          affectedDictTypes.add(dictType);
         }
 
         // 2. 创建/更新行
@@ -288,6 +293,7 @@
                   status: 1,
                 })
               );
+              affectedDictTypes.add(newBlockName);
             } else if (
               row.value !== row.originValue ||
               row.label !== row.originLabel ||
@@ -303,6 +309,10 @@
                       newBlockName !== dictType ? newBlockName : undefined,
                   })
                 );
+                affectedDictTypes.add(dictType);
+                if (newBlockName !== dictType) {
+                  affectedDictTypes.add(newBlockName);
+                }
               }
             }
           }
@@ -312,6 +322,12 @@
       if (promises.length > 0) {
         await Promise.all(promises);
         Message.success(t('system.dict.saveSuccess'));
+        // 广播字典变更事件，让所有正在使用这些字典的下拉框自动刷新
+        affectedDictTypes.forEach((type) => {
+          if (type) {
+            notifyDictChange(type);
+          }
+        });
       } else {
         Message.info(t('system.dict.saveSuccess'));
       }

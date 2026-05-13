@@ -47,7 +47,11 @@
         <div class="file-status">
           <!-- 上传中 -->
           <template v-if="item.status === 'uploading'">
-            <a-progress :percent="item.progress" :width="'100%'" size="small" />
+            <a-progress
+              :percent="Math.min(Math.max(item.progress, 0), 100) / 100"
+              :width="'100%'"
+              size="small"
+            />
             <span v-if="item.chunkInfo" class="chunk-hint">
               {{
                 $t('system.attachment.upload.chunkInfo', {
@@ -102,11 +106,8 @@
   import type { FileItem } from '@arco-design/web-vue/es/upload/interfaces';
   import { useI18n } from 'vue-i18n';
   import { uploadAttachment, uploadAttachmentChunk } from '@/api/attachment';
-  import { getConfigByKey } from '@/api/config';
+  import { getChunkUploadConfig } from '@/services/config.service';
   import { formatSize } from '@/utils';
-
-  const CHUNK_SIZE_DEFAULT = 5 * 1024 * 1024; // 5MB 每片
-  const CHUNK_THRESHOLD_DEFAULT = 10 * 1024 * 1024; // 10MB 阈值
 
   interface ChunkInfo {
     current: number;
@@ -139,8 +140,8 @@
   // 内部管理的上传队列
   const uploadItems = ref<UploadItem[]>([]);
   const isUploading = ref(false);
-  const chunkThreshold = ref(CHUNK_THRESHOLD_DEFAULT);
-  const chunkSize = ref(CHUNK_SIZE_DEFAULT);
+  const chunkThreshold = ref(10 * 1024 * 1024);
+  const chunkSize = ref(5 * 1024 * 1024);
 
   // 是否全部上传完毕
   const allUploaded = computed(
@@ -166,31 +167,15 @@
     }
   );
 
-  // 从系统配置获取分片上传相关参数
   const fetchUploadConfig = async () => {
     try {
-      const keys = ['attachment.chunk_threshold', 'attachment.chunk_size'];
-      const results = await Promise.allSettled(
-        keys.map((key) => getConfigByKey(key))
-      );
-
-      if (
-        results[0].status === 'fulfilled' &&
-        results[0].value.data.data?.value
-      ) {
-        const val = Number(results[0].value.data.data.value);
-        if (val > 0) chunkThreshold.value = val;
-      }
-
-      if (
-        results[1].status === 'fulfilled' &&
-        results[1].value.data.data?.value
-      ) {
-        const val = Number(results[1].value.data.data.value);
-        if (val > 0) chunkSize.value = val;
-      }
-    } catch {
-      // 配置不存在时使用默认值
+      const config = await getChunkUploadConfig();
+      chunkThreshold.value = config.CHUNK_THRESHOLD;
+      chunkSize.value = config.CHUNK_SIZE;
+    } catch (error) {
+      // 获取分片上传配置失败，使用默认值兜底
+      // eslint-disable-next-line no-console
+      console.error('获取分片上传配置失败:', error);
     }
   };
 
@@ -294,14 +279,22 @@
           chunkSize: chunkSize.value,
         },
         (progressEvent) => {
-          if (progressEvent.total) {
-            // 当前分片的进度占比
-            const chunkWeight = 1 / totalChunks;
-            const chunkProgress = progressEvent.loaded / progressEvent.total;
-            item.progress = Math.min(
-              Math.round((i * chunkWeight + chunkProgress * chunkWeight) * 100),
-              99
-            );
+          // 防御：total 不存在或为 0 时跳过本次回调，避免 Infinity / NaN
+          if (!progressEvent.total || progressEvent.total <= 0) {
+            return;
+          }
+          // 当前分片自身的完成比例，限制在 [0, 1]
+          const chunkProgress = Math.min(
+            Math.max(progressEvent.loaded / progressEvent.total, 0),
+            1
+          );
+          // 整体进度 = (已完成分片数 + 当前分片完成比例) / 总分片数
+          const overall = ((i + chunkProgress) / totalChunks) * 100;
+          // 上传阶段最多显示 99%，等待后端合并完成后再置 100
+          const next = Math.min(Math.max(Math.round(overall), 0), 99);
+          // 防止进度回退（同一分片内多次回调或重试时可能出现）
+          if (next > item.progress) {
+            item.progress = next;
           }
         }
       );
@@ -316,8 +309,14 @@
       if (chunkData.attachment) {
         item.progress = 100;
       } else {
-        // 更新整体进度（基于已上传的分片数）
-        item.progress = Math.min(Math.round(((i + 1) / totalChunks) * 100), 99);
+        // 单片完成后用"已完成分片数 / 总分片数"再纠正一次，最多到 99%
+        const done = Math.min(
+          Math.max(Math.round(((i + 1) / totalChunks) * 100), 0),
+          99
+        );
+        if (done > item.progress) {
+          item.progress = done;
+        }
       }
     }, Promise.resolve());
   };

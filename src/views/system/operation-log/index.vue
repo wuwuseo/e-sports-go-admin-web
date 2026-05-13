@@ -17,15 +17,16 @@
               v-model="searchForm.module"
               :placeholder="$t('system.operationLog.module.placeholder')"
               style="width: 150px"
+              :loading="moduleDictLoading"
               allow-clear
             >
-              <a-option value="auth">认证</a-option>
-              <a-option value="user">用户</a-option>
-              <a-option value="role">角色</a-option>
-              <a-option value="permission">权限</a-option>
-              <a-option value="attachment">附件</a-option>
-              <a-option value="cron">定时任务</a-option>
-              <a-option value="system">系统</a-option>
+              <a-option
+                v-for="opt in moduleOptions"
+                :key="opt.value"
+                :value="opt.value"
+              >
+                {{ opt.label }}
+              </a-option>
             </a-select>
 
             <a-range-picker
@@ -68,7 +69,7 @@
           >
             <template #cell="{ record }">
               <a-tag :color="moduleColorMap[record.module] || 'gray'">{{
-                record.module
+                moduleLabelMap[record.module] || record.module
               }}</a-tag>
             </template>
           </a-table-column>
@@ -171,10 +172,11 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, onMounted } from 'vue';
+  import { ref, reactive, computed, onMounted } from 'vue';
   import { getOperationLogs } from '@/api/operation-log';
   import type { OperationLogResponse } from '@/types/api';
   import { formatDateTime } from '@/utils';
+  import { useDict } from '@/hooks/dict';
   import LogDetail from './components/LogDetail.vue';
 
   const loading = ref(false);
@@ -215,6 +217,20 @@
     cron: 'arcoblue',
     system: 'gray',
   };
+
+  // 模块下拉框由数据字典驱动（字典类型：sys_oper_log_module）
+  // 字典内容变化时（dict-data 页面保存后），下拉框选项会通过事件总线自动同步刷新
+  const { options: moduleOptions, loading: moduleDictLoading } =
+    useDict('sys_oper_log_module');
+
+  // 模块值 -> 显示文本 的映射，用于表格列展示
+  const moduleLabelMap = computed<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    moduleOptions.value.forEach((opt) => {
+      map[opt.value] = opt.label;
+    });
+    return map;
+  });
 
   const fetchData = async () => {
     loading.value = true;
