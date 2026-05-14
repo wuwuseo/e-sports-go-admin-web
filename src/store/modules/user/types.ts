@@ -16,4 +16,10 @@ export interface UserState {
   accountId?: string;
   certification?: number;
   role: RoleType;
+  // 菜单权限列表（权限码）
+  menuPermissions: string[];
+  // 按钮权限列表（权限码）
+  buttonPermissions: string[];
+  // 权限加载状态
+  permissionsLoading: boolean;
 }

@@ -89,6 +89,155 @@ export interface PermissionResponse {
   description?: string;
 }
 
+// 权限规则（用于分配/移除权限）
+export interface PermissionRule {
+  object: string;
+  action: string;
+}
+
+// 权限复合键（用于查询/删除权限）
+export interface PermissionKey {
+  role_name: string;
+  domain: string;
+  object: string;
+  action: string;
+}
+
+// ===== 系统权限元数据（sys_permissions） =====
+export type SysPermissionType = 'api' | 'menu' | 'button';
+
+export interface SysPermissionResponse {
+  id: number;
+  name: string;
+  code: string;
+  type: SysPermissionType;
+  domain: string;
+  path?: string;
+  method?: string;
+  menu_path?: string;
+  component?: string;
+  icon?: string;
+  parent_id?: number;
+  sort_order?: number;
+  is_common?: boolean;
+  status: number;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSysPermissionRequest {
+  name: string;
+  code: string;
+  type: SysPermissionType;
+  domain: string;
+  path?: string;
+  method?: string;
+  menu_path?: string;
+  component?: string;
+  icon?: string;
+  parent_id?: number;
+  sort_order?: number;
+  is_common?: boolean;
+  status?: number;
+  description?: string;
+}
+
+export interface UpdateSysPermissionRequest {
+  name?: string;
+  code?: string;
+  type?: SysPermissionType;
+  domain?: string;
+  path?: string;
+  method?: string;
+  menu_path?: string;
+  component?: string;
+  icon?: string;
+  parent_id?: number;
+  sort_order?: number;
+  is_common?: boolean;
+  status?: number;
+  description?: string;
+}
+
+export interface SysPermissionTreeNode {
+  id: number;
+  name: string;
+  code: string;
+  type: SysPermissionType;
+  domain: string;
+  path?: string;
+  method?: string;
+  menu_path?: string;
+  component?: string;
+  icon?: string;
+  parent_id?: number;
+  sort_order?: number;
+  is_common?: boolean;
+  status: number;
+  description?: string;
+  children?: SysPermissionTreeNode[];
+  checked?: boolean;
+  indeterminate?: boolean;
+}
+
+export interface SysPermissionQuery {
+  page?: number;
+  page_size?: number;
+  domain?: string;
+  type?: SysPermissionType;
+  keyword?: string;
+  status?: number;
+}
+
+// 保存角色权限请求（覆盖式，基于 Casbin）
+export interface SaveRolePermissionsRequest {
+  domain: string;
+  permissions: Array<{
+    object: string;
+    action: string;
+  }>;
+}
+
+// ===== RBAC 树形权限结构 =====
+export interface PermissionTreeNode {
+  key: string;
+  title: string;
+  type: PermissionType;
+  object: string;
+  action: string;
+  description?: string;
+  children?: PermissionTreeNode[];
+  isLeaf?: boolean;
+  checked?: boolean;
+  indeterminate?: boolean;
+  disabled?: boolean;
+}
+
+export interface PermissionGroup {
+  object: string;
+  permissions: PermissionResponse[];
+  children?: {
+    action: string;
+    permissions: PermissionResponse[];
+  }[];
+}
+
+// 权限操作类型
+export type PermissionAction =
+  | 'create'
+  | 'read'
+  | 'update'
+  | 'delete'
+  | 'assign';
+
+// 权限缓存项
+export interface PermissionCacheItem {
+  roleName: string;
+  permissions: PermissionResponse[];
+  timestamp: number;
+}
+
 export interface CreatePermissionRequest {
   role_name: string;
   domain: string;
@@ -99,12 +248,13 @@ export interface CreatePermissionRequest {
 }
 
 export interface UpdatePermissionRequest {
-  id: number;
-  role_name?: string;
-  domain?: string;
-  object?: string;
-  action?: string;
-  type?: PermissionType;
+  role_name: string;
+  domain: string;
+  object: string;
+  action: string;
+  type: PermissionType;
+  new_object?: string;
+  new_action?: string;
   description?: string;
 }
 
@@ -265,6 +415,14 @@ export interface PermissionQuery extends PaginationQuery {
   role_name?: string;
   domain?: string;
   type?: PermissionType;
+}
+
+// 获取所有权限（不带分页）的查询参数
+export interface PermissionsAllQuery {
+  keyword?: string;
+  type?: PermissionType;
+  domain?: string;
+  role_name?: string;
 }
 
 export interface AttachmentQuery extends PaginationQuery {

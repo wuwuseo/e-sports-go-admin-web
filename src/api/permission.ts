@@ -4,6 +4,7 @@ import type {
   CreatePermissionRequest,
   UpdatePermissionRequest,
   PermissionQuery,
+  PermissionsAllQuery,
   ApiResponse,
   PaginatedResponse,
 } from '@/types/api';
@@ -12,6 +13,14 @@ import type {
 export function getPermissions(params?: PermissionQuery) {
   return axios.get<ApiResponse<PaginatedResponse<PermissionResponse>>>(
     '/api/v1/admin/auth/permissions',
+    { params }
+  );
+}
+
+// 获取所有权限（不带分页，支持筛选）
+export function getAllPermissions(params?: PermissionsAllQuery) {
+  return axios.get<ApiResponse<PermissionResponse[]>>(
+    '/api/v1/admin/auth/permissions/all',
     { params }
   );
 }
@@ -26,21 +35,28 @@ export function createPermission(data: CreatePermissionRequest) {
 
 // 更新权限
 export function updatePermission(data: UpdatePermissionRequest) {
-  return axios.put<ApiResponse<PermissionResponse>>(
-    '/api/v1/admin/auth/permissions',
-    data
-  );
+  return axios.put<ApiResponse<string>>('/api/v1/admin/auth/permissions', data);
 }
 
 // 删除权限
-export function deletePermission(params: { id: number }) {
-  return axios.delete<ApiResponse<null>>('/api/v1/admin/auth/permissions', {
+export function deletePermission(params: {
+  role_name: string;
+  domain: string;
+  object: string;
+  action: string;
+}) {
+  return axios.delete<ApiResponse<string>>('/api/v1/admin/auth/permissions', {
     params,
   });
 }
 
 // 获取权限详情
-export function getPermissionDetail(params: { id: number }) {
+export function getPermissionDetail(params: {
+  role_name: string;
+  domain: string;
+  object: string;
+  action: string;
+}) {
   return axios.get<ApiResponse<PermissionResponse>>(
     '/api/v1/admin/auth/permissions/detail',
     { params }

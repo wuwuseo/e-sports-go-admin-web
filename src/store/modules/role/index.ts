@@ -1,18 +1,21 @@
 import { defineStore } from 'pinia';
 import {
   getRoles,
+  getAllRoles,
   createRole,
   updateRole,
   deleteRole,
   enableRole,
   disableRole,
   getRoleDetail,
+  saveRolePermissions,
 } from '@/api/role';
 import type {
   RoleResponse,
   CreateRoleRequest,
   UpdateRoleRequest,
   RoleQuery,
+  SaveRolePermissionsRequest,
 } from '@/types/api';
 
 export interface RoleState {
@@ -73,6 +76,16 @@ const useRoleStore = defineStore('role', {
 
     setCurrentRole(role?: RoleResponse) {
       this.currentRole = role;
+    },
+
+    async fetchAllRoles(query?: { keyword?: string; status?: string }) {
+      const res = await getAllRoles(query);
+      return res.data.data;
+    },
+
+    async saveRolePermissions(id: number, data: SaveRolePermissionsRequest) {
+      const res = await saveRolePermissions(id, data);
+      return res.data;
     },
   },
 });

@@ -14,17 +14,39 @@ export default function useMenuTree() {
     }
     return appClientMenus;
   });
+
   const menuTree = computed(() => {
     const copyRouter = cloneDeep(appRoute.value) as RouteRecordNormalized[];
     copyRouter.sort((a: RouteRecordNormalized, b: RouteRecordNormalized) => {
       return (a.meta.order || 0) - (b.meta.order || 0);
     });
+
+    // 检查菜单项是否有权限访问
+    function canAccessMenu(route: RouteRecordRaw): boolean {
+      // 1. 首先检查基于角色的权限
+      if (!permission.accessRouter(route)) {
+        return false;
+      }
+
+      // 2. 检查基于权限码的权限
+      if (route.meta?.permissionCode) {
+        const permissionCode = route.meta.permissionCode as string | string[];
+        if (Array.isArray(permissionCode)) {
+          return permission.hasAnyPermission(permissionCode);
+        }
+        return permission.hasMenuPermission(permissionCode);
+      }
+
+      // 3. 默认允许访问
+      return true;
+    }
+
     function travel(_routes: RouteRecordRaw[], layer: number) {
       if (!_routes) return null;
 
       const collector: any = _routes.map((element) => {
-        // no access
-        if (!permission.accessRouter(element)) {
+        // 检查是否有权限访问
+        if (!canAccessMenu(element)) {
           return null;
         }
 
@@ -39,16 +61,21 @@ export default function useMenuTree() {
           (x) => x.meta?.hideInMenu !== true
         );
 
-        // Associated child node
-        const subItem = travel(element.children, layer + 1);
+        // 过滤子菜单权限
+        const filteredChildren = element.children.filter((child) =>
+          canAccessMenu(child)
+        );
 
-        if (subItem.length) {
+        // Associated child node
+        const subItem = travel(filteredChildren, layer + 1);
+
+        if (subItem && subItem.length) {
           element.children = subItem;
           return element;
         }
         // the else logic
         if (layer > 1) {
-          element.children = subItem;
+          element.children = subItem || [];
           return element;
         }
 
@@ -60,6 +87,7 @@ export default function useMenuTree() {
       });
       return collector.filter(Boolean);
     }
+
     return travel(copyRouter, 0);
   });
 

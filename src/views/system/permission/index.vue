@@ -1,9 +1,70 @@
 <template>
   <div class="container">
     <a-card class="general-card" :title="$t('menu.system.permission')">
-      <!-- 工具栏 -->
+      <a-row :gutter="12" style="margin-bottom: 20px">
+        <a-col :span="6">
+          <div class="stat-card">
+            <div class="stat-card-icon api-icon">API</div>
+            <div>
+              <div class="stat-card-value">
+                {{ apiCount }}
+              </div>
+              <div class="stat-card-label">API 权限</div>
+            </div>
+          </div>
+        </a-col>
+        <a-col :span="6">
+          <div class="stat-card">
+            <div class="stat-card-icon menu-icon">
+              <icon-menu />
+            </div>
+            <div>
+              <div class="stat-card-value">
+                {{ menuCount }}
+              </div>
+              <div class="stat-card-label">菜单权限</div>
+            </div>
+          </div>
+        </a-col>
+        <a-col :span="6">
+          <div class="stat-card">
+            <div class="stat-card-icon button-icon">
+              <icon-thumb-up />
+            </div>
+            <div>
+              <div class="stat-card-value">
+                {{ buttonCount }}
+              </div>
+              <div class="stat-card-label">按钮权限</div>
+            </div>
+          </div>
+        </a-col>
+        <a-col :span="6">
+          <div class="stat-card">
+            <div class="stat-card-icon total-icon">
+              <icon-safe />
+            </div>
+            <div>
+              <div class="stat-card-value">{{ totalCount }}</div>
+              <div class="stat-card-label">权限总数</div>
+            </div>
+          </div>
+        </a-col>
+      </a-row>
+
       <div class="page-toolbar">
         <div class="page-toolbar-left">
+          <a-radio-group v-model="viewMode" type="button">
+            <a-radio value="table">
+              <icon-list />
+              表格视图
+            </a-radio>
+            <a-radio value="tree">
+              <icon-folder />
+              树形视图
+            </a-radio>
+          </a-radio-group>
+          <a-divider direction="vertical" />
           <a-select
             v-model="filterType"
             :placeholder="$t('system.permission.filterType')"
@@ -11,144 +72,88 @@
             allow-clear
             @change="handleSearch"
           >
-            <a-option value="api">API</a-option>
-            <a-option value="menu">Menu</a-option>
-            <a-option value="button">Button</a-option>
-          </a-select>
-          <a-select
-            v-model="filterDomain"
-            placeholder="选择域"
-            style="width: 140px"
-            allow-clear
-            @change="handleSearch"
-          >
-            <a-option value="admin">admin</a-option>
-            <a-option value="system">system</a-option>
-            <a-option value="public">public</a-option>
+            <a-option value="api">
+              <span class="type-option">
+                <span class="type-dot api"></span>
+                API
+              </span>
+            </a-option>
+            <a-option value="menu">
+              <span class="type-option">
+                <span class="type-dot menu"></span>
+                菜单
+              </span>
+            </a-option>
+            <a-option value="button">
+              <span class="type-option">
+                <span class="type-dot button"></span>
+                按钮
+              </span>
+            </a-option>
           </a-select>
           <a-input-search
             v-model="searchKeyword"
             :placeholder="$t('system.permission.searchPlaceholder')"
             style="width: 220px"
+            allow-clear
             @search="handleSearch"
           />
         </div>
+        <div v-if="viewMode === 'tree'" class="page-toolbar-right">
+          <a-space>
+            <a-button type="outline" size="small" @click="toggleExpanded">
+              <template #icon>
+                <icon-expand v-if="!expandedKeys?.length" /><icon-menu-fold
+                  v-else
+                /> </template
+              >{{
+                expandedKeys?.length
+                  ? $t('system.permission.fold')
+                  : $t('system.permission.unfold')
+              }}</a-button
+            >
+          </a-space>
+          <a-divider direction="vertical" />
+        </div>
         <div class="page-toolbar-right">
-          <a-button type="primary" @click="handleCreate">
+          <a-button type="outline" @click="handleRefresh">
+            <template #icon><icon-refresh /></template>
+            刷新
+          </a-button>
+          <a-button
+            v-permission="'permission:add'"
+            type="primary"
+            @click="handleCreate"
+          >
             <template #icon><icon-plus /></template>
             {{ $t('system.permission.create') }}
           </a-button>
         </div>
       </div>
 
-      <!-- 权限类型统计 -->
-      <a-row :gutter="12" style="margin-bottom: 20px">
-        <a-col :span="8">
-          <div class="stat-card" style="padding: 10px 16px">
-            <div
-              class="stat-card-icon"
-              style="
-                width: 32px;
-                height: 32px;
-                font-size: 14px;
-                background: linear-gradient(135deg, #dbeafe, #eff6ff);
-                color: #2563eb;
-              "
-            >
-              API
-            </div>
-            <div>
-              <div class="stat-card-value" style="font-size: 16px">{{
-                typeCount.api
-              }}</div>
-              <div class="stat-card-label">API 权限</div>
-            </div>
-          </div>
-        </a-col>
-        <a-col :span="8">
-          <div class="stat-card" style="padding: 10px 16px">
-            <div
-              class="stat-card-icon"
-              style="
-                width: 32px;
-                height: 32px;
-                font-size: 14px;
-                background: linear-gradient(135deg, #d1fae5, #ecfdf5);
-                color: #10b981;
-              "
-            >
-              <icon-menu />
-            </div>
-            <div>
-              <div class="stat-card-value" style="font-size: 16px">{{
-                typeCount.menu
-              }}</div>
-              <div class="stat-card-label">菜单权限</div>
-            </div>
-          </div>
-        </a-col>
-        <a-col :span="8">
-          <div class="stat-card" style="padding: 10px 16px">
-            <div
-              class="stat-card-icon"
-              style="
-                width: 32px;
-                height: 32px;
-                font-size: 14px;
-                background: linear-gradient(135deg, #fef3c7, #fffbeb);
-                color: #f59e0b;
-              "
-            >
-              <icon-thumb-up />
-            </div>
-            <div>
-              <div class="stat-card-value" style="font-size: 16px">{{
-                typeCount.button
-              }}</div>
-              <div class="stat-card-label">按钮权限</div>
-            </div>
-          </div>
-        </a-col>
-      </a-row>
-
-      <!-- 表格 -->
       <a-table
-        :data="permissionList"
-        :loading="loading"
-        :pagination="pagination"
+        v-if="viewMode === 'table'"
+        :data="sysPermissionStore.permissions"
+        :loading="sysPermissionStore.loading"
+        :pagination="false"
         row-key="id"
-        @page-change="handlePageChange"
-        @page-size-change="handlePageSizeChange"
       >
         <template #columns>
           <a-table-column title="ID" data-index="id" :width="70" />
           <a-table-column
-            :title="$t('system.permission.roleName')"
-            data-index="role_name"
-            :width="130"
+            :title="$t('system.permission.name')"
+            data-index="name"
+            :width="150"
           />
           <a-table-column
-            :title="$t('system.permission.domain')"
-            data-index="domain"
-            :width="100"
+            :title="$t('system.permission.code')"
+            data-index="code"
+            :width="180"
           >
             <template #cell="{ record }">
-              <a-tag :color="domainColorMap[record.domain] || 'gray'">{{
-                record.domain
-              }}</a-tag>
+              <span class="code-cell">{{ record.code }}</span>
             </template>
           </a-table-column>
-          <a-table-column
-            :title="$t('system.permission.object')"
-            data-index="object"
-            :ellipsis="true"
-            :tooltip="true"
-          />
-          <a-table-column
-            :title="$t('system.permission.action')"
-            data-index="action"
-            :width="110"
-          />
           <a-table-column
             :title="$t('system.permission.type')"
             data-index="type"
@@ -156,11 +161,41 @@
             align="center"
           >
             <template #cell="{ record }">
+              <a-tag :color="typeTagColor(record.type)" size="small">
+                {{ record.type.toUpperCase() }}
+              </a-tag>
+            </template>
+          </a-table-column>
+          <a-table-column
+            :title="$t('system.permission.method')"
+            data-index="method"
+            :width="90"
+            align="center"
+          >
+            <template #cell="{ record }">
               <span
-                class="gradient-badge"
-                :class="typeBadgeClass(record.type)"
-                >{{ record.type }}</span
+                v-if="record.method"
+                class="method-badge"
+                :class="record.method.toLowerCase()"
               >
+                {{ record.method }}
+              </span>
+            </template>
+          </a-table-column>
+          <a-table-column
+            :title="$t('system.permission.path')"
+            data-index="path"
+            :ellipsis="true"
+            :tooltip="true"
+          >
+            <template #cell="{ record }">
+              <span v-if="record.path" class="path-text">{{
+                record.path
+              }}</span>
+              <span v-else-if="record.menu_path" class="menu-path-text">{{
+                record.menu_path
+              }}</span>
+              <span v-else>-</span>
             </template>
           </a-table-column>
           <a-table-column
@@ -169,13 +204,32 @@
             :ellipsis="true"
           />
           <a-table-column
+            :title="$t('system.permission.status')"
+            data-index="status"
+            :width="90"
+            align="center"
+          >
+            <template #cell="{ record }">
+              <a-switch
+                :model-value="record.status === 1"
+                size="small"
+                disabled
+              />
+            </template>
+          </a-table-column>
+          <a-table-column
             :title="$t('system.permission.operations')"
             :width="160"
             fixed="right"
           >
             <template #cell="{ record }">
               <a-space>
-                <a-button type="text" size="small" @click="handleEdit(record)">
+                <a-button
+                  v-permission="'permission:edit'"
+                  type="text"
+                  size="small"
+                  @click="handleEdit(record)"
+                >
                   <template #icon><icon-edit /></template>
                   {{ $t('common.edit') }}
                 </a-button>
@@ -183,7 +237,12 @@
                   :content="$t('system.permission.deleteConfirm')"
                   @ok="handleDelete(record)"
                 >
-                  <a-button type="text" status="danger" size="small">
+                  <a-button
+                    v-permission="'permission:delete'"
+                    type="text"
+                    status="danger"
+                    size="small"
+                  >
                     <template #icon><icon-delete /></template>
                     {{ $t('common.delete') }}
                   </a-button>
@@ -193,6 +252,79 @@
           </a-table-column>
         </template>
       </a-table>
+
+      <div v-else class="tree-view-container">
+        <a-spin
+          v-if="sysPermissionStore.loading"
+          :loading="true"
+          style="display: flex; justify-content: center; padding: 40px"
+        />
+        <a-empty
+          v-else-if="filteredPermissionTree.length === 0"
+          :description="'暂无权限数据'"
+        />
+        <a-tree
+          v-else
+          v-model:expanded-keys="expandedKeys"
+          :data="filteredPermissionTree"
+          :default-expand-all="true"
+          :show-line="true"
+          :block-node="true"
+          class="permission-tree"
+        >
+          <template #title="nodeData">
+            <div v-if="nodeData" class="tree-node-title">
+              <span class="type-dot" :class="nodeData.type || ''"></span>
+              <span class="name-text">{{
+                nodeData.name ? highlightText(nodeData.name) : ''
+              }}</span>
+              <span
+                v-if="nodeData.method"
+                class="method-badge"
+                :class="nodeData.method.toLowerCase()"
+              >
+                {{ nodeData.method }}
+              </span>
+              <span v-if="nodeData.code" class="code-text">{{
+                highlightText(nodeData.code)
+              }}</span>
+              <span v-if="nodeData.path" class="path-text">{{
+                highlightText(nodeData.path)
+              }}</span>
+              <span v-if="nodeData.description" class="desc-text">
+                {{ nodeData.description }}
+              </span>
+              <div class="node-actions">
+                <a-tooltip content="编辑">
+                  <a-button
+                    v-permission="'permission:edit'"
+                    type="text"
+                    size="mini"
+                    @click.stop="handleEdit(nodeData)"
+                  >
+                    <icon-edit />
+                  </a-button>
+                </a-tooltip>
+                <a-tooltip content="删除">
+                  <a-popconfirm
+                    :content="$t('system.permission.deleteConfirm')"
+                    @ok="handleDelete(nodeData)"
+                  >
+                    <a-button
+                      v-permission="'permission:delete'"
+                      type="text"
+                      status="danger"
+                      size="mini"
+                    >
+                      <icon-delete />
+                    </a-button>
+                  </a-popconfirm>
+                </a-tooltip>
+              </div>
+            </div>
+          </template>
+        </a-tree>
+      </div>
     </a-card>
     <PermissionForm
       v-model:visible="formVisible"
@@ -203,25 +335,29 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, computed, onMounted } from 'vue';
+  import { ref, reactive, computed, onMounted, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
-  import { getPermissions, deletePermission } from '@/api/permission';
-  import type { PermissionResponse, PermissionType } from '@/types/api';
+  import { deleteSysPermission } from '@/api/sys-permission';
+  import useSysPermissionStore from '@/store/modules/sys-permission';
+  import type {
+    SysPermissionResponse,
+    SysPermissionType,
+    SysPermissionTreeNode,
+  } from '@/types/api';
   import PermissionForm from './components/PermissionForm.vue';
 
   const { t } = useI18n();
+  const sysPermissionStore = useSysPermissionStore();
 
   const searchKeyword = ref('');
-  const filterType = ref<PermissionType | ''>('');
-  const filterDomain = ref('');
-  const loading = ref(false);
+  const filterType = ref<SysPermissionType | ''>('');
+  const viewMode = ref<'table' | 'tree'>('table');
   const formVisible = ref(false);
-  const currentPermission = ref<PermissionResponse | undefined>(undefined);
-  const permissionList = ref<PermissionResponse[]>([]);
-  const totalPermissions = ref(0);
+  const currentPermission = ref<SysPermissionResponse | undefined>(undefined);
   const currentPage = ref(1);
-  const pageSize = ref(10);
+  const pageSize = ref(1000);
+  const expandedKeys = ref<string[]>([]);
 
   const pagination = reactive({
     current: currentPage.value,
@@ -231,63 +367,143 @@
     showPageSize: true,
   });
 
-  const domainColorMap: Record<string, string> = {
-    admin: 'purple',
-    system: 'blue',
-    public: 'green',
+  const apiCount = computed(
+    () => sysPermissionStore.permissions.filter((p) => p.type === 'api').length
+  );
+  const menuCount = computed(
+    () => sysPermissionStore.permissions.filter((p) => p.type === 'menu').length
+  );
+  const buttonCount = computed(
+    () =>
+      sysPermissionStore.permissions.filter((p) => p.type === 'button').length
+  );
+  const totalCount = computed(() => sysPermissionStore.total);
+
+  const typeTagColor = (type: string) => {
+    const map: Record<string, string> = {
+      api: 'blue',
+      menu: 'green',
+      button: 'orange',
+    };
+    return map[type] || 'gray';
   };
 
-  const typeCount = computed(() => {
-    const list = permissionList.value;
-    return {
-      api: list.filter((p) => p.type === 'api').length,
-      menu: list.filter((p) => p.type === 'menu').length,
-      button: list.filter((p) => p.type === 'button').length,
+  const transformTreeNodes = (nodes: SysPermissionTreeNode[]): any[] => {
+    if (!nodes || nodes.length === 0) return [];
+    return nodes.map(({ icon, ...rest }) => ({
+      ...rest,
+      key: rest.id,
+      title: rest.name,
+      children: rest.children ? transformTreeNodes(rest.children) : undefined,
+    }));
+  };
+
+  // 高亮搜索文本
+  const highlightText = (text: string) => {
+    if (!searchKeyword.value.trim()) {
+      return text;
+    }
+    const keyword = searchKeyword.value.trim().toLowerCase();
+    const regex = new RegExp(`(${keyword})`, 'gi');
+    return text.replace(regex, '<span class="highlight">$1</span>');
+  };
+
+  const filteredPermissionTree = computed(() => {
+    const type = filterType.value;
+    const search = searchKeyword.value.trim().toLowerCase();
+    const tree = sysPermissionStore.permissionTree || [];
+
+    if (!type && !search) {
+      return transformTreeNodes(tree);
+    }
+
+    const filterTree = (
+      nodes: SysPermissionTreeNode[]
+    ): SysPermissionTreeNode[] => {
+      if (!nodes || nodes.length === 0) {
+        return [];
+      }
+      return nodes
+        .filter((node): node is SysPermissionTreeNode => node !== null)
+        .map((node) => {
+          const matchType = !type || node.type === type;
+          const matchSearch =
+            !search ||
+            (node.name && node.name.toLowerCase().includes(search)) ||
+            (node.path && node.path.toLowerCase().includes(search)) ||
+            (node.code && node.code.toLowerCase().includes(search));
+          const nodeMatch = matchType && matchSearch;
+
+          const children = node.children || [];
+          const filteredChildren = filterTree(children);
+          const hasMatchChildren = filteredChildren.length > 0;
+
+          if (!nodeMatch && !hasMatchChildren) {
+            return null;
+          }
+
+          return {
+            ...node,
+            children: hasMatchChildren ? filteredChildren : undefined,
+          };
+        })
+        .filter((n): n is SysPermissionTreeNode => n !== null);
     };
+
+    return transformTreeNodes(filterTree(tree));
   });
 
-  const typeBadgeClass = (type: string) => {
-    const map: Record<string, string> = {
-      api: 'primary',
-      menu: 'success',
-      button: 'warning',
-    };
-    return map[type] || '';
+  const fetchData = async () => {
+    await sysPermissionStore.fetchSysPermissions({
+      page: currentPage.value,
+      page_size: pageSize.value,
+      type: filterType.value || undefined,
+    });
+    pagination.total = sysPermissionStore.total;
+    pagination.current = currentPage.value;
   };
 
-  const fetchData = async () => {
-    loading.value = true;
-    try {
-      const res = await getPermissions({
-        page: currentPage.value,
-        page_size: pageSize.value,
-        keyword: searchKeyword.value || undefined,
-        type: (filterType.value as PermissionType) || undefined,
-        domain: filterDomain.value || undefined,
-      });
-      permissionList.value = res.data.data.data;
-      totalPermissions.value = res.data.data.total;
-      pagination.total = res.data.data.total;
-      pagination.current = currentPage.value;
-    } finally {
-      loading.value = false;
-    }
+  const fetchTreeData = async () => {
+    await sysPermissionStore.fetchSysPermissionTree();
   };
 
   const handleSearch = () => {
     currentPage.value = 1;
-    fetchData();
+    if (viewMode.value === 'table') {
+      fetchData();
+    }
   };
 
-  const handlePageChange = (page: number) => {
-    currentPage.value = page;
-    fetchData();
+  const toggleExpanded = () => {
+    if (expandedKeys.value.length) {
+      expandedKeys.value = [];
+    } else {
+      const allKeys: string[] = [];
+      const collectKeys = (nodes: any[]) => {
+        nodes.forEach((node) => {
+          if (node.key) {
+            allKeys.push(node.key as string);
+          }
+          if (node.children && node.children.length > 0) {
+            collectKeys(node.children);
+          }
+        });
+      };
+      collectKeys(filteredPermissionTree.value);
+      expandedKeys.value = allKeys;
+    }
   };
 
-  const handlePageSizeChange = (size: number) => {
-    pageSize.value = size;
+  const handleRefresh = () => {
+    searchKeyword.value = '';
+    filterType.value = '';
     currentPage.value = 1;
-    fetchData();
+    if (viewMode.value === 'table') {
+      fetchData();
+    } else {
+      fetchTreeData();
+    }
+    Message.success(t('system.permission.refreshSuccess'));
   };
 
   const handleCreate = () => {
@@ -295,27 +511,50 @@
     formVisible.value = true;
   };
 
-  const handleEdit = (record: PermissionResponse) => {
+  const handleEdit = (record: SysPermissionResponse) => {
     currentPermission.value = record;
     formVisible.value = true;
   };
 
-  const handleDelete = async (record: PermissionResponse) => {
+  const handleDelete = async (record: SysPermissionResponse) => {
     try {
-      await deletePermission({ id: record.id });
+      await deleteSysPermission(record.id);
       Message.success(t('system.permission.deleteSuccess'));
-      fetchData();
+      if (viewMode.value === 'table') {
+        fetchData();
+      } else {
+        fetchTreeData();
+      }
     } catch (err) {
       // error handled by interceptor
     }
   };
 
   const handleFormSuccess = () => {
-    fetchData();
+    if (viewMode.value === 'table') {
+      fetchData();
+    } else {
+      fetchTreeData();
+    }
   };
+
+  watch(
+    viewMode,
+    async (newMode) => {
+      searchKeyword.value = '';
+      filterType.value = '';
+      if (newMode === 'table') {
+        await fetchData();
+      } else {
+        await fetchTreeData();
+      }
+    },
+    { immediate: false }
+  );
 
   onMounted(() => {
     fetchData();
+    fetchTreeData();
   });
 </script>
 
@@ -324,3 +563,182 @@
     name: 'SystemPermission',
   };
 </script>
+
+<style lang="less" scoped>
+  .stat-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: var(--color-bg-2);
+    border-radius: 8px;
+    border: 1px solid var(--color-border-2);
+  }
+
+  .stat-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+
+    &.api-icon {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    }
+
+    &.menu-icon {
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    &.button-icon {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
+    &.total-icon {
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    }
+  }
+
+  .stat-card-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--color-text-1);
+  }
+
+  .stat-card-label {
+    font-size: 13px;
+    color: var(--color-text-2);
+  }
+
+  .tree-view-container {
+    padding: 12px;
+    background: var(--color-bg-1);
+    border-radius: 8px;
+    border: 1px solid var(--color-border-2);
+  }
+
+  .permission-tree {
+    :deep(.arco-tree-node-title) {
+      width: 100%;
+    }
+  }
+
+  .tree-node-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 0;
+    flex-wrap: wrap;
+  }
+
+  .type-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+
+    &.api {
+      background: #3b82f6;
+    }
+
+    &.menu {
+      background: #10b981;
+    }
+
+    &.button {
+      background: #f59e0b;
+    }
+  }
+
+  .name-text {
+    font-weight: 500;
+    font-size: 13px;
+  }
+
+  .method-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 4px;
+    color: white;
+    text-transform: uppercase;
+
+    &.get {
+      background: #10b981;
+    }
+
+    &.post {
+      background: #3b82f6;
+    }
+
+    &.put {
+      background: #f59e0b;
+    }
+
+    &.delete {
+      background: #ef4444;
+    }
+
+    &.patch {
+      background: #8b5cf6;
+    }
+  }
+
+  .path-text {
+    font-size: 12px;
+    color: var(--color-text-3);
+    font-family: monospace;
+    background: var(--color-bg-3);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .code-text,
+  .code-cell {
+    font-size: 12px;
+    color: var(--color-text-3);
+    font-family: monospace;
+    background: var(--color-bg-3);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .desc-text {
+    font-size: 12px;
+    color: var(--color-text-3);
+    margin-left: auto;
+  }
+
+  .node-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.2s;
+
+    .tree-node-title:hover & {
+      opacity: 1;
+    }
+  }
+
+  .highlight {
+    color: #f59e0b;
+    font-weight: 600;
+    background: rgba(245, 158, 11, 0.1);
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+
+  .type-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+</style>

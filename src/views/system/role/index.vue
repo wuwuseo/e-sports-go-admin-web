@@ -63,7 +63,7 @@
                 color: #6366f1;
               "
             >
-              <icon-shield />
+              <icon-lock />
             </div>
             <div>
               <div class="stat-card-value">{{ roleStat.system }}</div>

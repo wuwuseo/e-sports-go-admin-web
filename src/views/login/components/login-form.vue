@@ -179,22 +179,35 @@
           console.warn('Failed to get public key, falling back to plain login');
         }
 
+        // 执行登录
         await userStore.login(loginData);
-        // 设置默认角色，路由守卫检测到 role 不为空后会跳过 info() 调用
-        // 避免因 Swagger 中无用户信息接口导致无限重定向循环
-        userStore.setInfo({ role: 'admin' });
-        const { redirect, ...othersQuery } = router.currentRoute.value.query;
-        router.push({
-          name: (redirect as string) || 'Workplace',
-          query: {
-            ...othersQuery,
-          },
-        });
+        
         Message.success(t('login.form.login.success'));
+
+        // 保存登录配置
         const { rememberPassword } = loginConfig.value;
         const { email, password } = values;
         loginConfig.value.email = rememberPassword ? email : '';
         loginConfig.value.password = rememberPassword ? password : '';
+
+        // 确保用户角色已设置（如果没有设置默认admin）
+        if (!userStore.role) {
+          userStore.setInfo({ role: 'admin' });
+        }
+
+        // 登录成功后跳转 - 使用 setTimeout 确保状态已更新
+        setTimeout(() => {
+          const { redirect } = router.currentRoute.value.query;
+          const redirectValue = redirect as string | undefined;
+
+          if (redirectValue && redirectValue !== 'undefined') {
+            // 如果有 redirect，直接跳转到该路径
+            router.push(redirectValue);
+          } else {
+            // 默认跳转到工作台
+            router.push('/dashboard/workplace');
+          }
+        }, 100);
       } catch (err) {
         errorMessage.value = (err as Error).message;
       } finally {
