@@ -118,7 +118,28 @@ const useUserStore = defineStore('user', {
     // Get user's information
     async info() {
       const res = await getCurrentUser();
-      this.setInfo(res.data.data);
+      const userData = res.data.data;
+
+      // 处理角色：如果 roles 数组中包含 admin，则设置为 admin
+      // 否则取第一个角色（如果有），否则默认为空（由调用方兜底）
+      if (userData.roles && Array.isArray(userData.roles)) {
+        // 大小写不敏感匹配 admin 角色
+        const isAdmin = userData.roles.some(
+          (r: string) => r.toLowerCase() === 'admin'
+        );
+        if (isAdmin) {
+          userData.role = 'admin';
+        } else if (userData.roles.length > 0) {
+          // eslint-disable-next-line prefer-destructuring
+          userData.role = userData.roles[0];
+        } else {
+          userData.role = '';
+        }
+      } else {
+        userData.role = '';
+      }
+
+      this.setInfo(userData);
     },
 
     // 加载用户权限（菜单权限 + 按钮权限）

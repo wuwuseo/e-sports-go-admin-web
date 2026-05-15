@@ -1,13 +1,14 @@
 import { computed } from 'vue';
 import { RouteRecordRaw, RouteRecordNormalized } from 'vue-router';
 import usePermission from '@/hooks/permission';
-import { useAppStore } from '@/store';
+import { useAppStore, useUserStore } from '@/store';
 import appClientMenus from '@/router/app-menus';
 import { cloneDeep } from 'lodash';
 
 export default function useMenuTree() {
   const permission = usePermission();
   const appStore = useAppStore();
+  const userStore = useUserStore();
   const appRoute = computed(() => {
     if (appStore.menuFromServer) {
       return appStore.appAsyncMenus;
@@ -23,12 +24,23 @@ export default function useMenuTree() {
 
     // 检查菜单项是否有权限访问
     function canAccessMenu(route: RouteRecordRaw): boolean {
-      // 1. 首先检查基于角色的权限
+      // 1. admin 用户拥有所有权限，直接通过
+      if (userStore.role === 'admin') {
+        return true;
+      }
+
+      // 2. 检查基于角色的权限
       if (!permission.accessRouter(route)) {
         return false;
       }
 
-      // 2. 检查基于权限码的权限
+      // 3. 检查基于权限码的权限
+      // 注意：如果 roles: ['*']，表示对所有用户开放，不需要额外检查权限码
+      if (route.meta?.roles?.includes('*')) {
+        return true;
+      }
+
+      // 4. 检查基于权限码的权限
       if (route.meta?.permissionCode) {
         const permissionCode = route.meta.permissionCode as string | string[];
         if (Array.isArray(permissionCode)) {
@@ -37,7 +49,13 @@ export default function useMenuTree() {
         return permission.hasMenuPermission(permissionCode);
       }
 
-      // 3. 默认允许访问
+      // 5. 对于需要登录但没有配置 permissionCode 的菜单
+      // 检查是否有该菜单路径对应的权限（使用路由 name 作为权限标识）
+      if (route.meta?.requiresAuth && route.name) {
+        return permission.hasMenuPermission(route.name.toString());
+      }
+
+      // 6. 其他情况默认允许访问
       return true;
     }
 

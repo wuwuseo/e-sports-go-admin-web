@@ -10,8 +10,27 @@ const SYSTEM: AppRouteRecordRaw = {
     icon: 'icon-settings',
     requiresAuth: true,
     order: 2,
+    roles: ['*'],
   },
   children: [
+    {
+      path: 'user',
+      name: 'SystemUser',
+      component: () => import('@/views/system/user/index.vue'),
+      meta: {
+        locale: 'menu.system.user',
+        requiresAuth: true,
+      },
+    },
+    {
+      path: 'third-party-user',
+      name: 'SystemThirdPartyUser',
+      component: () => import('@/views/system/third-party-user/index.vue'),
+      meta: {
+        locale: 'menu.system.thirdPartyUser',
+        requiresAuth: true,
+      },
+    },
     {
       path: 'role',
       name: 'SystemRole',
@@ -19,7 +38,6 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.role',
         requiresAuth: true,
-        roles: ['*'],
       },
     },
     {
@@ -29,7 +47,6 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.permission',
         requiresAuth: true,
-        roles: ['*'],
       },
     },
     {
@@ -39,7 +56,6 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.attachment',
         requiresAuth: true,
-        roles: ['*'],
       },
     },
     {
@@ -49,7 +65,6 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.cronJob',
         requiresAuth: true,
-        roles: ['*'],
       },
     },
     {
@@ -59,7 +74,6 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.operationLog',
         requiresAuth: true,
-        roles: ['*'],
       },
     },
     {
@@ -69,7 +83,6 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.dict',
         requiresAuth: true,
-        roles: ['*'],
       },
     },
     {
@@ -79,7 +92,6 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.config',
         requiresAuth: true,
-        roles: ['*'],
       },
     },
   ],

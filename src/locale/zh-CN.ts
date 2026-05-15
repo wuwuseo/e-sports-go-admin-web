@@ -9,11 +9,22 @@ import localeOperationLog from '@/views/system/operation-log/locale/zh-CN';
 import localeSystemCronJob from '@/views/system/cron-job/locale/zh-CN';
 import localeDictData from '@/views/system/dict-data/locale/zh-CN';
 import localeConfig from '@/views/system/config/locale/zh-CN';
+import localeSystemUser from '@/views/system/user/locale/zh-CN';
 
 import localeSettings from './zh-CN/settings';
 
 export default {
   'menu.dashboard': '仪表盘',
+  'menu.system': '系统管理',
+  'menu.system.user': '用户管理',
+  'menu.system.thirdPartyUser': '第三方用户',
+  'menu.system.role': '角色管理',
+  'menu.system.permission': '权限管理',
+  'menu.system.attachment': '附件管理',
+  'menu.system.cronJob': '定时任务',
+  'menu.system.operationLog': '操作日志',
+  'menu.system.dict': '字典管理',
+  'menu.system.config': '系统配置',
   'menu.server.dashboard': '仪表盘-服务端',
   'menu.server.workplace': '工作台-服务端',
   'menu.server.monitor': '实时监控-服务端',
@@ -39,4 +50,5 @@ export default {
   ...localeSystemCronJob,
   ...localeDictData,
   ...localeConfig,
+  ...localeSystemUser,
 };

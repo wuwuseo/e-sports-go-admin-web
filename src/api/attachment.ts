@@ -7,6 +7,9 @@ import type {
   AttachmentQuery,
   ApiResponse,
   PaginatedResponse,
+  UnifiedUploadResponse,
+  BatchDeleteRequest,
+  MoveAttachmentRequest,
 } from '@/types/api';
 
 // 获取附件列表
@@ -22,7 +25,7 @@ export function uploadAttachment(file: File, groupId?: number) {
   const formData = new FormData();
   formData.append('file', file);
   if (groupId) formData.append('group_id', String(groupId));
-  return axios.post<ApiResponse<AttachmentResponse>>(
+  return axios.post<ApiResponse<UnifiedUploadResponse>>(
     '/api/v1/admin/auth/attachments/upload',
     formData
   );
@@ -67,7 +70,7 @@ export function uploadAttachmentChunk(
     formData.append('group_id', String(options.groupId));
   }
 
-  return axios.post<ApiResponse<any>>(
+  return axios.post<ApiResponse<UnifiedUploadResponse>>(
     '/api/v1/admin/auth/attachments/upload',
     formData,
     { onUploadProgress: onProgress }
@@ -104,17 +107,19 @@ export function deleteAttachment(id: number) {
 
 // 批量删除附件
 export function batchDeleteAttachments(ids: number[]) {
+  const data: BatchDeleteRequest = { ids };
   return axios.delete<ApiResponse<null>>(
     '/api/v1/admin/auth/attachments/batch',
-    { data: { ids } }
+    { data }
   );
 }
 
 // 移动附件到分组
 export function moveAttachment(id: number, groupId?: number | null) {
+  const data: MoveAttachmentRequest = { group_id: groupId ?? undefined };
   return axios.put<ApiResponse<null>>(
     `/api/v1/admin/auth/attachments/${id}/move`,
-    { group_id: groupId ?? null }
+    data
   );
 }
 

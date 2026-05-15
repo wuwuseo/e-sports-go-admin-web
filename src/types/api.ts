@@ -289,7 +289,7 @@ export interface AttachmentResponse {
   extension: string;
   size: number;
   group_id: number;
-  uploaded_by: number;
+  uploaded_by: string;
   created_at: string;
   updated_at: string;
 }
@@ -338,6 +338,25 @@ export interface ChunkStatusResponse {
   total_chunks: number;
   received_chunks: number[];
   is_completed: boolean;
+}
+
+// 统一上传响应（兼容简单上传与分片上传）
+export interface UnifiedUploadResponse {
+  attachment?: AttachmentResponse;
+  chunk_index?: number;
+  received?: boolean;
+  total_chunks?: number;
+  upload_id?: string;
+}
+
+// 批量删除请求
+export interface BatchDeleteRequest {
+  ids: number[];
+}
+
+// 移动附件请求
+export interface MoveAttachmentRequest {
+  group_id?: number;
 }
 
 // ===== 定时任务相关 =====
@@ -540,4 +559,87 @@ export interface ConfigQuery extends PaginationQuery {
 export interface ConfigGroup {
   label: string;
   value: string;
+}
+
+// ===== 用户管理相关 =====
+export interface UserResponse {
+  id: number;
+  username: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  status: 'active' | 'inactive';
+  is_blacklisted: boolean;
+  email_verified: boolean;
+  phone_verified: boolean;
+  last_login_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserDetailResponse extends UserResponse {
+  roles: string[];
+  created_by?: string;
+  updated_by?: string;
+}
+
+export interface CreateUserRequest {
+  username: string;
+  email: string;
+  password: string;
+  phone?: string;
+  avatar?: string;
+}
+
+export interface UpdateUserRequest {
+  username?: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  password?: string;
+}
+
+export interface UserQuery extends PaginationQuery {
+  keyword?: string;
+  status?: 'active' | 'inactive';
+  is_blacklisted?: boolean;
+}
+
+// ===== 第三方用户相关 =====
+export interface ThirdPartyUserResponse {
+  id: number;
+  user_id: number;
+  provider: string;
+  provider_user_id: string;
+  nickname?: string;
+  avatar?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThirdPartyUserQuery extends PaginationQuery {
+  keyword?: string;
+  provider?: string;
+}
+
+// ===== 黑名单相关 =====
+export interface BlacklistResponse {
+  id: number;
+  user_id: number;
+  username: string;
+  email: string;
+  reason?: string;
+  created_by: string;
+  created_at: string;
+  expires_at?: string;
+}
+
+export interface BlacklistUserRequest {
+  reason?: string;
+  expires_at?: string;
+}
+
+// ===== 角色分配相关 =====
+export interface AssignUserRolesRequest {
+  role_ids: number[];
 }
