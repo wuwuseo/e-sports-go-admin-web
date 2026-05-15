@@ -9,7 +9,9 @@
               <div class="stat-card-value">
                 {{ apiCount }}
               </div>
-              <div class="stat-card-label">API 权限</div>
+              <div class="stat-card-label">{{
+                $t('system.permission.apiCount')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -22,7 +24,9 @@
               <div class="stat-card-value">
                 {{ menuCount }}
               </div>
-              <div class="stat-card-label">菜单权限</div>
+              <div class="stat-card-label">{{
+                $t('system.permission.menuCount')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -35,7 +39,9 @@
               <div class="stat-card-value">
                 {{ buttonCount }}
               </div>
-              <div class="stat-card-label">按钮权限</div>
+              <div class="stat-card-label">{{
+                $t('system.permission.buttonCount')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -46,7 +52,9 @@
             </div>
             <div>
               <div class="stat-card-value">{{ totalCount }}</div>
-              <div class="stat-card-label">权限总数</div>
+              <div class="stat-card-label">{{
+                $t('system.permission.totalCount')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -57,11 +65,11 @@
           <a-radio-group v-model="viewMode" type="button">
             <a-radio value="table">
               <icon-list />
-              表格视图
+              {{ $t('system.permission.tableView') }}
             </a-radio>
             <a-radio value="tree">
               <icon-folder />
-              树形视图
+              {{ $t('system.permission.treeView') }}
             </a-radio>
           </a-radio-group>
           <a-divider direction="vertical" />
@@ -81,13 +89,13 @@
             <a-option value="menu">
               <span class="type-option">
                 <span class="type-dot menu"></span>
-                菜单
+                {{ $t('system.permission.filterMenu') }}
               </span>
             </a-option>
             <a-option value="button">
               <span class="type-option">
                 <span class="type-dot button"></span>
-                按钮
+                {{ $t('system.permission.filterButton') }}
               </span>
             </a-option>
           </a-select>
@@ -118,7 +126,7 @@
         <div class="page-toolbar-right">
           <a-button type="outline" @click="handleRefresh">
             <template #icon><icon-refresh /></template>
-            刷新
+            {{ $t('common.refresh') }}
           </a-button>
           <a-button
             v-permission="'permission:add'"
@@ -261,7 +269,7 @@
         />
         <a-empty
           v-else-if="filteredPermissionTree.length === 0"
-          :description="'暂无权限数据'"
+          :description="$t('system.permission.empty')"
         />
         <a-tree
           v-else
@@ -295,7 +303,7 @@
                 {{ nodeData.description }}
               </span>
               <div class="node-actions">
-                <a-tooltip content="编辑">
+                <a-tooltip :content="$t('common.edit')">
                   <a-button
                     v-permission="'permission:edit'"
                     type="text"
@@ -305,7 +313,7 @@
                     <icon-edit />
                   </a-button>
                 </a-tooltip>
-                <a-tooltip content="删除">
+                <a-tooltip :content="$t('common.delete')">
                   <a-popconfirm
                     :content="$t('system.permission.deleteConfirm')"
                     @ok="handleDelete(nodeData)"
@@ -356,7 +364,7 @@
   const formVisible = ref(false);
   const currentPermission = ref<SysPermissionResponse | undefined>(undefined);
   const currentPage = ref(1);
-  const pageSize = ref(1000);
+  const pageSize = ref(0);
   const expandedKeys = ref<string[]>([]);
 
   const pagination = reactive({

@@ -1,3 +1,5 @@
+export * from './json';
+
 type TargetContext = '_self' | '_parent' | '_blank' | '_top';
 
 export const openWindow = (

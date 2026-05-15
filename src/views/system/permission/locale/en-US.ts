@@ -44,4 +44,13 @@ export default {
   'system.permission.deleteSuccess': 'Deleted successfully',
   'system.permission.fold': 'Fold',
   'system.permission.unfold': 'Unfold',
+  'system.permission.apiCount': 'API Permissions',
+  'system.permission.menuCount': 'Menu Permissions',
+  'system.permission.buttonCount': 'Button Permissions',
+  'system.permission.totalCount': 'Total Permissions',
+  'system.permission.tableView': 'Table View',
+  'system.permission.treeView': 'Tree View',
+  'system.permission.filterMenu': 'Menu',
+  'system.permission.filterButton': 'Button',
+  'system.permission.empty': 'No permission data',
 };

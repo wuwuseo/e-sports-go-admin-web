@@ -43,4 +43,13 @@ export default {
   'system.permission.deleteSuccess': '删除成功',
   'system.permission.fold': '折叠',
   'system.permission.unfold': '展开',
+  'system.permission.apiCount': 'API 权限',
+  'system.permission.menuCount': '菜单权限',
+  'system.permission.buttonCount': '按钮权限',
+  'system.permission.totalCount': '权限总数',
+  'system.permission.tableView': '表格视图',
+  'system.permission.treeView': '树形视图',
+  'system.permission.filterMenu': '菜单',
+  'system.permission.filterButton': '按钮',
+  'system.permission.empty': '暂无权限数据',
 };

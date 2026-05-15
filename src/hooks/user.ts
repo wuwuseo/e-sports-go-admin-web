@@ -10,11 +10,11 @@ export default function useUser() {
     await userStore.logout();
     const currentRoute = router.currentRoute.value;
     Message.success('登出成功');
+    // 登出后跳转到登录页，使用 fullPath 作为 redirect，确保登录后能正确跳转回来
     router.push({
       name: logoutTo && typeof logoutTo === 'string' ? logoutTo : 'login',
       query: {
-        ...router.currentRoute.value.query,
-        redirect: currentRoute.name as string,
+        redirect: currentRoute.fullPath,
       },
     });
   };

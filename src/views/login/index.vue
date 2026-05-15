@@ -31,7 +31,7 @@
         </div>
         <div class="login-features">
           <div class="feature-item">
-            <icon-shield-check class="feature-icon" />
+            <icon-lock class="feature-icon" />
             <span>加密传输</span>
           </div>
           <div class="feature-divider" />

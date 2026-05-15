@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { createCrudActions } from '@/store/mixins/crud';
 import {
   getRoles,
   getAllRoles,
@@ -19,63 +20,78 @@ import type {
 } from '@/types/api';
 
 export interface RoleState {
-  roles: RoleResponse[];
+  items: RoleResponse[];
   total: number;
-  currentRole?: RoleResponse;
+  currentItem?: RoleResponse;
   loading: boolean;
 }
 
 const useRoleStore = defineStore('role', {
   state: (): RoleState => ({
-    roles: [],
+    items: [],
     total: 0,
-    currentRole: undefined,
+    currentItem: undefined,
     loading: false,
   }),
 
+  getters: {
+    roles: (state) => state.items,
+    currentRole: (state) => state.currentItem,
+  },
+
   actions: {
-    async fetchRoles(query?: RoleQuery) {
-      this.loading = true;
-      try {
-        const res = await getRoles(query);
-        const { data } = res.data;
-        this.roles = data.data;
-        this.total = data.total;
-      } finally {
-        this.loading = false;
-      }
+    // ==========================================
+    // 标准 CRUD 操作：从 Mixin 注入（消除约 40 行重复代码）
+    // ==========================================
+    ...createCrudActions<
+      RoleResponse,
+      CreateRoleRequest,
+      UpdateRoleRequest,
+      RoleQuery
+    >({
+      getList: getRoles,
+      create: createRole,
+      getDetail: getRoleDetail,
+      update: updateRole,
+      delete: deleteRole,
+    }),
+
+    // ==========================================
+    // 别名：保持向后兼容
+    // ==========================================
+    fetchRoles(query?: RoleQuery) {
+      return this.fetchList(query);
     },
 
-    async createRole(data: CreateRoleRequest) {
-      const res = await createRole(data);
-      return res.data.data;
+    createRole(data: CreateRoleRequest) {
+      return this.create(data);
     },
 
-    async updateRole(id: number, data: UpdateRoleRequest) {
-      const res = await updateRole(id, data);
-      return res.data.data;
+    updateRole(id: number, data: UpdateRoleRequest) {
+      return this.update(id, data);
     },
 
-    async deleteRole(id: number) {
-      await deleteRole(id);
+    deleteRole(id: number) {
+      return this.delete(id);
     },
 
+    fetchRoleDetail(id: number) {
+      return this.fetchDetail(id);
+    },
+
+    setCurrentRole(role?: RoleResponse) {
+      return this.setCurrentItem(role);
+    },
+
+    // ==========================================
+    // 业务特定方法
+    // ==========================================
     async toggleRoleStatus(id: number, enabled: boolean) {
       if (enabled) {
         await enableRole(id);
       } else {
         await disableRole(id);
       }
-    },
-
-    async fetchRoleDetail(id: number) {
-      const res = await getRoleDetail(id);
-      this.currentRole = res.data.data;
-      return res.data.data;
-    },
-
-    setCurrentRole(role?: RoleResponse) {
-      this.currentRole = role;
     },
 
     async fetchAllRoles(query?: { keyword?: string; status?: string }) {

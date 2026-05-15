@@ -181,7 +181,7 @@
 
         // 执行登录
         await userStore.login(loginData);
-        
+
         Message.success(t('login.form.login.success'));
 
         // 保存登录配置
@@ -195,19 +195,22 @@
           userStore.setInfo({ role: 'admin' });
         }
 
-        // 登录成功后跳转 - 使用 setTimeout 确保状态已更新
-        setTimeout(() => {
-          const { redirect } = router.currentRoute.value.query;
-          const redirectValue = redirect as string | undefined;
+        // 登录成功后直接跳转（不需要 setTimeout，因为 login 内部已经 await 了所有异步操作）
+        const { redirect } = router.currentRoute.value.query;
+        const redirectValue = redirect as string | undefined;
 
-          if (redirectValue && redirectValue !== 'undefined') {
-            // 如果有 redirect，直接跳转到该路径
-            router.push(redirectValue);
-          } else {
-            // 默认跳转到工作台
-            router.push('/dashboard/workplace');
-          }
-        }, 100);
+        // 处理 redirect：如果是有效路径则跳转，否则跳转到工作台
+        if (
+          redirectValue &&
+          redirectValue !== 'undefined' &&
+          redirectValue.startsWith('/')
+        ) {
+          // router.push 可以直接处理带查询参数的完整路径
+          await router.push(redirectValue);
+        } else {
+          // 默认跳转到工作台
+          await router.push('/dashboard/workplace');
+        }
       } catch (err) {
         errorMessage.value = (err as Error).message;
       } finally {

@@ -16,7 +16,9 @@
             </div>
             <div>
               <div class="stat-card-value">{{ roleStat.total }}</div>
-              <div class="stat-card-label">角色总数</div>
+              <div class="stat-card-label">{{
+                $t('system.role.totalCount')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -33,7 +35,9 @@
             </div>
             <div>
               <div class="stat-card-value">{{ roleStat.active }}</div>
-              <div class="stat-card-label">已启用</div>
+              <div class="stat-card-label">{{
+                $t('system.role.enabledCount')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -50,7 +54,9 @@
             </div>
             <div>
               <div class="stat-card-value">{{ roleStat.inactive }}</div>
-              <div class="stat-card-label">已禁用</div>
+              <div class="stat-card-label">{{
+                $t('system.role.disabledCount')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -67,7 +73,9 @@
             </div>
             <div>
               <div class="stat-card-value">{{ roleStat.system }}</div>
-              <div class="stat-card-label">系统角色</div>
+              <div class="stat-card-label">{{
+                $t('system.role.systemCount')
+              }}</div>
             </div>
           </div>
         </a-col>

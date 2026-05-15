@@ -337,7 +337,9 @@
                                 </template>
                               </a-table-column>
                               <a-table-column
-                                v-for="(col, colIndex) in getArray2dMaxCols(
+                                v-for="(
+                                  col, colIndex
+                                ) in getArray2dMaxColsByKey(
                                   group.key,
                                   item.key
                                 )"
@@ -1095,6 +1097,18 @@
     createConfig,
   } from '@/api/config';
   import { createDictData } from '@/api/dict-data';
+  import {
+    parseKvData,
+    serializeKvData,
+    parseArrayData,
+    serializeArrayData,
+    parseArray2dData,
+    serializeArray2dData,
+    getArray2dMaxCols,
+    type KvItem,
+    type ArrayItem,
+    type Array2dItem,
+  } from '@/utils';
 
   const { t } = useI18n();
 
@@ -1110,29 +1124,16 @@
   // 每个分组的表单模型 { groupKey: { configKey: value } }
   const formModels = reactive<Record<string, Record<string, string>>>({});
 
-  // 每个分组 JSON 类型的键值对数据 { groupKey: { configKey: Array<{key, value}> } }
-  const kvStore = reactive<
-    Record<string, Record<string, Array<{ key: string; value: string }>>>
-  >({});
+  // 每个分组 JSON 类型的键值对数据
+  const kvStore = reactive<Record<string, Record<string, KvItem[]>>>({});
 
-  // 每个分组 Array 类型的数据 { groupKey: { configKey: Array<{ value: string }> } }
-  const arrayStore = reactive<
-    Record<string, Record<string, Array<{ value: string }>>>
-  >({});
+  // 每个分组 Array 类型的数据
+  const arrayStore = reactive<Record<string, Record<string, ArrayItem[]>>>({});
 
-  // 每个分组 Array2D 类型的数据 { groupKey: { configKey: Array<{key: string, values: Array<{value, type}>}> } }
-  const array2dStore = reactive<
-    Record<
-      string,
-      Record<
-        string,
-        Array<{
-          key: string;
-          values: Array<{ value: string; type: ConfigValueType }>;
-        }>
-      >
-    >
-  >({});
+  // 每个分组 Array2D 类型的数据
+  const array2dStore = reactive<Record<string, Record<string, Array2dItem[]>>>(
+    {}
+  );
 
   const activeTab = ref('');
   const saving = ref(false);
@@ -1381,245 +1382,12 @@
     return array2dStore[groupKey]?.[configKey] || [];
   };
 
-  // 获取 Array2D 的最大列数
-  const getArray2dMaxCols = (groupKey: string, configKey: string): number => {
-    const data = getArray2dData(groupKey, configKey);
-    return data.length > 0
-      ? Math.max(...data.map((row) => row.values.length))
-      : 1;
-  };
-
-  // 解析 JSON 字符串为 KV 数组
-  const parseKvData = (
-    value: string
-  ): Array<{ key: string; value: string }> => {
-    try {
-      const parsed = JSON.parse(value || '[]');
-      if (Array.isArray(parsed)) {
-        return parsed.map((item: any) => ({
-          key: item.key ?? item.key_name ?? '',
-          value: item.value ?? item.key_value ?? '',
-        }));
-      }
-      // 如果是对象格式，转为键值对数组
-      if (typeof parsed === 'object' && parsed !== null) {
-        return Object.entries(parsed).map(([k, v]) => ({
-          key: k,
-          value: String(v ?? ''),
-        }));
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  };
-
-  // 序列化 KV 数组为 JSON 字符串
-  const serializeKvData = (
-    data: Array<{ key: string; value: string }>
-  ): string => {
-    return JSON.stringify(data.filter((item) => item.key || item.value));
-  };
-
-  // 解析 JSON 字符串为 Array 数据
-  const parseArrayData = (value: string): Array<{ value: string }> => {
-    try {
-      const parsed = JSON.parse(value || '[]');
-      if (Array.isArray(parsed)) {
-        return parsed.map((item: any) => ({
-          value: String(item ?? ''),
-        }));
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  };
-
-  // 序列化 Array 数据为 JSON 字符串
-  const serializeArrayData = (data: Array<{ value: string }>): string => {
-    return JSON.stringify(data.map((item) => item.value).filter((v) => v));
-  };
-
-  // 解析 JSON 字符串为 Array2D 数据 {key, values[{value,type}]}
-  const parseArray2dData = (
-    value: string
-  ): Array<{
-    key: string;
-    values: Array<{ value: string; type: ConfigValueType }>;
-  }> => {
-    try {
-      const parsed = JSON.parse(value || '{}');
-      if (
-        typeof parsed === 'object' &&
-        parsed !== null &&
-        !Array.isArray(parsed)
-      ) {
-        return Object.entries(parsed).map(([key, val]: [string, any]) => {
-          let type: ConfigValueType = 'string';
-          let valueStr = '';
-          let list: any[] | undefined;
-          let subData: any[] | undefined;
-
-          if (Array.isArray(val)) {
-            type = 'array';
-            list = val.map((item: any) => ({ value: String(item ?? '') }));
-          } else if (typeof val === 'object' && val !== null) {
-            type = 'array2d';
-            subData = Object.entries(val).map(
-              ([sdKey, sdVal]: [string, any]) => ({
-                key: sdKey,
-                value: String(sdVal ?? ''),
-                type: 'string' as ConfigValueType,
-              })
-            );
-          } else if (typeof val === 'number') {
-            type = 'number';
-            valueStr = String(val);
-          } else if (typeof val === 'boolean') {
-            type = 'boolean';
-            valueStr = String(val);
-          } else {
-            valueStr = String(val ?? '');
-          }
-
-          const valueObj: any = {
-            value: valueStr,
-            type,
-          };
-          if (list) {
-            valueObj.list = list;
-          }
-          if (subData) {
-            valueObj.subData = subData;
-          }
-
-          return {
-            key,
-            values: [valueObj],
-          };
-        });
-      }
-      // 兼容旧格式
-      if (Array.isArray(parsed)) {
-        return parsed.map((item: any) => {
-          if (typeof item === 'object' && item !== null && 'key' in item) {
-            return {
-              key: String(item.key ?? ''),
-              values: Array.isArray(item.values)
-                ? item.values.map((v: any) => {
-                    if (typeof v === 'object' && v !== null) {
-                      const type = (v.type as ConfigValueType) || 'string';
-                      const val = {
-                        value: String(v.value ?? ''),
-                        type,
-                      };
-                      // 如果是 array 类型，解析 list
-                      if (type === 'array' && v.list) {
-                        (val as any).list = v.list;
-                      }
-                      // 如果是 array2d 类型，解析 subData
-                      if (type === 'array2d' && v.subData) {
-                        (val as any).subData = v.subData.map((sd: any) => ({
-                          key: String(sd.key ?? ''),
-                          value: String(sd.value ?? ''),
-                          type: (sd.type as ConfigValueType) || 'string',
-                        }));
-                      }
-                      return val;
-                    }
-                    const val = {
-                      value: String(v ?? ''),
-                      type: 'string' as ConfigValueType,
-                    };
-                    return val;
-                  })
-                : [],
-            };
-          }
-          if (Array.isArray(item)) {
-            return {
-              key: '',
-              values: item.map((v: any) => {
-                if (typeof v === 'object' && v !== null) {
-                  const type = (v.type as ConfigValueType) || 'string';
-                  const val = {
-                    value: String(v.value ?? ''),
-                    type,
-                  };
-                  // 如果是 array 类型，解析 list
-                  if (type === 'array' && v.list) {
-                    (val as any).list = v.list;
-                  }
-                  return val;
-                }
-                const val = {
-                  value: String(v ?? ''),
-                  type: 'string' as ConfigValueType,
-                };
-                return val;
-              }),
-            };
-          }
-          return {
-            key: '',
-            values: [
-              {
-                value: String(item ?? ''),
-                type: 'string' as ConfigValueType,
-              },
-            ],
-          };
-        });
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  };
-
-  // 序列化 Array2D 数据为 JSON 字符串
-  const serializeArray2dData = (
-    data: Array<{
-      key: string;
-      values: Array<{ value: string; type: ConfigValueType }>;
-    }>
-  ): string => {
-    const result: Record<string, any> = {};
-    data.forEach((row) => {
-      if (!row.key) return;
-      const val = row.values[0];
-      if (!val) {
-        result[row.key] = '';
-        return;
-      }
-      switch (val.type) {
-        case 'array':
-          result[row.key] = (val as any).list
-            ? (val as any).list.map((item: any) => item.value)
-            : [];
-          break;
-        case 'array2d':
-          result[row.key] = {};
-          if ((val as any).subData) {
-            (val as any).subData.forEach((sd: any) => {
-              if (sd.key) {
-                result[row.key][sd.key] = sd.value;
-              }
-            });
-          }
-          break;
-        case 'number':
-          result[row.key] = val.value ? Number(val.value) : 0;
-          break;
-        case 'boolean':
-          result[row.key] = val.value === 'true';
-          break;
-        default:
-          result[row.key] = val.value;
-      }
-    });
-    return JSON.stringify(result);
+  // 获取指定分组下指定配置键的 Array2D 最大列数
+  const getArray2dMaxColsByKey = (
+    groupKey: string,
+    configKey: string
+  ): number => {
+    return getArray2dMaxCols(getArray2dData(groupKey, configKey));
   };
 
   // 添加 Array 元素
@@ -1653,7 +1421,7 @@
     if (!array2dStore[groupKey][configKey]) {
       array2dStore[groupKey][configKey] = [];
     }
-    const maxCols = getArray2dMaxCols(groupKey, configKey);
+    const maxCols = getArray2dMaxColsByKey(groupKey, configKey);
     array2dStore[groupKey][configKey].push({
       key: '',
       values: new Array(maxCols)

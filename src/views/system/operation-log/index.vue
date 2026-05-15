@@ -220,8 +220,9 @@
 
   // 模块下拉框由数据字典驱动（字典类型：sys_oper_log_module）
   // 字典内容变化时（dict-data 页面保存后），下拉框选项会通过事件总线自动同步刷新
-  const { options: moduleOptions, loading: moduleDictLoading } =
-    useDict('sys_oper_log_module');
+  const { options: moduleOptions, loading: moduleDictLoading } = useDict(
+    'sys_oper_log_module'
+  );
 
   // 模块值 -> 显示文本 的映射，用于表格列展示
   const moduleLabelMap = computed<Record<string, string>>(() => {

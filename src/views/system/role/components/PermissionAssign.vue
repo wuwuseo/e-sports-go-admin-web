@@ -26,11 +26,19 @@
             <div class="role-stats">
               <span class="stat-item">
                 <icon-check />
-                已分配 {{ assignedSnapshot.length }} 项权限
+                {{
+                  $t('system.role.permission.assignedCount', {
+                    count: assignedSnapshot.length,
+                  })
+                }}
               </span>
               <span class="stat-item">
                 <icon-check />
-                当前选中 {{ checkedKeys.size }} 项
+                {{
+                  $t('system.role.permission.selectedCount', {
+                    count: checkedKeys.size,
+                  })
+                }}
               </span>
             </div>
           </div>
@@ -59,13 +67,13 @@
               <a-option value="menu">
                 <span class="type-option">
                   <span class="type-dot menu"></span>
-                  菜单
+                  {{ $t('system.role.permission.tab.menu') }}
                 </span>
               </a-option>
               <a-option value="button">
                 <span class="type-option">
                   <span class="type-dot button"></span>
-                  按钮
+                  {{ $t('system.role.permission.tab.button') }}
                 </span>
               </a-option>
             </a-select>
@@ -75,11 +83,11 @@
             <a-space>
               <a-button type="outline" size="small" @click="handleCheckAll">
                 <template #icon><icon-select-all /></template>
-                全选当前筛选
+                {{ $t('system.role.permission.checkAllFiltered') }}
               </a-button>
               <a-button type="outline" size="small" @click="handleUncheckAll">
                 <template #icon><icon-close /></template>
-                清空当前筛选
+                {{ $t('system.role.permission.uncheckAllFiltered') }}
               </a-button>
               <a-button
                 type="outline"
@@ -87,14 +95,14 @@
                 @click="handleResetToAssigned"
               >
                 <template #icon><icon-refresh /></template>
-                重置为已分配
+                {{ $t('system.role.permission.resetToAssigned') }}
               </a-button>
             </a-space>
             <a-divider direction="vertical" />
             <span class="checked-count-badge">
-              已选择
+              {{ $t('system.role.permission.selected') }}
               <a-tag color="green">{{ checkedKeys.size }}</a-tag>
-              项权限
+              {{ $t('system.role.permission.items') }}
             </span>
           </div>
         </div>
@@ -160,21 +168,27 @@
           <div class="type-summary">
             <div class="summary-item">
               <span class="type-dot api"></span>
-              <span class="summary-label">API 权限:</span>
+              <span class="summary-label"
+                >{{ $t('system.role.permission.tab.api') }}:</span
+              >
               <span class="summary-value">
                 {{ typeStats.api.selected }} / {{ typeStats.api.total }}
               </span>
             </div>
             <div class="summary-item">
               <span class="type-dot menu"></span>
-              <span class="summary-label">菜单权限:</span>
+              <span class="summary-label"
+                >{{ $t('system.role.permission.tab.menu') }}:</span
+              >
               <span class="summary-value">
                 {{ typeStats.menu.selected }} / {{ typeStats.menu.total }}
               </span>
             </div>
             <div class="summary-item">
               <span class="type-dot button"></span>
-              <span class="summary-label">按钮权限:</span>
+              <span class="summary-label"
+                >{{ $t('system.role.permission.tab.button') }}:</span
+              >
               <span class="summary-value">
                 {{ typeStats.button.selected }} / {{ typeStats.button.total }}
               </span>
