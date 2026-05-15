@@ -112,7 +112,6 @@
             :data="filteredPermissionTree as any"
             :default-expand-all="true"
             :show-line="true"
-            check-strictly
             style="max-height: 380px; overflow-y: auto"
             @check="handleTreeCheck"
           >
@@ -227,6 +226,7 @@
       const { icon, ...rest } = node;
       return {
         ...rest,
+        key: node.id,
         children: node.children ? removeIconFromTree(node.children) : undefined,
       };
     });
@@ -265,6 +265,34 @@
     };
   });
 
+  const matchesFilter = (node: SysPermissionTreeNode): boolean => {
+    const search = searchKeyword.value.trim().toLowerCase();
+    const type = typeFilter.value;
+
+    const nodeMatchSearch =
+      !search ||
+      node.name.toLowerCase().includes(search) ||
+      (node.path?.toLowerCase().includes(search) ?? false) ||
+      (node.code?.toLowerCase().includes(search) ?? false) ||
+      (node.description?.toLowerCase().includes(search) ?? false);
+    const nodeMatchType = !type || node.type === type;
+    return nodeMatchSearch && nodeMatchType;
+  };
+
+  const collectFilteredIds = (
+    nodes: SysPermissionTreeNode[],
+    ids: Set<number>
+  ): void => {
+    nodes.forEach((node) => {
+      if (matchesFilter(node)) {
+        ids.add(node.id);
+      }
+      if (node.children) {
+        collectFilteredIds(node.children, ids);
+      }
+    });
+  };
+
   const filteredPermissionTree = computed(() => {
     const search = searchKeyword.value.trim().toLowerCase();
     const type = typeFilter.value;
@@ -278,14 +306,7 @@
     ): SysPermissionTreeNode[] => {
       return nodes
         .map((node) => {
-          const nodeMatchSearch =
-            !search ||
-            node.name.toLowerCase().includes(search) ||
-            (node.path?.toLowerCase().includes(search) ?? false) ||
-            (node.code?.toLowerCase().includes(search) ?? false) ||
-            (node.description?.toLowerCase().includes(search) ?? false);
-          const nodeMatchType = !type || node.type === type;
-          const nodeMatch = nodeMatchSearch && nodeMatchType;
+          const nodeMatch = matchesFilter(node);
 
           const children = node.children || [];
           const filteredChildren = filterTree(children);
@@ -295,23 +316,11 @@
             return null;
           }
 
-          if (hasMatchChildren) {
-            const checkedCount = filteredChildren.filter(
-              (c) => c.checked
-            ).length;
-            const allChecked = checkedCount === filteredChildren.length;
-            const indeterminate =
-              checkedCount > 0 && checkedCount < filteredChildren.length;
-
-            return {
-              ...node,
-              children: filteredChildren,
-              checked: allChecked,
-              indeterminate,
-            };
-          }
-
-          return node;
+          return {
+            ...node,
+            key: node.id,
+            children: hasMatchChildren ? filteredChildren : undefined,
+          };
         })
         .filter((n): n is SysPermissionTreeNode => n !== null);
     };
@@ -321,7 +330,8 @@
 
   const collectCheckedKeys = (nodes: SysPermissionTreeNode[]) => {
     nodes.forEach((node) => {
-      if (node.checked) {
+      // 收集完全选中的节点，以及本身是权限项的半选节点
+      if (node.checked || (node.indeterminate && node.type)) {
         checkedKeys.value.add(node.id);
       }
       if (node.children) {
@@ -335,6 +345,21 @@
       node.checked = checkedKeys.value.has(node.id);
       if (node.children) {
         updateTreeCheckState(node.children);
+      }
+    });
+  };
+
+  const collectFullyCheckedKeys = (
+    nodes: SysPermissionTreeNode[],
+    result: Set<number>
+  ) => {
+    nodes.forEach((node) => {
+      // 只收集完全选中（checked=true，不是indeterminate=false）的节点
+      if (node.checked && !node.indeterminate) {
+        result.add(node.id);
+      }
+      if (node.children) {
+        collectFullyCheckedKeys(node.children, result);
       }
     });
   };
@@ -358,50 +383,81 @@
 
       permissionTree.value = removeIconFromTree(treeWithChecked);
 
+      checkedKeys.value = new Set();
       collectCheckedKeys(permissionTree.value);
-      treeCheckedKeys.value = Array.from(checkedKeys.value);
+
+      // 收集真正完全选中的节点传给 Tree 组件
+      const fullyChecked = new Set<number>();
+      collectFullyCheckedKeys(permissionTree.value, fullyChecked);
+      treeCheckedKeys.value = Array.from(fullyChecked);
     } finally {
       loading.value = false;
     }
   };
 
-  const handleTreeCheck = (keys: (string | number)[]) => {
-    checkedKeys.value = new Set(keys as number[]);
+  const handleTreeCheck = (
+    keys: (string | number)[],
+    { halfCheckedKeys }: { halfCheckedKeys: (string | number)[] }
+  ) => {
+    // 1. 收集所有完全选中的节点
+    const allCheckedIds = new Set(keys.map((k) => Number(k)));
+    // 2. 收集半选中但本身是权限项的节点（有 type 的节点）
+    const halfCheckedIds = new Set(halfCheckedKeys.map((k) => Number(k)));
+    // 3. 遍历树，找出半选中且本身是权限项的节点
+    const collectHalfCheckedPermissionNodes = (
+      nodes: SysPermissionTreeNode[]
+    ) => {
+      nodes.forEach((node) => {
+        if (halfCheckedIds.has(node.id) && node.type) {
+          allCheckedIds.add(node.id);
+        }
+        if (node.children) {
+          collectHalfCheckedPermissionNodes(node.children);
+        }
+      });
+    };
+    collectHalfCheckedPermissionNodes(permissionTree.value);
+
+    checkedKeys.value = allCheckedIds;
     updateTreeCheckState(permissionTree.value);
   };
 
   const handleCheckAll = () => {
-    const collectIds = (nodes: SysPermissionTreeNode[]) => {
-      nodes.forEach((node) => {
-        checkedKeys.value.add(node.id);
-        if (node.children) {
-          collectIds(node.children);
-        }
-      });
-    };
+    const filteredIds = new Set<number>();
+    collectFilteredIds(permissionTree.value, filteredIds);
 
-    collectIds(filteredPermissionTree.value);
+    const newCheckedKeys = new Set(checkedKeys.value);
+    filteredIds.forEach((id) => {
+      newCheckedKeys.add(id);
+    });
+    checkedKeys.value = newCheckedKeys;
 
     updateTreeCheckState(permissionTree.value);
-    treeCheckedKeys.value = Array.from(checkedKeys.value);
+
+    // 收集真正完全选中的节点传给 Tree 组件
+    const fullyChecked = new Set<number>();
+    collectFullyCheckedKeys(permissionTree.value, fullyChecked);
+    treeCheckedKeys.value = Array.from(fullyChecked);
 
     Message.success(t('system.role.permission.checkAllSuccess'));
   };
 
   const handleUncheckAll = () => {
-    const collectIds = (nodes: SysPermissionTreeNode[]) => {
-      nodes.forEach((node) => {
-        checkedKeys.value.delete(node.id);
-        if (node.children) {
-          collectIds(node.children);
-        }
-      });
-    };
+    const filteredIds = new Set<number>();
+    collectFilteredIds(permissionTree.value, filteredIds);
 
-    collectIds(filteredPermissionTree.value);
+    const newCheckedKeys = new Set(checkedKeys.value);
+    filteredIds.forEach((id) => {
+      newCheckedKeys.delete(id);
+    });
+    checkedKeys.value = newCheckedKeys;
 
     updateTreeCheckState(permissionTree.value);
-    treeCheckedKeys.value = Array.from(checkedKeys.value);
+
+    // 收集真正完全选中的节点传给 Tree 组件
+    const fullyChecked = new Set<number>();
+    collectFullyCheckedKeys(permissionTree.value, fullyChecked);
+    treeCheckedKeys.value = Array.from(fullyChecked);
 
     Message.success(t('system.role.permission.uncheckAllSuccess'));
   };
@@ -414,7 +470,11 @@
     );
     permissionTree.value = removeIconFromTree(treeWithChecked);
     collectCheckedKeys(permissionTree.value);
-    treeCheckedKeys.value = Array.from(checkedKeys.value);
+
+    // 收集真正完全选中的节点传给 Tree 组件
+    const fullyChecked = new Set<number>();
+    collectFullyCheckedKeys(permissionTree.value, fullyChecked);
+    treeCheckedKeys.value = Array.from(fullyChecked);
 
     Message.success(t('system.role.permission.resetSuccess'));
   };
