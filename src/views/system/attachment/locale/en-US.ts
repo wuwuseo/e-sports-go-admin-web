@@ -46,4 +46,9 @@ export default {
     'Some files failed to upload, please check and retry',
   'system.attachment.moveTo': 'Move to Group',
   'system.attachment.moveSuccess': 'Moved successfully',
+  'system.attachment.group.panelTitle': 'Group Management',
+  'system.attachment.filter.mimeType': 'File Type',
+  'system.attachment.filter.mimeType.all': 'All',
+  'system.attachment.filter.status': 'Status',
+  'system.attachment.filter.status.all': 'All',
 };

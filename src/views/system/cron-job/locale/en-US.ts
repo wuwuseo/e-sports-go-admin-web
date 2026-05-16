@@ -38,4 +38,12 @@ export default {
   'system.cronJob.logs.selectFile': 'Select a log file',
   'system.cronJob.filterType': 'Task Type',
   'system.cronJob.filterType.all': 'All',
+  'system.cronJob.stats.total': 'Total Tasks',
+  'system.cronJob.stats.enabled': 'Enabled',
+  'system.cronJob.stats.disabled': 'Disabled',
+  'system.cronJob.stats.readyToRun': 'Ready to Run',
+  'system.cronJob.filterStatus': 'Status',
+  'system.cronJob.filterStatus.all': 'All',
+  'system.cronJob.filterStatus.enabled': 'Enabled',
+  'system.cronJob.filterStatus.disabled': 'Disabled',
 };

@@ -6,7 +6,9 @@
         <a-col :span="5">
           <div class="group-panel">
             <div class="group-panel-header">
-              <span class="group-panel-title">分组管理</span>
+              <span class="group-panel-title">{{
+                $t('system.attachment.group.panelTitle')
+              }}</span>
               <a-button type="text" size="small" @click="handleCreateGroup">
                 <template #icon><icon-plus /></template>
               </a-button>
@@ -18,7 +20,7 @@
                 @click="handleGroupSelect(undefined)"
               >
                 <icon-folder class="group-item-icon" />
-                <span>全部文件</span>
+                <span>{{ $t('system.attachment.group.all') }}</span>
                 <span class="group-item-count">{{ attachments.length }}</span>
               </div>
               <div
@@ -68,7 +70,7 @@
               />
               <a-select
                 v-model="filterMimeType"
-                placeholder="文件类型"
+                :placeholder="$t('system.attachment.filter.mimeType')"
                 style="width: 130px"
                 allow-clear
                 @change="handleSearch"

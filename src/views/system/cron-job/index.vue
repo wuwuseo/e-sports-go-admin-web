@@ -23,13 +23,17 @@
           </a-select>
           <a-select
             v-model="filterEnabled"
-            placeholder="状态"
+            :placeholder="$t('system.cronJob.filterStatus')"
             style="width: 110px"
             allow-clear
             @change="handleSearch"
           >
-            <a-option :value="true">已启用</a-option>
-            <a-option :value="false">已禁用</a-option>
+            <a-option :value="true">{{
+              $t('system.cronJob.filterStatus.enabled')
+            }}</a-option>
+            <a-option :value="false">{{
+              $t('system.cronJob.filterStatus.disabled')
+            }}</a-option>
           </a-select>
         </div>
         <div class="page-toolbar-right">
@@ -59,7 +63,9 @@
               <div class="stat-card-value" style="font-size: 16px">{{
                 cronStat.total
               }}</div>
-              <div class="stat-card-label">任务总数</div>
+              <div class="stat-card-label">{{
+                $t('system.cronJob.stats.total')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -80,7 +86,9 @@
               <div class="stat-card-value" style="font-size: 16px">{{
                 cronStat.enabled
               }}</div>
-              <div class="stat-card-label">已启用</div>
+              <div class="stat-card-label">{{
+                $t('system.cronJob.stats.enabled')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -101,7 +109,9 @@
               <div class="stat-card-value" style="font-size: 16px">{{
                 cronStat.disabled
               }}</div>
-              <div class="stat-card-label">已禁用</div>
+              <div class="stat-card-label">{{
+                $t('system.cronJob.stats.disabled')
+              }}</div>
             </div>
           </div>
         </a-col>
@@ -122,7 +132,9 @@
               <div class="stat-card-value" style="font-size: 16px">{{
                 cronStat.runnable
               }}</div>
-              <div class="stat-card-label">可立即执行</div>
+              <div class="stat-card-label">{{
+                $t('system.cronJob.stats.readyToRun')
+              }}</div>
             </div>
           </div>
         </a-col>

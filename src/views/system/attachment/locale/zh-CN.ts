@@ -42,4 +42,9 @@ export default {
   'system.attachment.upload.partialFail': '部分文件上传失败，请检查后重试',
   'system.attachment.moveTo': '移动到分组',
   'system.attachment.moveSuccess': '移动成功',
+  'system.attachment.group.panelTitle': '分组管理',
+  'system.attachment.filter.mimeType': '文件类型',
+  'system.attachment.filter.mimeType.all': '全部',
+  'system.attachment.filter.status': '状态',
+  'system.attachment.filter.status.all': '全部',
 };

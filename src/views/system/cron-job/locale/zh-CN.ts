@@ -38,4 +38,12 @@ export default {
   'system.cronJob.logs.selectFile': '请选择日志文件',
   'system.cronJob.filterType': '任务类型',
   'system.cronJob.filterType.all': '全部',
+  'system.cronJob.stats.total': '任务总数',
+  'system.cronJob.stats.enabled': '已启用',
+  'system.cronJob.stats.disabled': '已禁用',
+  'system.cronJob.stats.readyToRun': '可立即执行',
+  'system.cronJob.filterStatus': '状态',
+  'system.cronJob.filterStatus.all': '全部',
+  'system.cronJob.filterStatus.enabled': '已启用',
+  'system.cronJob.filterStatus.disabled': '已禁用',
 };

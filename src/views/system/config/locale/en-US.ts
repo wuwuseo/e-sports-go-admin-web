@@ -50,4 +50,10 @@ export default {
   'system.config.group.createSuccess': 'Group created successfully',
   'system.config.noChange': 'No changes to save',
   'system.config.empty': 'No config groups, please create one first',
+  'system.config.array.item': 'Array Item',
+  'system.config.array.value': 'Value',
+  'system.config.array.add': 'Add',
+  'system.config.array2d.col': 'Column',
+  'system.config.array2d.cell': 'Cell',
+  'system.config.array2d.addRow': 'Add Row',
 };
