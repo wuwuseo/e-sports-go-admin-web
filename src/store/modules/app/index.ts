@@ -54,7 +54,8 @@ const useAppStore = defineStore('app', {
           closable: true,
         });
         const { data } = await getUserMenuPermissions();
-        this.serverMenu = transformToMenuRoutes(data.data);
+        // 将用户菜单权限数据传入，实现权限过滤：只有在权限中的路径才会被加载
+        this.serverMenu = transformToMenuRoutes(data.data, data.data);
         notifyInstance = Notification.success({
           id: 'menuNotice',
           content: 'success',

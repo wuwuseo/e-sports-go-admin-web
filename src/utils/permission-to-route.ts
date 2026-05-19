@@ -82,12 +82,46 @@ const PARENT_ROUTE_MAP: Record<
 };
 
 /**
+ * 检查路径是否在用户权限中
+ * @param path 路由路径
+ * @param userMenuPermissions 用户菜单权限列表
+ * @returns 是否有权限
+ */
+function hasPathInPermissions(
+  path: string,
+  userMenuPermissions: PermissionResponse[]
+): boolean {
+  return userMenuPermissions.some((perm) => {
+    // 1. 精确匹配：权限对象就是路由路径
+    if (perm.object === path) {
+      return true;
+    }
+
+    // 2. 从权限映射中查找对应的路径
+    const pathConfig = OBJECT_TO_PATH_MAP[perm.object];
+    if (pathConfig && pathConfig.path === path) {
+      return true;
+    }
+
+    // 3. 前缀匹配：父级路径
+    if (perm.object && path.startsWith(perm.object.replace(/:/g, '/'))) {
+      return true;
+    }
+
+    return false;
+  });
+}
+
+/**
  * 将权限数据转换为路由记录数组
+ * 只有在用户权限中的路径才会被加载
  * @param permissions 权限响应数组
+ * @param userMenuPermissions 用户的菜单权限列表（用于过滤）
  * @returns 格式化后的路由记录数组
  */
 export function transformPermissionsToRoutes(
-  permissions: PermissionResponse[]
+  permissions: PermissionResponse[],
+  userMenuPermissions?: PermissionResponse[]
 ): RouteRecordNormalized[] {
   // 按模块分组权限
   const moduleMap = new Map<string, PermissionResponse[]>();
@@ -116,11 +150,33 @@ export function transformPermissionsToRoutes(
       return;
     }
 
-    // 构建子路由
+    // 如果提供了用户权限列表，则检查父级路径是否有权限
+    if (
+      userMenuPermissions &&
+      userMenuPermissions.length > 0 &&
+      !hasPathInPermissions(parentConfig.path, userMenuPermissions)
+    ) {
+      return;
+    }
+
+    // 构建子路由：只处理有component且有权限的配置
     const children: RouteRecordNormalized[] = modulePermissions
       .filter((perm) => {
         const pathConfig = OBJECT_TO_PATH_MAP[perm.object];
-        return pathConfig && pathConfig.component;
+        if (!pathConfig || !pathConfig.component) {
+          return false;
+        }
+
+        // 如果提供了用户权限列表，则检查子路径是否有权限
+        if (
+          userMenuPermissions &&
+          userMenuPermissions.length > 0 &&
+          !hasPathInPermissions(pathConfig.path, userMenuPermissions)
+        ) {
+          return false;
+        }
+
+        return true;
       })
       .map((perm) => {
         const pathConfig = OBJECT_TO_PATH_MAP[perm.object];
@@ -134,6 +190,7 @@ export function transformPermissionsToRoutes(
             locale: `menu.${perm.object.replace(/:/g, '.')}`,
             requiresAuth: true,
             roles: [perm.role_name],
+            permissionCode: perm.object,
           },
         } as unknown as RouteRecordNormalized;
       });
@@ -164,10 +221,25 @@ export function transformPermissionsToRoutes(
 /**
  * 将权限列表转换为菜单结构（简化版本）
  * @param permissions 权限响应数组
+ * @param userMenuPermissions 用户的菜单权限列表（用于过滤）
  * @returns 格式化后的路由记录数组
  */
 export function transformToMenuRoutes(
-  permissions: PermissionResponse[]
+  permissions: PermissionResponse[],
+  userMenuPermissions?: PermissionResponse[]
 ): RouteRecordNormalized[] {
-  return transformPermissionsToRoutes(permissions);
+  return transformPermissionsToRoutes(permissions, userMenuPermissions);
+}
+
+/**
+ * 权限路径匹配工具函数
+ * @param path 要检查的路径
+ * @param userMenuPermissions 用户菜单权限列表
+ * @returns 是否匹配
+ */
+export function isPathPermitted(
+  path: string,
+  userMenuPermissions: PermissionResponse[]
+): boolean {
+  return hasPathInPermissions(path, userMenuPermissions);
 }
