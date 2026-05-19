@@ -63,8 +63,9 @@ axios.interceptors.response.use(
     const status = error.response?.status;
     const res = error.response?.data;
 
-    // 401 Unauthorized: token expired or invalid, force logout
-    if (status === 401 && error.config?.url !== '/api/user/info') {
+    // 401 未授权：token 过期或无效，强制登出
+    // 排除获取当前用户信息的接口，因为该接口用于验证登录状态
+    if (status === 401 && error.config?.url !== '/api/v1/admin/auth/user') {
       Modal.error({
         title: 'Confirm logout',
         content:

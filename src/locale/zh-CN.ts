@@ -10,6 +10,7 @@ import localeSystemCronJob from '@/views/system/cron-job/locale/zh-CN';
 import localeDictData from '@/views/system/dict-data/locale/zh-CN';
 import localeConfig from '@/views/system/config/locale/zh-CN';
 import localeSystemUser from '@/views/system/user/locale/zh-CN';
+import localeSystemAdmin from '@/views/system/admin/locale/zh-CN';
 
 import localeSettings from './zh-CN/settings';
 
@@ -25,6 +26,7 @@ export default {
   'menu.system.operationLog': '操作日志',
   'menu.system.dict': '字典管理',
   'menu.system.config': '系统配置',
+  'menu.system.admin': '管理员管理',
   'menu.server.dashboard': '仪表盘-服务端',
   'menu.server.workplace': '工作台-服务端',
   'menu.server.monitor': '实时监控-服务端',
@@ -51,4 +53,5 @@ export default {
   ...localeDictData,
   ...localeConfig,
   ...localeSystemUser,
+  ...localeSystemAdmin,
 };

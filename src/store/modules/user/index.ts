@@ -5,15 +5,20 @@ import {
   getCurrentUser,
   getUserMenuPermissions,
   getUserButtonPermissions,
+  adminLogin,
+  adminLogout as adminLogoutApi,
+  getCurrentAdmin,
 } from '@/api/user';
-import type { LoginRequest } from '@/types/api';
+import type { LoginRequest, AdminLoginRequest } from '@/types/api';
 import {
   setToken,
   clearToken,
   setRefreshToken,
   clearRefreshToken,
+  setAdminLogin,
 } from '@/utils/auth';
 import { removeRouteListener } from '@/utils/route-listener';
+import type { RoleType } from './types';
 import { UserState } from './types';
 import useAppStore from '../app';
 
@@ -38,6 +43,8 @@ const useUserStore = defineStore('user', {
     menuPermissions: [],
     buttonPermissions: [],
     permissionsLoading: false,
+    isAdmin: false,
+    isSuperAdmin: false,
   }),
 
   getters: {
@@ -118,28 +125,33 @@ const useUserStore = defineStore('user', {
     // Get user's information
     async info() {
       const res = await getCurrentUser();
-      const userData = res.data.data;
+      const apiData = res.data.data;
+
+      // 构建要设置的用户信息，映射 API 字段到 store 字段
+      const userInfo: Partial<UserState> = {
+        name: apiData.username,
+        email: apiData.email,
+        phone: apiData.phone,
+        avatar: apiData.avatar,
+        accountId: String(apiData.id),
+      };
 
       // 处理角色：如果 roles 数组中包含 admin，则设置为 admin
       // 否则取第一个角色（如果有），否则默认为空（由调用方兜底）
-      if (userData.roles && Array.isArray(userData.roles)) {
-        // 大小写不敏感匹配 admin 角色
-        const isAdmin = userData.roles.some(
+      if (
+        apiData.roles &&
+        Array.isArray(apiData.roles) &&
+        apiData.roles.length > 0
+      ) {
+        const isAdminRole = apiData.roles.some(
           (r: string) => r.toLowerCase() === 'admin'
         );
-        if (isAdmin) {
-          userData.role = 'admin';
-        } else if (userData.roles.length > 0) {
-          // eslint-disable-next-line prefer-destructuring
-          userData.role = userData.roles[0];
-        } else {
-          userData.role = '';
-        }
+        userInfo.role = (isAdminRole ? 'admin' : apiData.roles[0]) as RoleType;
       } else {
-        userData.role = '';
+        userInfo.role = '';
       }
 
-      this.setInfo(userData);
+      this.setInfo(userInfo);
     },
 
     // 加载用户权限（菜单权限 + 按钮权限）
@@ -151,13 +163,37 @@ const useUserStore = defineStore('user', {
           getUserButtonPermissions({ domain: 'default' }),
         ]);
 
-        // 提取权限码
-        this.menuPermissions = menuRes.data.data?.map((p) => p.object) || [];
-        this.buttonPermissions =
-          buttonRes.data.data?.map((p) => p.object) || [];
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('加载用户权限失败:', error);
+        // 提取权限码，兼容多种 API 返回格式
+        // 格式1: PermissionResponse[] 对象数组，权限码在 object 字段
+        // 格式2: string[] 权限码数组
+        // 格式3: { permissions: [...] } 嵌套对象
+        const extractPermissionCodes = (rawData: unknown): string[] => {
+          if (!rawData) return [];
+          if (Array.isArray(rawData)) {
+            return rawData
+              .map((item) => {
+                if (typeof item === 'string') return item;
+                if (item && typeof item === 'object' && 'object' in item)
+                  return String(item.object);
+                return '';
+              })
+              .filter(Boolean);
+          }
+          if (typeof rawData === 'object' && rawData !== null) {
+            const obj = rawData as Record<string, unknown>;
+            if (Array.isArray(obj.permissions)) {
+              return extractPermissionCodes(obj.permissions);
+            }
+            if (Array.isArray(obj.data)) {
+              return extractPermissionCodes(obj.data);
+            }
+          }
+          return [];
+        };
+
+        this.menuPermissions = extractPermissionCodes(menuRes.data.data);
+        this.buttonPermissions = extractPermissionCodes(buttonRes.data.data);
+      } catch {
         // 加载失败时重置权限列表，但不抛出异常（不影响登录）
         this.menuPermissions = [];
         this.buttonPermissions = [];
@@ -185,14 +221,13 @@ const useUserStore = defineStore('user', {
         const tokenData = res.data.data; // TokenResponse
         setToken(tokenData.access_token);
         setRefreshToken(tokenData.refresh_token);
+        setAdminLogin(false);
 
         // 登录成功后加载用户信息和权限
         // 使用 try-catch 确保即使加载失败也能正常登录
         try {
           await this.info();
-        } catch (infoErr) {
-          // eslint-disable-next-line no-console
-          console.error('加载用户信息失败，使用默认角色:', infoErr);
+        } catch {
           // 设置默认角色，确保能正常使用系统
           this.setInfo({ role: 'admin' });
         }
@@ -202,6 +237,7 @@ const useUserStore = defineStore('user', {
       } catch (err) {
         clearToken();
         clearRefreshToken();
+        setAdminLogin(false);
         throw err;
       }
     },
@@ -212,6 +248,7 @@ const useUserStore = defineStore('user', {
       this.clearPermissions();
       clearToken();
       clearRefreshToken();
+      setAdminLogin(false);
       removeRouteListener();
       appStore.clearServerMenu();
     },
@@ -220,6 +257,75 @@ const useUserStore = defineStore('user', {
     async logout() {
       try {
         await userLogout();
+      } finally {
+        this.logoutCallBack();
+      }
+    },
+
+    // 管理员登录
+    async adminLogin(loginForm: AdminLoginRequest) {
+      try {
+        const res = await adminLogin(loginForm);
+        const tokenData = res.data.data;
+        setToken(tokenData.access_token);
+        setRefreshToken(tokenData.refresh_token);
+        setAdminLogin(true);
+
+        // 登录成功后加载管理员信息和权限
+        try {
+          await this.loadAdminInfo();
+        } catch {
+          // 设置默认角色，确保能正常使用系统
+          this.setInfo({ role: 'admin', isAdmin: true });
+        }
+
+        // 加载权限（不抛出异常，不影响登录流程）
+        await this.loadPermissions();
+      } catch (err) {
+        clearToken();
+        clearRefreshToken();
+        setAdminLogin(false);
+        throw err;
+      }
+    },
+
+    // 加载管理员信息
+    async loadAdminInfo() {
+      const res = await getCurrentAdmin();
+      const apiData = res.data.data;
+
+      // 构建要设置的管理员信息
+      const adminInfo: Partial<UserState> = {
+        name: apiData.username,
+        email: apiData.email,
+        phone: apiData.phone,
+        avatar: apiData.avatar,
+        accountId: String(apiData.id),
+        isAdmin: true,
+        isSuperAdmin: apiData.is_super_admin,
+      };
+
+      // 处理角色
+      if (
+        apiData.roles &&
+        Array.isArray(apiData.roles) &&
+        apiData.roles.length > 0
+      ) {
+        const isAdminRole = apiData.roles.some(
+          (r: string) => r.toLowerCase() === 'admin'
+        );
+        adminInfo.role = (isAdminRole ? 'admin' : apiData.roles[0]) as RoleType;
+      } else {
+        adminInfo.role = 'admin';
+      }
+
+      this.setInfo(adminInfo);
+    },
+
+    // 管理员登出
+    async adminLogout() {
+      try {
+        await adminLogoutApi();
       } finally {
         this.logoutCallBack();
       }

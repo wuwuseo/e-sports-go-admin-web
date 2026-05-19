@@ -12,21 +12,18 @@
       @submit="handleSubmit"
     >
       <a-form-item
-        field="email"
-        :rules="[
-          { required: true, message: $t('login.form.email.errMsg') },
-          { type: 'email', message: $t('login.form.email.formatErr') },
-        ]"
+        field="username"
+        :rules="[{ required: true, message: $t('login.form.username.errMsg') }]"
         :validate-trigger="['change', 'blur']"
         hide-label
       >
         <a-input
-          v-model="userInfo.email"
-          :placeholder="$t('login.form.email.placeholder')"
+          v-model="userInfo.username"
+          :placeholder="$t('login.form.username.placeholder')"
           size="large"
         >
           <template #prefix>
-            <icon-email />
+            <icon-user />
           </template>
         </a-input>
       </a-form-item>
@@ -79,7 +76,7 @@
   import { useUserStore } from '@/store';
   import useLoading from '@/hooks/loading';
   import { getPublicKey } from '@/api/user';
-  import type { LoginRequest } from '@/types/api';
+  import type { AdminLoginRequest } from '@/types/api';
 
   const router = useRouter();
   const { t } = useI18n();
@@ -89,11 +86,11 @@
 
   const loginConfig = useStorage('login-config', {
     rememberPassword: true,
-    email: 'admin@example.com',
+    username: 'admin',
     password: 'admin',
   });
   const userInfo = reactive({
-    email: loginConfig.value.email,
+    username: loginConfig.value.username,
     password: loginConfig.value.password,
   });
 
@@ -147,8 +144,8 @@
       setLoading(true);
       errorMessage.value = '';
       try {
-        let loginData: LoginRequest = {
-          email: values.email,
+        let loginData: AdminLoginRequest = {
+          username: values.username,
           password: values.password,
         };
 
@@ -156,9 +153,9 @@
           const keyRes = await getPublicKey();
           const keyData = keyRes.data.data;
           if (keyData && keyData.public_key) {
-            const encryptedEmail = await rsaEncrypt(
+            const encryptedUsername = await rsaEncrypt(
               keyData.public_key,
-              values.email
+              values.username
             );
             const encryptedPassword = await rsaEncrypt(
               keyData.public_key,
@@ -166,7 +163,7 @@
             );
             const nonce = generateNonce();
             loginData = {
-              encrypted_email: encryptedEmail,
+              encrypted_username: encryptedUsername,
               encrypted_password: encryptedPassword,
               key_id: keyData.key_id,
               nonce,
@@ -179,15 +176,15 @@
           console.warn('Failed to get public key, falling back to plain login');
         }
 
-        // 执行登录
-        await userStore.login(loginData);
+        // 执行管理员登录
+        await userStore.adminLogin(loginData);
 
         Message.success(t('login.form.login.success'));
 
         // 保存登录配置
         const { rememberPassword } = loginConfig.value;
-        const { email, password } = values;
-        loginConfig.value.email = rememberPassword ? email : '';
+        const { username, password } = values;
+        loginConfig.value.username = rememberPassword ? username : '';
         loginConfig.value.password = rememberPassword ? password : '';
 
         // 确保用户角色已设置（如果没有设置默认admin）
@@ -195,7 +192,7 @@
           userStore.setInfo({ role: 'admin' });
         }
 
-        // 登录成功后直接跳转（不需要 setTimeout，因为 login 内部已经 await 了所有异步操作）
+        // 登录成功后直接跳转
         const { redirect } = router.currentRoute.value.query;
         const redirectValue = redirect as string | undefined;
 
@@ -205,7 +202,6 @@
           redirectValue !== 'undefined' &&
           redirectValue.startsWith('/')
         ) {
-          // router.push 可以直接处理带查询参数的完整路径
           await router.push(redirectValue);
         } else {
           // 默认跳转到工作台

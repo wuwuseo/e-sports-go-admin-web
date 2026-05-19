@@ -3,7 +3,8 @@ import { Notification } from '@arco-design/web-vue';
 import type { NotificationReturn } from '@arco-design/web-vue/es/notification/interface';
 import type { RouteRecordNormalized } from 'vue-router';
 import defaultSettings from '@/config/settings.json';
-import { getUserMenuPermissions } from '@/api/user';
+import { getUserMenuPermissions } from '@/api/permission';
+import { transformToMenuRoutes } from '@/utils/permission-to-route';
 import { AppState } from './types';
 
 const useAppStore = defineStore('app', {
@@ -17,7 +18,7 @@ const useAppStore = defineStore('app', {
       return state.device;
     },
     appAsyncMenus(state: AppState): RouteRecordNormalized[] {
-      return state.serverMenu as unknown as RouteRecordNormalized[];
+      return state.serverMenu;
     },
   },
 
@@ -53,7 +54,7 @@ const useAppStore = defineStore('app', {
           closable: true,
         });
         const { data } = await getUserMenuPermissions();
-        this.serverMenu = data.data as unknown as RouteRecordNormalized[];
+        this.serverMenu = transformToMenuRoutes(data.data);
         notifyInstance = Notification.success({
           id: 'menuNotice',
           content: 'success',

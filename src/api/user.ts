@@ -19,6 +19,13 @@ import type {
   BlacklistUserRequest,
   AssignUserRolesRequest,
   RoleResponse,
+  AdminLoginRequest,
+  AdminResponse,
+  AdminDetailResponse,
+  CreateAdminRequest,
+  UpdateAdminRequest,
+  AdminQuery,
+  ChangeAdminPasswordRequest,
 } from '@/types/api';
 
 // 登录
@@ -36,7 +43,7 @@ export function refreshToken(data: RefreshTokenRequest) {
 
 // 获取当前登录用户信息
 export function getCurrentUser() {
-  return axios.get<ApiResponse<any>>('/api/v1/admin/auth/user');
+  return axios.get<ApiResponse<UserDetailResponse>>('/api/v1/admin/auth/user');
 }
 
 // 更新当前用户信息
@@ -227,5 +234,84 @@ export function getThirdPartyUsers(params?: ThirdPartyUserQuery) {
 export function unbindThirdPartyUser(id: number) {
   return axios.delete<ApiResponse<null>>(
     `/api/v1/admin/auth/third-party-users/${id}`
+  );
+}
+
+// ==========================================
+// 管理员认证与管理
+// ==========================================
+
+// 管理员登录
+export function adminLogin(data: AdminLoginRequest) {
+  return axios.post<ApiResponse<TokenResponse>>(
+    '/api/v1/admin/public/login',
+    data
+  );
+}
+
+// 管理员刷新 Token
+export function adminRefreshToken(data: RefreshTokenRequest) {
+  return axios.post<ApiResponse<TokenResponse>>(
+    '/api/v1/admin/public/refresh',
+    data
+  );
+}
+
+// 获取当前登录管理员信息
+export function getCurrentAdmin() {
+  return axios.get<ApiResponse<AdminDetailResponse>>(
+    '/api/v1/admin/admin-auth/user'
+  );
+}
+
+// 更新当前管理员信息
+export function updateCurrentAdmin(data: Record<string, any>) {
+  return axios.put<ApiResponse<any>>('/api/v1/admin/admin-auth/user', data);
+}
+
+// 修改管理员密码
+export function changeAdminPassword(data: ChangeAdminPasswordRequest) {
+  return axios.put<ApiResponse<any>>('/api/v1/admin/admin-auth/password', data);
+}
+
+// 管理员登出
+export function adminLogout() {
+  return axios.post<ApiResponse<null>>('/api/v1/admin/admin-auth/logout');
+}
+
+// 获取管理员列表
+export function getAdmins(params?: AdminQuery) {
+  return axios.get<ApiResponse<PaginatedResponse<AdminResponse>>>(
+    '/api/v1/admin/admin-auth/admins',
+    { params }
+  );
+}
+
+// 获取管理员详情
+export function getAdminDetail(uid: string | number) {
+  return axios.get<ApiResponse<AdminDetailResponse>>(
+    `/api/v1/admin/admin-auth/admins/${uid}`
+  );
+}
+
+// 创建管理员
+export function createAdmin(data: CreateAdminRequest) {
+  return axios.post<ApiResponse<AdminResponse>>(
+    '/api/v1/admin/admin-auth/admins',
+    data
+  );
+}
+
+// 激活管理员
+export function activateAdmin(id: number) {
+  return axios.put<ApiResponse<null>>(
+    `/api/v1/admin/admin-auth/admins/${id}/activate`
+  );
+}
+
+// 停用管理员
+export function deactivateAdmin(id: number) {
+  return axios.put<ApiResponse<null>>(
+    `/api/v1/admin/admin-auth/admins/${id}/deactivate`
   );
 }

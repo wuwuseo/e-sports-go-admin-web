@@ -10,6 +10,7 @@ import localeSystemCronJob from '@/views/system/cron-job/locale/en-US';
 import localeDictData from '@/views/system/dict-data/locale/en-US';
 import localeConfig from '@/views/system/config/locale/en-US';
 import localeSystemUser from '@/views/system/user/locale/en-US';
+import localeSystemAdmin from '@/views/system/admin/locale/en-US';
 
 import localeSettings from './en-US/settings';
 
@@ -25,6 +26,7 @@ export default {
   'menu.system.operationLog': 'Operation Logs',
   'menu.system.dict': 'Dictionary',
   'menu.system.config': 'Config',
+  'menu.system.admin': 'Administrators',
   'menu.server.dashboard': 'Dashboard-Server',
   'menu.server.workplace': 'Workplace-Server',
   'menu.server.monitor': 'Monitor-Server',
@@ -51,4 +53,5 @@ export default {
   ...localeDictData,
   ...localeConfig,
   ...localeSystemUser,
+  ...localeSystemAdmin,
 };

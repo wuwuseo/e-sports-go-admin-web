@@ -86,6 +86,15 @@ const SYSTEM: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'admin',
+      name: 'SystemAdmin',
+      component: () => import('@/views/system/admin/index.vue'),
+      meta: {
+        locale: 'menu.system.admin',
+        requiresAuth: true,
+      },
+    },
+    {
       path: 'config',
       name: 'SystemConfig',
       component: () => import('@/views/system/config/index.vue'),

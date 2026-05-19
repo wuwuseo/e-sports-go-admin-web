@@ -18,7 +18,6 @@ export default function setupPermissionGuard(router: Router) {
 
     // 等待权限加载完成（避免竞态条件）
     if (userStore.permissionsLoading) {
-      // 使用轮询等待权限加载完成，最多等待 3 秒
       const maxWaitTime = 3000;
       const startTime = Date.now();
       while (
@@ -29,6 +28,25 @@ export default function setupPermissionGuard(router: Router) {
         await new Promise<void>((resolve) => {
           setTimeout(resolve, 100);
         });
+      }
+      // 超时后权限仍在加载，尝试再次加载
+      if (userStore.permissionsLoading) {
+        try {
+          await userStore.loadPermissions();
+        } catch {
+          // 加载失败，使用空权限继续
+        }
+      }
+    }
+
+    // 如果没有角色信息，尝试加载用户信息（防御性处理）
+    if (!userStore.role) {
+      try {
+        await userStore.info();
+        await userStore.loadPermissions();
+      } catch {
+        // 加载失败，设置默认角色避免死循环
+        userStore.setInfo({ role: 'admin' });
       }
     }
 
@@ -52,7 +70,6 @@ export default function setupPermissionGuard(router: Router) {
     }
 
     // 2. 只有角色权限通过，且路由没有配置 '*' 角色时，才检查权限码
-    // 注意：如果 roles: ['*']，表示对所有用户开放，不需要额外检查权限码
     if (
       permissionsAllow &&
       to.meta?.requiresAuth &&
@@ -74,7 +91,7 @@ export default function setupPermissionGuard(router: Router) {
     if (permissionsAllow) {
       next();
     } else {
-      // 无权限，跳转到 404 或 403 页面
+      // 无权限，跳转到 404 页面
       next(NOT_FOUND);
     }
 

@@ -137,7 +137,7 @@ const usePermissionStore = defineStore('permission', {
     async fetchUserPermissions(domain = 'default') {
       try {
         const { data: resData } = await getUserPermissions({ domain });
-        this.userPermissions.all = resData.data || {};
+        this.userPermissions.all = resData.data || [];
         return this.userPermissions.all;
       } catch (error) {
         return null;

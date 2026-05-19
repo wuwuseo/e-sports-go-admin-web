@@ -26,6 +26,7 @@ import type {
   BlacklistResponse,
   BlacklistUserRequest,
   AssignUserRolesRequest,
+  RoleResponse,
   ThirdPartyUserResponse,
   ThirdPartyUserQuery,
 } from '@/types/api';

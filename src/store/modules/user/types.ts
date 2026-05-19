@@ -22,4 +22,8 @@ export interface UserState {
   buttonPermissions: string[];
   // 权限加载状态
   permissionsLoading: boolean;
+  // 是否为管理员账号
+  isAdmin?: boolean;
+  // 是否为超级管理员
+  isSuperAdmin?: boolean;
 }

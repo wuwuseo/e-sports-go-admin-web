@@ -643,3 +643,62 @@ export interface BlacklistUserRequest {
 export interface AssignUserRolesRequest {
   role_ids: number[];
 }
+
+// ===== 管理员管理相关 =====
+export interface AdminLoginRequest {
+  username?: string;
+  password?: string;
+  encrypted_username?: string;
+  encrypted_password?: string;
+  key_id?: string;
+  nonce?: string;
+  timestamp?: number;
+}
+
+export interface AdminResponse {
+  id: number;
+  username: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  status: 'active' | 'inactive';
+  is_super_admin: boolean;
+  last_login_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminDetailResponse extends AdminResponse {
+  roles: string[];
+  created_by?: string;
+  updated_by?: string;
+}
+
+export interface CreateAdminRequest {
+  username: string;
+  email: string;
+  password: string;
+  phone?: string;
+  avatar?: string;
+  is_super_admin?: boolean;
+}
+
+export interface UpdateAdminRequest {
+  username?: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  password?: string;
+  is_super_admin?: boolean;
+}
+
+export interface AdminQuery extends PaginationQuery {
+  keyword?: string;
+  status?: 'active' | 'inactive';
+  is_super_admin?: boolean;
+}
+
+export interface ChangeAdminPasswordRequest {
+  old_password: string;
+  new_password: string;
+}
