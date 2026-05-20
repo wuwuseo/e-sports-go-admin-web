@@ -4,11 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  bin-wrapper: npm:bin-wrapper-china
-  rollup: ^2.56.3
-  gifsicle: 5.2.0
-
 importers:
 
   .:
@@ -54,7 +49,7 @@ importers:
         version: 6.7.3(@vue/runtime-core@3.5.33)(echarts@5.6.0)(vue@3.5.33(typescript@4.9.5))
       vue-i18n:
         specifier: ^9.14.4
-        version: 9.14.4(vue@3.5.33(typescript@4.9.5))
+        version: 9.14.5(vue@3.5.33(typescript@4.9.5))
       vue-router:
         specifier: ^4.6.4
         version: 4.6.4(vue@3.5.33(typescript@4.9.5))
@@ -459,16 +454,16 @@ packages:
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
     deprecated: Use @eslint/object-schema instead
 
-  '@intlify/core-base@9.14.4':
-    resolution: {integrity: sha512-vtZCt7NqWhKEtHa3SD/322DlgP5uR9MqWxnE0y8Q0tjDs9H5Lxhss+b5wv8rmuXRoHKLESNgw9d+EN9ybBbj9g==}
+  '@intlify/core-base@9.14.5':
+    resolution: {integrity: sha512-5ah5FqZG4pOoHjkvs8mjtv+gPKYU0zCISaYNjBNNqYiaITxW8ZtVih3GS/oTOqN8d9/mDLyrjD46GBApNxmlsA==}
     engines: {node: '>= 16'}
 
-  '@intlify/message-compiler@9.14.4':
-    resolution: {integrity: sha512-vcyCLiVRN628U38c3PbahrhbbXrckrM9zpy0KZVlDk2Z0OnGwv8uQNNXP3twwGtfLsCf4gu3ci6FMIZnPaqZsw==}
+  '@intlify/message-compiler@9.14.5':
+    resolution: {integrity: sha512-IHzgEu61/YIpQV5Pc3aRWScDcnFKWvQA9kigcINcCBXN8mbW+vk9SK+lDxA6STzKQsVJxUPg9ACC52pKKo3SVQ==}
     engines: {node: '>= 16'}
 
-  '@intlify/shared@9.14.4':
-    resolution: {integrity: sha512-P9zv6i1WvMc9qDBWvIgKkymjY2ptIiQ065PjDv7z7fDqH3J/HBRBN5IoiR46r/ujRcU7hCuSIZWvCAFCyuOYZA==}
+  '@intlify/shared@9.14.5':
+    resolution: {integrity: sha512-9gB+E53BYuAEMhbCAxVgG38EZrk59sxBtv3jSizNL2hEWlgjBjAw1AwpLHtNaeda12pe6W20OGEa0TwuMSRbyQ==}
     engines: {node: '>= 16'}
 
   '@jridgewell/gen-mapping@0.3.13':
@@ -525,7 +520,7 @@ packages:
     resolution: {integrity: sha512-5EdhGZtnu3V88ces7s53hhfK5KSASnJZv8Lulpc04cWO3REESroJXg73DFsOmgbU2BhwV0E20bu2IDZb3VKW4Q==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
-      rollup: ^2.56.3
+      rollup: ^1.20.0||^2.0.0||^3.0.0||^4.0.0
     peerDependenciesMeta:
       rollup:
         optional: true
@@ -1124,17 +1119,13 @@ packages:
     resolution: {integrity: sha512-Mkfm4iE1VFt4xd4vH+gx+0/71esbfus2LsnCGe8Pi4mndSPyT+NGES/Eg99jx8/lUGWfu3z2yuB/bt5UB+iVbQ==}
     engines: {node: '>=6'}
 
-  bin-wrapper-china@0.1.0:
-    resolution: {integrity: sha512-1UCm17WYEbgry50tup+AQN+JGVEVzoW4f8HMl899k1lvuFxWKGZXl/G2fgxQxAckRjnloO3ijLVVEsv8zescUg==}
-    engines: {node: '>=8.3'}
-    hasBin: true
+  bin-wrapper@4.1.0:
+    resolution: {integrity: sha512-hfRmo7hWIXPkbpi0ZltboCMVrU+0ClXR/JgbCKKjlDjQf6igXa7OwdqNcFWQZPZTgiY7ZpzE3+LjjkLiTN2T7Q==}
+    engines: {node: '>=6'}
 
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
     engines: {node: '>=8'}
-
-  binary-mirror-config@1.41.0:
-    resolution: {integrity: sha512-ZiIhR1s6Sv1Fv6qCQqfPjx0Cj86BgFlhqNxZgHkQOWcxJcMbO3mj1iqsuVjowYqJqeZL8e52+IEv7IRnSX6T6w==}
 
   bl@1.2.3:
     resolution: {integrity: sha512-pvcNpa0UU69UT341rO6AYy4FVAIkUHuZXRIWbq+zHnsVcRzDDjIAhGuuYoi0d//cwIwtt4pkpKycWEfjdV+vww==}
@@ -4203,7 +4194,7 @@ packages:
     hasBin: true
     peerDependencies:
       rolldown: 1.x
-      rollup: ^2.56.3
+      rollup: 2.x || 3.x || 4.x
     peerDependenciesMeta:
       rolldown:
         optional: true
@@ -5041,9 +5032,10 @@ packages:
     peerDependencies:
       eslint: '>=6.0.0'
 
-  vue-i18n@9.14.4:
-    resolution: {integrity: sha512-B934C8yUyWLT0EMud3DySrwSUJI7ZNiWYsEEz2gknTthqKiG4dzWE/WSa8AzCuSQzwBEv4HtG1jZDhgzPfWSKQ==}
+  vue-i18n@9.14.5:
+    resolution: {integrity: sha512-0jQ9Em3ymWngyiIkj0+c/k7WgaPO+TNzjKSNq9BvBQaKJECqn9cd9fL4tkDhB5G1QBskGl9YxxbDAhgbFtpe2g==}
     engines: {node: '>= 16'}
+    deprecated: v9 and v10 no longer supported. please migrate to v11. about maintenance status, see https://vue-i18n.intlify.dev/guide/maintenance.html
     peerDependencies:
       vue: ^3.0.0
 
@@ -5563,17 +5555,17 @@ snapshots:
 
   '@humanwhocodes/object-schema@2.0.3': {}
 
-  '@intlify/core-base@9.14.4':
+  '@intlify/core-base@9.14.5':
     dependencies:
-      '@intlify/message-compiler': 9.14.4
-      '@intlify/shared': 9.14.4
+      '@intlify/message-compiler': 9.14.5
+      '@intlify/shared': 9.14.5
 
-  '@intlify/message-compiler@9.14.4':
+  '@intlify/message-compiler@9.14.5':
     dependencies:
-      '@intlify/shared': 9.14.4
+      '@intlify/shared': 9.14.5
       source-map-js: 1.2.1
 
-  '@intlify/shared@9.14.4': {}
+  '@intlify/shared@9.14.5': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -6273,19 +6265,16 @@ snapshots:
       execa: 1.0.0
       find-versions: 3.2.0
 
-  bin-wrapper-china@0.1.0:
+  bin-wrapper@4.1.0:
     dependencies:
       bin-check: 4.1.0
       bin-version-check: 4.0.0
-      binary-mirror-config: 1.41.0
       download: 7.1.0
-      import-lazy: 4.0.0
+      import-lazy: 3.1.0
       os-filter-obj: 2.0.0
       pify: 4.0.1
 
   binary-extensions@2.3.0: {}
-
-  binary-mirror-config@1.41.0: {}
 
   bl@1.2.3:
     dependencies:
@@ -6692,7 +6681,7 @@ snapshots:
   cwebp-bin@6.1.2:
     dependencies:
       bin-build: 3.0.0
-      bin-wrapper: bin-wrapper-china@0.1.0
+      bin-wrapper: 4.1.0
 
   dargs@7.0.0: {}
 
@@ -7761,7 +7750,7 @@ snapshots:
   gifsicle@5.2.0:
     dependencies:
       bin-build: 3.0.0
-      bin-wrapper: bin-wrapper-china@0.1.0
+      bin-wrapper: 4.1.0
       execa: 5.1.1
       logalot: 2.1.0
 
@@ -7892,7 +7881,7 @@ snapshots:
       into-stream: 3.1.0
       is-retry-allowed: 1.2.0
       isurl: 1.0.0
-      lowercase-keys: 1.0.1
+      lowercase-keys: 1.0.0
       mimic-response: 1.0.1
       p-cancelable: 0.4.1
       p-timeout: 2.0.1
@@ -8375,13 +8364,13 @@ snapshots:
   jpegtran-bin@5.0.2:
     dependencies:
       bin-build: 3.0.0
-      bin-wrapper: bin-wrapper-china@0.1.0
+      bin-wrapper: 4.1.0
       logalot: 2.1.0
 
   jpegtran-bin@6.0.1:
     dependencies:
       bin-build: 3.0.0
-      bin-wrapper: bin-wrapper-china@0.1.0
+      bin-wrapper: 4.1.0
 
   js-tokens@4.0.0: {}
 
@@ -8795,7 +8784,7 @@ snapshots:
   mozjpeg@7.1.1:
     dependencies:
       bin-build: 3.0.0
-      bin-wrapper: bin-wrapper-china@0.1.0
+      bin-wrapper: 4.1.0
 
   ms@2.0.0: {}
 
@@ -8985,7 +8974,7 @@ snapshots:
   optipng-bin@7.0.1:
     dependencies:
       bin-build: 3.0.0
-      bin-wrapper: bin-wrapper-china@0.1.0
+      bin-wrapper: 4.1.0
 
   os-filter-obj@2.0.0:
     dependencies:
@@ -9167,7 +9156,7 @@ snapshots:
   pngquant-bin@6.0.1:
     dependencies:
       bin-build: 3.0.0
-      bin-wrapper: bin-wrapper-china@0.1.0
+      bin-wrapper: 4.1.0
       execa: 4.1.0
 
   posix-character-classes@0.1.1: {}
@@ -9178,7 +9167,7 @@ snapshots:
     dependencies:
       htmlparser2: 3.10.1
       postcss: 7.0.39
-      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0)(postcss-scss@2.1.1)(postcss@7.0.39)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-scss@2.1.1)(postcss@7.0.39)
 
   postcss-html@1.8.1:
     dependencies:
@@ -9191,7 +9180,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.0
       postcss: 7.0.39
-      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0)(postcss-scss@2.1.1)(postcss@7.0.39)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-scss@2.1.1)(postcss@7.0.39)
     transitivePeerDependencies:
       - supports-color
 
@@ -9202,7 +9191,7 @@ snapshots:
   postcss-markdown@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39):
     dependencies:
       postcss: 7.0.39
-      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0)(postcss-scss@2.1.1)(postcss@7.0.39)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-scss@2.1.1)(postcss@7.0.39)
       remark: 10.0.1
       unist-util-find-all-after: 1.0.5
 
@@ -9254,7 +9243,7 @@ snapshots:
     dependencies:
       postcss: 8.5.13
 
-  postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0)(postcss-scss@2.1.1)(postcss@7.0.39):
+  postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-scss@2.1.1)(postcss@7.0.39):
     dependencies:
       postcss: 7.0.39
     optionalDependencies:
@@ -9513,7 +9502,7 @@ snapshots:
 
   responselike@1.0.2:
     dependencies:
-      lowercase-keys: 1.0.1
+      lowercase-keys: 1.0.0
 
   restore-cursor@4.0.0:
     dependencies:
@@ -10055,7 +10044,7 @@ snapshots:
       postcss-sass: 0.3.5
       postcss-scss: 2.1.1
       postcss-selector-parser: 3.1.2
-      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0)(postcss-scss@2.1.1)(postcss@7.0.39)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-jsx@0.36.4(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-less@3.1.4)(postcss-markdown@0.36.0(postcss-syntax@0.36.2(postcss-html@1.8.1)(postcss@8.5.13))(postcss@7.0.39))(postcss-scss@2.1.1)(postcss@7.0.39)
       postcss-value-parser: 3.3.1
       resolve-from: 4.0.0
       signal-exit: 3.0.7
@@ -10551,10 +10540,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  vue-i18n@9.14.4(vue@3.5.33(typescript@4.9.5)):
+  vue-i18n@9.14.5(vue@3.5.33(typescript@4.9.5)):
     dependencies:
-      '@intlify/core-base': 9.14.4
-      '@intlify/shared': 9.14.4
+      '@intlify/core-base': 9.14.5
+      '@intlify/shared': 9.14.5
       '@vue/devtools-api': 6.6.4
       vue: 3.5.33(typescript@4.9.5)
 
