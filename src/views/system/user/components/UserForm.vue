@@ -65,11 +65,11 @@
   import { Message } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
   import useUserManagementStore from '@/store/modules/user-management';
-  import type { UserDetailResponse } from '@/types/api';
+  import type { UserResponse, UserDetailResponse } from '@/types/api';
 
   const props = defineProps<{
     visible: boolean;
-    user?: UserDetailResponse;
+    user?: UserResponse | UserDetailResponse;
     mode?: 'create' | 'edit' | 'view';
   }>();
 

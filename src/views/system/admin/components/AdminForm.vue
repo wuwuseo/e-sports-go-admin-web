@@ -44,7 +44,10 @@
           :disabled="isView"
         />
       </a-form-item>
-      <a-form-item v-if="!isView" :label="$t('system.admin.form.isSuperAdmin')">
+      <a-form-item
+        v-if="!isView && !isEdit"
+        :label="$t('system.admin.form.isSuperAdmin')"
+      >
         <a-switch v-model="formData.isSuperAdmin" />
       </a-form-item>
       <a-form-item
@@ -167,8 +170,12 @@
     submitting.value = true;
     try {
       if (isEdit.value && props.admin) {
-        // 目前 API 没有提供管理员更新方法，预留
-        Message.info('管理员编辑功能暂未开放');
+        await adminStore.updateAdmin(props.admin.id, {
+          username: formData.value.username,
+          email: formData.value.email,
+          phone: formData.value.phone || undefined,
+        });
+        Message.success(t('system.admin.updateSuccess'));
       } else {
         await adminStore.createAdmin({
           username: formData.value.username,

@@ -16,16 +16,6 @@ import localeSettings from './zh-CN/settings';
 
 export default {
   'menu.dashboard': '仪表盘',
-  'menu.system': '系统管理',
-  'menu.system.user': '用户管理',
-  'menu.system.thirdPartyUser': '第三方用户',
-  'menu.system.role': '角色管理',
-  'menu.system.permission': '权限管理',
-  'menu.system.attachment': '附件管理',
-  'menu.system.cronJob': '定时任务',
-  'menu.system.operationLog': '操作日志',
-  'menu.system.dict': '字典管理',
-  'menu.system.config': '系统配置',
   'menu.system.admin': '管理员管理',
   'menu.server.dashboard': '仪表盘-服务端',
   'menu.server.workplace': '工作台-服务端',

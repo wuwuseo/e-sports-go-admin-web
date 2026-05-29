@@ -5,12 +5,19 @@ import {
   getAdminDetail,
   activateAdmin,
   deactivateAdmin,
+  deleteAdmin,
+  getAdminRoles,
+  assignAdminRoles,
+  updateAdmin,
 } from '@/api/user';
 import type {
   AdminResponse,
   AdminDetailResponse,
   CreateAdminRequest,
+  UpdateAdminRequest,
   AdminQuery,
+  AssignUserRolesRequest,
+  RoleResponse,
 } from '@/types/api';
 
 export interface AdminManagementState {
@@ -88,6 +95,24 @@ const useAdminManagementStore = defineStore('adminManagement', {
 
     async deactivateAdmin(id: number) {
       await deactivateAdmin(id);
+    },
+
+    async deleteAdmin(id: number) {
+      await deleteAdmin(id);
+    },
+
+    async fetchAdminRoles(id: number): Promise<RoleResponse[]> {
+      const res = await getAdminRoles(id);
+      return res.data.data;
+    },
+
+    async assignAdminRoles(id: number, data: AssignUserRolesRequest) {
+      await assignAdminRoles(id, data);
+    },
+
+    async updateAdmin(id: number, data: UpdateAdminRequest) {
+      const res = await updateAdmin(id, data);
+      return res.data.data;
     },
   },
 });

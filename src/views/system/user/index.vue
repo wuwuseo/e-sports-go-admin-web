@@ -305,7 +305,9 @@
   const formVisible = ref(false);
   const roleAssignVisible = ref(false);
   const blacklistVisible = ref(false);
-  const currentUser = ref<UserDetailResponse | undefined>(undefined);
+  const currentUser = ref<UserResponse | UserDetailResponse | undefined>(
+    undefined
+  );
   const formMode = ref<'create' | 'edit' | 'view'>('create');
   const currentPage = ref(1);
   const pageSize = ref(10);

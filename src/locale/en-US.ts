@@ -16,16 +16,6 @@ import localeSettings from './en-US/settings';
 
 export default {
   'menu.dashboard': 'Dashboard',
-  'menu.system': 'System',
-  'menu.system.user': 'Users',
-  'menu.system.thirdPartyUser': 'Third-party Users',
-  'menu.system.role': 'Roles',
-  'menu.system.permission': 'Permissions',
-  'menu.system.attachment': 'Attachments',
-  'menu.system.cronJob': 'Cron Jobs',
-  'menu.system.operationLog': 'Operation Logs',
-  'menu.system.dict': 'Dictionary',
-  'menu.system.config': 'Config',
   'menu.system.admin': 'Administrators',
   'menu.server.dashboard': 'Dashboard-Server',
   'menu.server.workplace': 'Workplace-Server',

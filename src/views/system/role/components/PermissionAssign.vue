@@ -315,28 +315,24 @@
       return permissionTree.value;
     }
 
-    const filterTree = (
-      nodes: SysPermissionTreeNode[]
-    ): SysPermissionTreeNode[] => {
-      return nodes
-        .map((node) => {
-          const nodeMatch = matchesFilter(node);
+    const filterTree = (nodes: SysPermissionTreeNode[]): any[] => {
+      return nodes.reduce<any[]>((result, node) => {
+        const nodeMatch = matchesFilter(node);
 
-          const children = node.children || [];
-          const filteredChildren = filterTree(children);
-          const hasMatchChildren = filteredChildren.length > 0;
+        const children = node.children || [];
+        const filteredChildren = filterTree(children);
+        const hasMatchChildren = filteredChildren.length > 0;
 
-          if (!nodeMatch && !hasMatchChildren) {
-            return null;
-          }
-
-          return {
+        if (nodeMatch || hasMatchChildren) {
+          result.push({
             ...node,
             key: node.id,
             children: hasMatchChildren ? filteredChildren : undefined,
-          };
-        })
-        .filter((n): n is SysPermissionTreeNode => n !== null);
+          });
+        }
+
+        return result;
+      }, []);
     };
 
     return filterTree(permissionTree.value);

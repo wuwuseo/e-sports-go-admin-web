@@ -431,31 +431,29 @@
       if (!nodes || nodes.length === 0) {
         return [];
       }
-      return nodes
-        .filter((node): node is SysPermissionTreeNode => node !== null)
-        .map((node) => {
-          const matchType = !type || node.type === type;
-          const matchSearch =
-            !search ||
-            (node.name && node.name.toLowerCase().includes(search)) ||
-            (node.path && node.path.toLowerCase().includes(search)) ||
-            (node.code && node.code.toLowerCase().includes(search));
-          const nodeMatch = matchType && matchSearch;
 
-          const children = node.children || [];
-          const filteredChildren = filterTree(children);
-          const hasMatchChildren = filteredChildren.length > 0;
+      return nodes.reduce<SysPermissionTreeNode[]>((result, node) => {
+        const matchType = !type || node.type === type;
+        const matchSearch =
+          !search ||
+          (node.name && node.name.toLowerCase().includes(search)) ||
+          (node.path && node.path.toLowerCase().includes(search)) ||
+          (node.code && node.code.toLowerCase().includes(search));
+        const nodeMatch = matchType && matchSearch;
 
-          if (!nodeMatch && !hasMatchChildren) {
-            return null;
-          }
+        const children = node.children || [];
+        const filteredChildren = filterTree(children);
+        const hasMatchChildren = filteredChildren.length > 0;
 
-          return {
+        if (nodeMatch || hasMatchChildren) {
+          result.push({
             ...node,
             children: hasMatchChildren ? filteredChildren : undefined,
-          };
-        })
-        .filter((n): n is SysPermissionTreeNode => n !== null);
+          });
+        }
+
+        return result;
+      }, []);
     };
 
     return transformTreeNodes(filterTree(tree));

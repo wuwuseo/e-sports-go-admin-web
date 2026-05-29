@@ -1,4 +1,5 @@
 import type { StateTree, Store } from 'pinia';
+import type { UnwrapRef } from 'vue';
 
 export interface CrudState<T> extends StateTree {
   items: T[];
@@ -56,7 +57,7 @@ export function createFetchDetailAction<T>(
     },
 
     setCurrentItem(this: Store<string, CrudState<T>>, item?: T) {
-      this.currentItem = item;
+      this.currentItem = item as UnwrapRef<T> | undefined;
     },
   } as FetchDetailAction<T> & ThisType<Store<string, CrudState<T>>>;
 }

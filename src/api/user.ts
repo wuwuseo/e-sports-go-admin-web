@@ -259,30 +259,28 @@ export function adminRefreshToken(data: RefreshTokenRequest) {
 
 // 获取当前登录管理员信息
 export function getCurrentAdmin() {
-  return axios.get<ApiResponse<AdminDetailResponse>>(
-    '/api/v1/admin/admin-auth/user'
-  );
+  return axios.get<ApiResponse<AdminDetailResponse>>('/api/v1/admin/auth/user');
 }
 
 // 更新当前管理员信息
 export function updateCurrentAdmin(data: Record<string, any>) {
-  return axios.put<ApiResponse<any>>('/api/v1/admin/admin-auth/user', data);
+  return axios.put<ApiResponse<any>>('/api/v1/admin/auth/user', data);
 }
 
 // 修改管理员密码
 export function changeAdminPassword(data: ChangeAdminPasswordRequest) {
-  return axios.put<ApiResponse<any>>('/api/v1/admin/admin-auth/password', data);
+  return axios.put<ApiResponse<any>>('/api/v1/admin/auth/password', data);
 }
 
 // 管理员登出
 export function adminLogout() {
-  return axios.post<ApiResponse<null>>('/api/v1/admin/admin-auth/logout');
+  return axios.post<ApiResponse<null>>('/api/v1/admin/auth/logout');
 }
 
 // 获取管理员列表
 export function getAdmins(params?: AdminQuery) {
   return axios.get<ApiResponse<PaginatedResponse<AdminResponse>>>(
-    '/api/v1/admin/admin-auth/admins',
+    '/api/v1/admin/auth/admins',
     { params }
   );
 }
@@ -290,14 +288,14 @@ export function getAdmins(params?: AdminQuery) {
 // 获取管理员详情
 export function getAdminDetail(uid: string | number) {
   return axios.get<ApiResponse<AdminDetailResponse>>(
-    `/api/v1/admin/admin-auth/admins/${uid}`
+    `/api/v1/admin/auth/admins/${uid}`
   );
 }
 
 // 创建管理员
 export function createAdmin(data: CreateAdminRequest) {
   return axios.post<ApiResponse<AdminResponse>>(
-    '/api/v1/admin/admin-auth/admins',
+    '/api/v1/admin/auth/admins',
     data
   );
 }
@@ -305,13 +303,39 @@ export function createAdmin(data: CreateAdminRequest) {
 // 激活管理员
 export function activateAdmin(id: number) {
   return axios.put<ApiResponse<null>>(
-    `/api/v1/admin/admin-auth/admins/${id}/activate`
+    `/api/v1/admin/auth/admins/${id}/activate`
   );
 }
 
 // 停用管理员
 export function deactivateAdmin(id: number) {
   return axios.put<ApiResponse<null>>(
-    `/api/v1/admin/admin-auth/admins/${id}/deactivate`
+    `/api/v1/admin/auth/admins/${id}/deactivate`
+  );
+}
+
+// 删除管理员
+export function deleteAdmin(id: number) {
+  return axios.delete<ApiResponse<null>>(`/api/v1/admin/auth/admins/${id}`);
+}
+
+// 获取管理员角色列表
+export function getAdminRoles(id: number) {
+  return axios.get<ApiResponse<any[]>>(`/api/v1/admin/auth/admins/${id}/roles`);
+}
+
+// 分配管理员角色
+export function assignAdminRoles(id: number, data: any) {
+  return axios.put<ApiResponse<null>>(
+    `/api/v1/admin/auth/admins/${id}/roles`,
+    data
+  );
+}
+
+// 更新管理员
+export function updateAdmin(id: number, data: UpdateAdminRequest) {
+  return axios.put<ApiResponse<AdminResponse>>(
+    `/api/v1/admin/auth/admins/${id}`,
+    data
   );
 }

@@ -241,6 +241,14 @@
                       <template #icon><icon-pause-circle /></template>
                       {{ $t('system.admin.deactivate') }}
                     </a-doption>
+                    <a-doption value="assignRole">
+                      <template #icon><icon-safe /></template>
+                      {{ $t('system.admin.assignRole') }}
+                    </a-doption>
+                    <a-doption value="delete" style="color: #f5222d">
+                      <template #icon><icon-delete /></template>
+                      {{ $t('common.delete') }}
+                    </a-doption>
                   </template>
                 </a-dropdown>
               </a-space>
@@ -255,6 +263,11 @@
       :mode="formMode"
       @success="handleFormSuccess"
     />
+    <RoleAssign
+      v-model:visible="roleAssignVisible"
+      :admin="currentAdmin"
+      @success="handleFormSuccess"
+    />
   </div>
 </template>
 
@@ -266,6 +279,7 @@
   import useAdminManagementStore from '@/store/modules/admin-management';
   import type { AdminResponse, AdminDetailResponse } from '@/types/api';
   import AdminForm from './components/AdminForm.vue';
+  import RoleAssign from './components/RoleAssign.vue';
 
   const { t } = useI18n();
   const adminStore = useAdminManagementStore();
@@ -273,6 +287,7 @@
   const searchKeyword = ref('');
   const statusFilter = ref('');
   const formVisible = ref(false);
+  const roleAssignVisible = ref(false);
   const currentAdmin = ref<AdminDetailResponse | undefined>(undefined);
   const formMode = ref<'create' | 'edit' | 'view'>('create');
   const currentPage = ref(1);
@@ -361,6 +376,21 @@
     }
   };
 
+  const handleDelete = async (record: AdminResponse) => {
+    try {
+      await adminStore.deleteAdmin(record.id);
+      Message.success(t('system.admin.deleteSuccess'));
+      fetchData();
+    } catch (err) {
+      // 错误已在API层处理
+    }
+  };
+
+  const handleAssignRole = (record: AdminResponse) => {
+    currentAdmin.value = record as AdminDetailResponse;
+    roleAssignVisible.value = true;
+  };
+
   const handleActionSelect = (action: string, record: AdminResponse) => {
     switch (action) {
       case 'activate':
@@ -375,6 +405,16 @@
           title: t('system.admin.deactivateConfirm'),
           content: '',
           onOk: () => handleDeactivate(record),
+        });
+        break;
+      case 'assignRole':
+        handleAssignRole(record);
+        break;
+      case 'delete':
+        Modal.confirm({
+          title: t('system.admin.deleteConfirm'),
+          content: '',
+          onOk: () => handleDelete(record),
         });
         break;
       default:
