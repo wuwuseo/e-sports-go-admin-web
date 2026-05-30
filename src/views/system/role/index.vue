@@ -193,7 +193,19 @@
                   <template #icon><icon-edit /></template>
                   {{ $t('common.edit') }}
                 </a-button>
+                <a-tooltip
+                  v-if="record.name === 'admin'"
+                  :content="
+                    $t('system.role.assignPermission.superAdminDisabled')
+                  "
+                >
+                  <a-button type="text" size="small" disabled>
+                    <template #icon><icon-safe /></template>
+                    {{ $t('system.role.assignPermission') }}
+                  </a-button>
+                </a-tooltip>
                 <a-button
+                  v-else
                   type="text"
                   size="small"
                   @click="handleAssignPermission(record)"

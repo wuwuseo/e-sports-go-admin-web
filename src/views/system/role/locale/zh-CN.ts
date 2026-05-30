@@ -15,6 +15,8 @@ export default {
   'system.role.createdAt': '创建时间',
   'system.role.operations': '操作',
   'system.role.assignPermission': '分配权限',
+  'system.role.assignPermission.superAdminDisabled':
+    '超级管理员角色拥有全部权限，无需也不允许分配',
   'system.role.deleteConfirm': '确定要删除该角色吗？',
   'system.role.form.title.create': '新建角色',
   'system.role.form.title.edit': '编辑角色',

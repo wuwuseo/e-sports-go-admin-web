@@ -11,6 +11,7 @@ import localeDictData from '@/views/system/dict-data/locale/en-US';
 import localeConfig from '@/views/system/config/locale/en-US';
 import localeSystemUser from '@/views/system/user/locale/en-US';
 import localeSystemAdmin from '@/views/system/admin/locale/en-US';
+import localeMessage from '@/views/message/locale/en-US';
 
 import localeSettings from './en-US/settings';
 
@@ -44,4 +45,5 @@ export default {
   ...localeConfig,
   ...localeSystemUser,
   ...localeSystemAdmin,
+  ...localeMessage,
 };

@@ -15,6 +15,8 @@ export default {
   'system.role.createdAt': 'Created At',
   'system.role.operations': 'Operations',
   'system.role.assignPermission': 'Assign Permissions',
+  'system.role.assignPermission.superAdminDisabled':
+    'Super admin role has all permissions and cannot be modified',
   'system.role.deleteConfirm': 'Are you sure to delete this role?',
   'system.role.form.title.create': 'Create Role',
   'system.role.form.title.edit': 'Edit Role',

@@ -3,7 +3,14 @@
     <a-card class="general-card" :title="$t('menu.system.permission')">
       <a-row :gutter="12" style="margin-bottom: 20px">
         <a-col :span="6">
-          <div class="stat-card">
+          <div
+            class="stat-card"
+            :class="{ active: filterType === 'api' }"
+            role="button"
+            tabindex="0"
+            @click="handleStatCardClick('api')"
+            @keyup.enter="handleStatCardClick('api')"
+          >
             <div class="stat-card-icon api-icon">API</div>
             <div>
               <div class="stat-card-value">
@@ -16,7 +23,14 @@
           </div>
         </a-col>
         <a-col :span="6">
-          <div class="stat-card">
+          <div
+            class="stat-card"
+            :class="{ active: filterType === 'menu' }"
+            role="button"
+            tabindex="0"
+            @click="handleStatCardClick('menu')"
+            @keyup.enter="handleStatCardClick('menu')"
+          >
             <div class="stat-card-icon menu-icon">
               <icon-menu />
             </div>
@@ -31,7 +45,14 @@
           </div>
         </a-col>
         <a-col :span="6">
-          <div class="stat-card">
+          <div
+            class="stat-card"
+            :class="{ active: filterType === 'button' }"
+            role="button"
+            tabindex="0"
+            @click="handleStatCardClick('button')"
+            @keyup.enter="handleStatCardClick('button')"
+          >
             <div class="stat-card-icon button-icon">
               <icon-thumb-up />
             </div>
@@ -46,7 +67,14 @@
           </div>
         </a-col>
         <a-col :span="6">
-          <div class="stat-card">
+          <div
+            class="stat-card"
+            :class="{ active: filterType === '' }"
+            role="button"
+            tabindex="0"
+            @click="handleStatCardClick('')"
+            @keyup.enter="handleStatCardClick('')"
+          >
             <div class="stat-card-icon total-icon">
               <icon-safe />
             </div>
@@ -480,6 +508,16 @@
     }
   };
 
+  // 点击统计卡片进行筛选；再次点击同一卡片或点击"权限总数"卡片则清空筛选
+  const handleStatCardClick = (type: SysPermissionType | '') => {
+    if (type === '' || filterType.value === type) {
+      filterType.value = '';
+    } else {
+      filterType.value = type;
+    }
+    handleSearch();
+  };
+
   const toggleExpanded = () => {
     if (expandedKeys.value.length) {
       expandedKeys.value = [];
@@ -579,6 +617,20 @@
     background: var(--color-bg-2);
     border-radius: 8px;
     border: 1px solid var(--color-border-2);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+
+    &:hover {
+      border-color: rgb(var(--primary-6));
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    &.active {
+      border-color: rgb(var(--primary-6));
+      background: var(--color-primary-light-1);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    }
   }
 
   .stat-card-icon {

@@ -11,6 +11,7 @@ import localeDictData from '@/views/system/dict-data/locale/zh-CN';
 import localeConfig from '@/views/system/config/locale/zh-CN';
 import localeSystemUser from '@/views/system/user/locale/zh-CN';
 import localeSystemAdmin from '@/views/system/admin/locale/zh-CN';
+import localeMessage from '@/views/message/locale/zh-CN';
 
 import localeSettings from './zh-CN/settings';
 
@@ -44,4 +45,5 @@ export default {
   ...localeConfig,
   ...localeSystemUser,
   ...localeSystemAdmin,
+  ...localeMessage,
 };

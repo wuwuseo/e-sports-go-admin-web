@@ -85,7 +85,7 @@
       <li>
         <a-tooltip :content="$t('settings.navbar.alerts')">
           <div class="message-box-trigger">
-            <a-badge :count="9" dot>
+            <a-badge :count="unreadTotal" :max-count="99" :dot="false">
               <a-button
                 class="nav-btn"
                 type="outline"
@@ -131,50 +131,19 @@
         </a-tooltip>
       </li>
       <li>
-        <a-tooltip :content="$t('settings.title')">
-          <a-button
-            class="nav-btn"
-            type="outline"
-            :shape="'circle'"
-            @click="setVisible"
-          >
-            <template #icon>
-              <icon-settings />
-            </template>
-          </a-button>
-        </a-tooltip>
-      </li>
-      <li>
         <a-dropdown trigger="click">
           <a-avatar
             :size="32"
             :style="{ marginRight: '8px', cursor: 'pointer' }"
           >
-            <img alt="avatar" :src="avatar" />
+            <img v-if="avatar" alt="avatar" :src="avatar" />
+            <icon-user v-else />
           </a-avatar>
           <template #content>
-            <a-doption>
-              <a-space @click="switchRoles">
-                <icon-tag />
-                <span>
-                  {{ $t('messageBox.switchRoles') }}
-                </span>
-              </a-space>
-            </a-doption>
-            <a-doption>
-              <a-space @click="$router.push({ name: 'Info' })">
-                <icon-user />
-                <span>
-                  {{ $t('messageBox.userCenter') }}
-                </span>
-              </a-space>
-            </a-doption>
-            <a-doption>
-              <a-space @click="$router.push({ name: 'Setting' })">
+            <a-doption @click="goMessagePreference">
+              <a-space>
                 <icon-settings />
-                <span>
-                  {{ $t('messageBox.userSettings') }}
-                </span>
+                <span>{{ $t('menu.message.preference') }}</span>
               </a-space>
             </a-doption>
             <a-doption>
@@ -194,18 +163,32 @@
 
 <script lang="ts" setup>
   import { computed, ref, inject } from 'vue';
-  import { Message } from '@arco-design/web-vue';
   import { useDark, useToggle, useFullscreen } from '@vueuse/core';
-  import { useAppStore, useUserStore } from '@/store';
+  import { useRouter } from 'vue-router';
+  import { useAppStore, useUserStore, useMessageStore } from '@/store';
   import { LOCALE_OPTIONS } from '@/locale';
   import useLocale from '@/hooks/locale';
   import useUser from '@/hooks/user';
+  import useSseMessage from '@/hooks/sse-message';
   import Menu from '@/components/menu/index.vue';
   import MessageBox from '../message-box/index.vue';
 
   const appStore = useAppStore();
   const userStore = useUserStore();
+  const messageStore = useMessageStore();
   const { logout } = useUser();
+  const router = useRouter();
+
+  // 跳转到消息偏好设置页
+  const goMessagePreference = () => {
+    router.push({ name: 'MessagePreference' });
+  };
+
+  // 启动 SSE 站内消息推送（仅登录用户）
+  useSseMessage();
+
+  // 顶部铃铛未读数
+  const unreadTotal = computed(() => messageStore.unreadTotal);
   const { changeLocale, currentLocale } = useLocale();
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();
   const locales = [...LOCALE_OPTIONS];
@@ -231,9 +214,6 @@
   const handleToggleTheme = () => {
     toggleTheme();
   };
-  const setVisible = () => {
-    appStore.updateSettings({ globalSettings: true });
-  };
   const refBtn = ref();
   const triggerBtn = ref();
   const setPopoverVisible = () => {
@@ -254,10 +234,6 @@
       cancelable: true,
     });
     triggerBtn.value.dispatchEvent(event);
-  };
-  const switchRoles = async () => {
-    const res = await userStore.switchRoles();
-    Message.success(res as string);
   };
   const toggleDrawerMenu = inject('toggleDrawerMenu') as () => void;
 </script>

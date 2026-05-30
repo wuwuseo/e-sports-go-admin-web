@@ -18,6 +18,7 @@ import {
   setAdminLogin,
 } from '@/utils/auth';
 import { removeRouteListener } from '@/utils/route-listener';
+import PermissionTransformer from '@/utils/permission-transformer';
 import type { RoleType } from './types';
 import { UserState } from './types';
 import useAppStore from '../app';
@@ -106,12 +107,6 @@ const useUserStore = defineStore('user', {
   },
 
   actions: {
-    switchRoles() {
-      return new Promise((resolve) => {
-        this.role = this.role === 'user' ? 'admin' : 'user';
-        resolve(this.role);
-      });
-    },
     // Set user's information
     setInfo(partial: Partial<UserState>) {
       this.$patch(partial);
@@ -163,36 +158,12 @@ const useUserStore = defineStore('user', {
           getUserButtonPermissions({ domain: 'default' }),
         ]);
 
-        // 提取权限码，兼容多种 API 返回格式
-        // 格式1: PermissionResponse[] 对象数组，权限码在 object 字段
-        // 格式2: string[] 权限码数组
-        // 格式3: { permissions: [...] } 嵌套对象
-        const extractPermissionCodes = (rawData: unknown): string[] => {
-          if (!rawData) return [];
-          if (Array.isArray(rawData)) {
-            return rawData
-              .map((item) => {
-                if (typeof item === 'string') return item;
-                if (item && typeof item === 'object' && 'object' in item)
-                  return String(item.object);
-                return '';
-              })
-              .filter(Boolean);
-          }
-          if (typeof rawData === 'object' && rawData !== null) {
-            const obj = rawData as Record<string, unknown>;
-            if (Array.isArray(obj.permissions)) {
-              return extractPermissionCodes(obj.permissions);
-            }
-            if (Array.isArray(obj.data)) {
-              return extractPermissionCodes(obj.data);
-            }
-          }
-          return [];
-        };
-
-        this.menuPermissions = extractPermissionCodes(menuRes.data.data);
-        this.buttonPermissions = extractPermissionCodes(buttonRes.data.data);
+        this.menuPermissions = PermissionTransformer.extractPermissionCodes(
+          menuRes.data.data
+        );
+        this.buttonPermissions = PermissionTransformer.extractPermissionCodes(
+          buttonRes.data.data
+        );
       } catch {
         // 加载失败时重置权限列表，但不抛出异常（不影响登录）
         this.menuPermissions = [];
@@ -251,6 +222,18 @@ const useUserStore = defineStore('user', {
       setAdminLogin(false);
       removeRouteListener();
       appStore.clearServerMenu();
+      // 登出时断开 SSE 长连接，避免无效鉴权请求
+      // 使用动态 import 避免循环依赖
+      import('@/services/sse.service').then((mod) => {
+        mod.default.disconnect();
+      });
+      import('@/store/modules/message').then((mod) => {
+        try {
+          mod.default().reset();
+        } catch {
+          // pinia 未初始化时忽略
+        }
+      });
     },
 
     // Logout
