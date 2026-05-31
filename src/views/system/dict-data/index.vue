@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container page-container">
     <a-card class="general-card">
       <template #title>
         <div class="page-header">
@@ -360,8 +360,6 @@
 
 <style scoped lang="less">
   .container {
-    padding: 0;
-
     :deep(.general-card) {
       .page-header {
         display: flex;

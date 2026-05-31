@@ -103,6 +103,15 @@ const SYSTEM: AppRouteRecordRaw = {
         requiresAuth: true,
       },
     },
+    {
+      path: 'plugin',
+      name: 'SystemPlugin',
+      component: () => import('@/views/system/plugin/index.vue'),
+      meta: {
+        locale: 'menu.system.plugin',
+        requiresAuth: true,
+      },
+    },
   ],
 };
 

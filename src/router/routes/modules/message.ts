@@ -24,6 +24,15 @@ const MESSAGE: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'manage',
+      name: 'MessageManage',
+      component: () => import('@/views/message/manage.vue'),
+      meta: {
+        locale: 'menu.message.manage',
+        requiresAuth: true,
+      },
+    },
+    {
       path: 'broadcast',
       name: 'MessageBroadcast',
       component: () => import('@/views/message/broadcast.vue'),

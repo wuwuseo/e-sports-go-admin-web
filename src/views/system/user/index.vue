@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container page-container">
     <a-card class="general-card" :title="$t('menu.system.user')">
       <a-row :gutter="16" style="margin-bottom: 24px">
         <a-col :span="6">

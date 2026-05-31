@@ -1,6 +1,7 @@
 export default {
   'menu.message': 'Messages',
   'menu.message.center': 'Message List',
+  'menu.message.manage': 'Message Manage',
   'menu.message.broadcast': 'Send Message',
   'menu.message.preference': 'Preferences',
 
@@ -118,4 +119,26 @@ export default {
   'message.broadcast.required.scope': 'Please select target',
   'message.broadcast.required.userUids': 'Please enter at least one user UID',
   'message.broadcast.required.roleCodes': 'Please enter at least one role code',
+
+  // Message Manage
+  'message.manage.title': 'Message Manage',
+  'message.manage.toBroadcast': 'New Message',
+  'message.manage.refresh': 'Refresh',
+  'message.manage.filter.keyword': 'Keyword',
+  'message.manage.filter.type': 'Type',
+  'message.manage.filter.type.placeholder': 'All types',
+  'message.manage.filter.level': 'Level',
+  'message.manage.filter.status': 'Status',
+  'message.manage.filter.status.placeholder': 'All status',
+  'message.manage.filter.time': 'Publish Time',
+  'message.manage.batch.delete': 'Delete',
+  'message.manage.clearExpired': 'Clear Read',
+  'message.manage.selectedTip': '{n} selected',
+  'message.manage.confirm.clearExpired':
+    'Clear read messages in current filter scope?',
+  'message.manage.column.status': 'Publish Status',
+  'message.manage.column.receiver': 'Receiver',
+  'message.manage.status.published': 'Published',
+  'message.manage.status.read': 'Read',
+  'message.manage.status.expired': 'Expired',
 };

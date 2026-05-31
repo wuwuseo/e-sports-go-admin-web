@@ -555,6 +555,59 @@ export interface ConfigQuery extends PaginationQuery {
   status?: number;
 }
 
+// ===== 插件管理相关 =====
+export type PluginStatus = 'installed' | 'enabled' | 'disabled' | 'error';
+
+export interface PluginEngine {
+  type: string;
+  protocol: string;
+  entry: Record<string, string>;
+}
+
+export interface PluginCompatibility {
+  app: string;
+  api: string;
+}
+
+export interface PluginManifest {
+  id: string;
+  name: string;
+  version: string;
+  author: string;
+  description?: string;
+  engine: PluginEngine;
+  compatibility: PluginCompatibility;
+  permissions: string[];
+  extension_points: string[];
+}
+
+export interface PluginResponse {
+  id?: number;
+  plugin_id: string;
+  name: string;
+  version: string;
+  author: string;
+  description?: string;
+  status: PluginStatus;
+  install_path: string;
+  manifest?: PluginManifest;
+  manifest_json?: PluginManifest | string;
+  error_message?: string;
+  installed_at?: string;
+  enabled_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PluginQuery extends PaginationQuery {
+  keyword?: string;
+  status?: PluginStatus;
+}
+
+export interface InstallPluginRequest {
+  package_path: string;
+}
+
 // 配置分组选项
 export interface ConfigGroup {
   label: string;

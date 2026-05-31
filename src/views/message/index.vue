@@ -1,30 +1,6 @@
 <template>
   <div class="container">
     <a-card class="general-card" :title="$t('message.center.title')">
-      <!-- 顶部工具条：跳转 / 全部已读 / 清空 -->
-      <template #extra>
-        <a-space>
-          <a-button @click="goPreference">
-            <template #icon><icon-settings /></template>
-            {{ $t('message.center.preference') }}
-          </a-button>
-          <a-button @click="handleAllRead">
-            <template #icon><icon-check-circle /></template>
-            {{ $t('message.center.allRead') }}
-          </a-button>
-          <a-popconfirm
-            :content="$t('message.center.confirm.clear')"
-            type="warning"
-            @ok="handleClear"
-          >
-            <a-button status="danger">
-              <template #icon><icon-delete /></template>
-              {{ $t('message.center.clear') }}
-            </a-button>
-          </a-popconfirm>
-        </a-space>
-      </template>
-
       <!-- Tab 切换 -->
       <a-tabs
         v-model:active-key="activeTab"
@@ -115,6 +91,18 @@
             >
               <a-button :disabled="!selectedKeys.length" status="danger">
                 {{ $t('message.center.batch.delete') }}
+              </a-button>
+            </a-popconfirm>
+            <a-button @click="handleAllRead">
+              {{ $t('message.center.allRead') }}
+            </a-button>
+            <a-popconfirm
+              :content="$t('message.center.confirm.clear')"
+              type="warning"
+              @ok="handleClear"
+            >
+              <a-button status="danger">
+                {{ $t('message.center.clear') }}
               </a-button>
             </a-popconfirm>
             <span v-if="selectedKeys.length" class="select-tip">
@@ -282,7 +270,6 @@
 <script lang="ts" setup>
   import { computed, onMounted, reactive, ref } from 'vue';
   import { useI18n } from 'vue-i18n';
-  import { useRouter } from 'vue-router';
   import { Message } from '@arco-design/web-vue';
   import { storeToRefs } from 'pinia';
   import { useMessageStore } from '@/store';
@@ -294,7 +281,6 @@
   } from '@/api/message';
 
   const { t } = useI18n();
-  const router = useRouter();
   const messageStore = useMessageStore();
   const { list, loading, total, page, pageSize, unread } =
     storeToRefs(messageStore);
@@ -538,11 +524,6 @@
       { label: t('message.detail.readAt'), value: formatTime(r.read_at) },
     ];
   });
-
-  // 跳转偏好页
-  const goPreference = () => {
-    router.push({ name: 'MessagePreference' });
-  };
 
   onMounted(() => {
     loadList({ page: 1 });

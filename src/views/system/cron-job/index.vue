@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container page-container">
     <a-card class="general-card" :title="$t('menu.system.cronJob')">
       <!-- 工具栏 -->
       <div class="page-toolbar">

@@ -9,6 +9,7 @@ import localeOperationLog from '@/views/system/operation-log/locale/en-US';
 import localeSystemCronJob from '@/views/system/cron-job/locale/en-US';
 import localeDictData from '@/views/system/dict-data/locale/en-US';
 import localeConfig from '@/views/system/config/locale/en-US';
+import localeSystemPlugin from '@/views/system/plugin/locale/en-US';
 import localeSystemUser from '@/views/system/user/locale/en-US';
 import localeSystemAdmin from '@/views/system/admin/locale/en-US';
 import localeMessage from '@/views/message/locale/en-US';
@@ -43,6 +44,7 @@ export default {
   ...localeSystemCronJob,
   ...localeDictData,
   ...localeConfig,
+  ...localeSystemPlugin,
   ...localeSystemUser,
   ...localeSystemAdmin,
   ...localeMessage,

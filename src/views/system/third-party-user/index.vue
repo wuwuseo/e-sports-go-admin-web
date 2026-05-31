@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container page-container">
     <a-card class="general-card" :title="$t('menu.system.thirdPartyUser')">
       <div class="page-toolbar">
         <div class="page-toolbar-left">

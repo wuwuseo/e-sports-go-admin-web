@@ -1,6 +1,7 @@
 export default {
   'menu.message': '消息中心',
   'menu.message.center': '消息列表',
+  'menu.message.manage': '消息管理',
   'menu.message.broadcast': '发送消息',
   'menu.message.preference': '消息偏好',
 
@@ -116,4 +117,26 @@ export default {
   'message.broadcast.required.scope': '请选择推送目标',
   'message.broadcast.required.userUids': '请至少输入一个用户 UID',
   'message.broadcast.required.roleCodes': '请至少输入一个角色编码',
+
+  // 消息管理（已发布消息列表）
+  'message.manage.title': '消息管理',
+  'message.manage.toBroadcast': '发布消息',
+  'message.manage.refresh': '刷新',
+  'message.manage.filter.keyword': '关键字',
+  'message.manage.filter.type': '类型',
+  'message.manage.filter.type.placeholder': '全部类型',
+  'message.manage.filter.level': '级别',
+  'message.manage.filter.status': '状态',
+  'message.manage.filter.status.placeholder': '全部状态',
+  'message.manage.filter.time': '发布时间',
+  'message.manage.batch.delete': '批量删除',
+  'message.manage.clearExpired': '清空已读消息',
+  'message.manage.selectedTip': '已选 {n} 项',
+  'message.manage.confirm.clearExpired':
+    '将清空当前筛选范围内的已读消息，是否继续？',
+  'message.manage.column.status': '发布状态',
+  'message.manage.column.receiver': '接收用户',
+  'message.manage.status.published': '已发布',
+  'message.manage.status.read': '已读',
+  'message.manage.status.expired': '已过期',
 };

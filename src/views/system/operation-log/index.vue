@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container page-container">
     <a-card class="general-card" :title="$t('menu.system.operationLog')">
       <!-- 筛选栏 -->
       <a-row style="margin-bottom: 20px">
