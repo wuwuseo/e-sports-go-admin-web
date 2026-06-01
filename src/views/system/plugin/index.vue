@@ -318,7 +318,17 @@
   import PluginInstallModal from './components/PluginInstallModal.vue';
 
   type PluginAction = 'enable' | 'disable' | 'uninstall';
-  type PluginRecord = PluginResponse & { manifest?: PluginManifest };
+  type PluginRecord = PluginResponse & {
+    plugin_id: string;
+    manifest?: PluginManifest;
+  };
+  type PluginListPayload =
+    | PluginResponse[]
+    | {
+        data?: PluginResponse[];
+        items?: PluginResponse[];
+        total?: number;
+      };
 
   const { t } = useI18n();
 
@@ -378,8 +388,24 @@
 
   const normalizePlugin = (record: PluginResponse): PluginRecord => ({
     ...record,
+    plugin_id: record.plugin_id || String(record.id || ''),
     manifest: parseManifest(record),
   });
+
+  const getPluginPayload = (payload?: PluginListPayload) => {
+    if (Array.isArray(payload)) {
+      return {
+        list: payload,
+        total: payload.length,
+      };
+    }
+
+    const list = payload?.data || payload?.items || [];
+    return {
+      list,
+      total: payload?.total ?? list.length,
+    };
+  };
 
   const getManifest = (record: PluginRecord): PluginManifest | undefined =>
     record.manifest;
@@ -417,8 +443,9 @@
         page: 1,
         page_size: pageSizeForStats,
       });
-      const total = firstPage.data.data?.total || 0;
-      const allPlugins = (firstPage.data.data?.data || []).map(normalizePlugin);
+      const firstPayload = getPluginPayload(firstPage.data.data);
+      const { total } = firstPayload;
+      const allPlugins = firstPayload.list.map(normalizePlugin);
       const pageCount = Math.ceil(total / pageSizeForStats);
       const remainingPages = Array.from(
         { length: Math.max(pageCount - 1, 0) },
@@ -434,7 +461,8 @@
       );
 
       remainingResponses.forEach(({ data }) => {
-        allPlugins.push(...(data.data?.data || []).map(normalizePlugin));
+        const payload = getPluginPayload(data.data);
+        allPlugins.push(...payload.list.map(normalizePlugin));
       });
 
       updateStats(allPlugins, total || allPlugins.length);
@@ -452,8 +480,9 @@
         keyword: keyword.value || undefined,
         status: filterStatus.value,
       });
-      tableData.value = (data.data?.data || []).map(normalizePlugin);
-      pagination.total = data.data?.total || 0;
+      const payload = getPluginPayload(data.data);
+      tableData.value = payload.list.map(normalizePlugin);
+      pagination.total = payload.total;
       pagination.current = currentPage.value;
       pagination.pageSize = pageSize.value;
     } catch {

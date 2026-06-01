@@ -9,6 +9,15 @@
 - [src/api/user.ts](file://src/api/user.ts)
 - [src/api/dashboard.ts](file://src/api/dashboard.ts)
 - [src/api/message.ts](file://src/api/message.ts)
+- [src/api/attachment.ts](file://src/api/attachment.ts)
+- [src/api/config.ts](file://src/api/config.ts)
+- [src/api/cron-job.ts](file://src/api/cron-job.ts)
+- [src/api/dict-data.ts](file://src/api/dict-data.ts)
+- [src/api/operation-log.ts](file://src/api/operation-log.ts)
+- [src/api/permission.ts](file://src/api/permission.ts)
+- [src/api/plugin.ts](file://src/api/plugin.ts)
+- [src/api/role.ts](file://src/api/role.ts)
+- [src/api/sys-permission.ts](file://src/api/sys-permission.ts)
 - [src/mock/user.ts](file://src/mock/user.ts)
 - [src/mock/message-box.ts](file://src/mock/message-box.ts)
 - [src/utils/setup-mock.ts](file://src/utils/setup-mock.ts)
@@ -45,7 +54,7 @@
 ## 项目结构
 API接口层主要由以下模块构成：
 - 拦截器与HTTP客户端：基于 axios 的请求/响应拦截器与默认配置
-- 接口定义：按业务域划分的API模块（用户、仪表盘、消息）
+- 接口定义：按业务域划分的API模块（用户、仪表盘、消息、附件、配置、定时任务、字典、操作日志、权限、插件、角色、系统权限）
 - 钩子与工具：请求钩子、加载状态、认证工具、Mock辅助
 - 状态管理：用户store负责登录、登出、信息拉取与token写入
 - Mock环境：开发调试用的模拟接口与统一响应包装
@@ -60,6 +69,15 @@ Auth["认证工具<br/>src/utils/auth.ts"]
 UserAPI["用户API<br/>src/api/user.ts"]
 DashAPI["仪表盘API<br/>src/api/dashboard.ts"]
 MsgAPI["消息API<br/>src/api/message.ts"]
+AAPI["附件管理API<br/>src/api/attachment.ts"]
+CAPI["系统配置API<br/>src/api/config.ts"]
+CJAPI["定时任务API<br/>src/api/cron-job.ts"]
+DDAPI["数据字典API<br/>src/api/dict-data.ts"]
+OLAPI["操作日志API<br/>src/api/operation-log.ts"]
+PAPI["运行时权限API<br/>src/api/permission.ts"]
+PLAPI["插件管理API<br/>src/api/plugin.ts"]
+RAPI["角色管理API<br/>src/api/role.ts"]
+SPAPI["系统权限定义API<br/>src/api/sys-permission.ts"]
 end
 subgraph "状态与工具"
 UserStore["用户Store<br/>src/store/modules/user/index.ts"]
@@ -75,9 +93,27 @@ end
 Inter --> UserAPI
 Inter --> DashAPI
 Inter --> MsgAPI
+Inter --> AAPI
+Inter --> CAPI
+Inter --> CJAPI
+Inter --> DDAPI
+Inter --> OLAPI
+Inter --> PAPI
+Inter --> PLAPI
+Inter --> RAPI
+Inter --> SPAPI
 HookReq --> UserAPI
 HookReq --> DashAPI
 HookReq --> MsgAPI
+HookReq --> AAPI
+HookReq --> CAPI
+HookReq --> CJAPI
+HookReq --> DDAPI
+HookReq --> OLAPI
+HookReq --> PAPI
+HookReq --> PLAPI
+HookReq --> RAPI
+HookReq --> SPAPI
 UserStore --> UserAPI
 UserStore --> Auth
 MockUser --> SetupMock
@@ -95,6 +131,15 @@ Monitor --> UserAPI
 - [src/api/user.ts:1-28](file://src/api/user.ts#L1-L28)
 - [src/api/dashboard.ts:1-23](file://src/api/dashboard.ts#L1-L23)
 - [src/api/message.ts:1-39](file://src/api/message.ts#L1-L39)
+- [src/api/attachment.ts:1-186](file://src/api/attachment.ts#L1-L186)
+- [src/api/config.ts:1-68](file://src/api/config.ts#L1-L68)
+- [src/api/cron-job.ts:1-90](file://src/api/cron-job.ts#L1-L90)
+- [src/api/dict-data.ts:1-53](file://src/api/dict-data.ts#L1-L53)
+- [src/api/operation-log.ts:1-23](file://src/api/operation-log.ts#L1-L23)
+- [src/api/permission.ts:1-97](file://src/api/permission.ts#L1-L97)
+- [src/api/plugin.ts:1-54](file://src/api/plugin.ts#L1-L54)
+- [src/api/role.ts:1-116](file://src/api/role.ts#L1-L116)
+- [src/api/sys-permission.ts:1-60](file://src/api/sys-permission.ts#L1-L60)
 - [src/mock/user.ts:1-106](file://src/mock/user.ts#L1-L106)
 - [src/mock/message-box.ts:1-86](file://src/mock/message-box.ts#L1-L86)
 - [src/utils/setup-mock.ts:1-24](file://src/utils/setup-mock.ts#L1-L24)
@@ -110,6 +155,15 @@ Monitor --> UserAPI
 - [src/api/user.ts:1-28](file://src/api/user.ts#L1-L28)
 - [src/api/dashboard.ts:1-23](file://src/api/dashboard.ts#L1-L23)
 - [src/api/message.ts:1-39](file://src/api/message.ts#L1-L39)
+- [src/api/attachment.ts:1-186](file://src/api/attachment.ts#L1-L186)
+- [src/api/config.ts:1-68](file://src/api/config.ts#L1-L68)
+- [src/api/cron-job.ts:1-90](file://src/api/cron-job.ts#L1-L90)
+- [src/api/dict-data.ts:1-53](file://src/api/dict-data.ts#L1-L53)
+- [src/api/operation-log.ts:1-23](file://src/api/operation-log.ts#L1-L23)
+- [src/api/permission.ts:1-97](file://src/api/permission.ts#L1-L97)
+- [src/api/plugin.ts:1-54](file://src/api/plugin.ts#L1-L54)
+- [src/api/role.ts:1-116](file://src/api/role.ts#L1-L116)
+- [src/api/sys-permission.ts:1-60](file://src/api/sys-permission.ts#L1-L60)
 - [src/mock/user.ts:1-106](file://src/mock/user.ts#L1-L106)
 - [src/mock/message-box.ts:1-86](file://src/mock/message-box.ts#L1-L86)
 - [src/utils/setup-mock.ts:1-24](file://src/utils/setup-mock.ts#L1-L24)
@@ -128,6 +182,16 @@ Monitor --> UserAPI
 - 用户API与Store
   - 用户登录、登出、信息拉取与菜单拉取
   - Store中完成token写入与登出后的清理动作
+- 业务API模块
+  - 附件管理API：附件上传（含分片）、下载、预览、CRUD及分组管理
+  - 系统配置API：系统动态配置的CRUD及按键/按分组查询
+  - 定时任务API：定时任务CRUD、启停控制、执行与日志查看
+  - 数据字典API：字典数据CRUD及按类型查询
+  - 操作日志API：操作日志列表查询与详情（只读）
+  - 运行时权限API：Casbin策略CRUD及用户权限多维查询
+  - 插件管理API：插件安装、启停、卸载与列表查询
+  - 角色管理API：角色CRUD、启停控制与权限分配
+  - 系统权限定义API：权限定义CRUD及树形结构查询
 - Mock与环境
   - 开发环境下通过Mock提供统一响应包装
   - 环境开关控制是否启用Mock
@@ -140,6 +204,15 @@ Monitor --> UserAPI
 - [src/utils/auth.ts:1-20](file://src/utils/auth.ts#L1-L20)
 - [src/store/modules/user/index.ts:56-87](file://src/store/modules/user/index.ts#L56-L87)
 - [src/api/user.ts:13-27](file://src/api/user.ts#L13-L27)
+- [src/api/attachment.ts:16-185](file://src/api/attachment.ts#L16-L185)
+- [src/api/config.ts:13-67](file://src/api/config.ts#L13-L67)
+- [src/api/cron-job.ts:13-89](file://src/api/cron-job.ts#L13-L89)
+- [src/api/dict-data.ts:12-52](file://src/api/dict-data.ts#L12-L52)
+- [src/api/operation-log.ts:10-22](file://src/api/operation-log.ts#L10-L22)
+- [src/api/permission.ts:13-96](file://src/api/permission.ts#L13-L96)
+- [src/api/plugin.ts:13-53](file://src/api/plugin.ts#L13-L53)
+- [src/api/role.ts:16-115](file://src/api/role.ts#L16-L115)
+- [src/api/sys-permission.ts:13-59](file://src/api/sys-permission.ts#L13-L59)
 - [src/utils/setup-mock.ts:3-23](file://src/utils/setup-mock.ts#L3-L23)
 - [src/utils/env.ts:1-4](file://src/utils/env.ts#L1-L4)
 - [src/utils/monitor.ts:4-27](file://src/utils/monitor.ts#L4-L27)
@@ -151,7 +224,7 @@ Monitor --> UserAPI
 sequenceDiagram
 participant View as "视图组件"
 participant Hook as "请求钩子<br/>useRequest"
-participant API as "业务API<br/>user/dashboard/message"
+participant API as "业务API<br/>user/dashboard/message/attachment/.../sys-permission"
 participant Axios as "Axios实例<br/>拦截器"
 participant Auth as "认证工具<br/>auth.ts"
 participant Store as "用户Store"
@@ -177,6 +250,15 @@ Store->>Auth : 登出时清理token与路由监听
 - [src/api/user.ts:13-27](file://src/api/user.ts#L13-L27)
 - [src/api/dashboard.ts:9-22](file://src/api/dashboard.ts#L9-L22)
 - [src/api/message.ts:16-38](file://src/api/message.ts#L16-L38)
+- [src/api/attachment.ts:16-185](file://src/api/attachment.ts#L16-L185)
+- [src/api/config.ts:13-67](file://src/api/config.ts#L13-L67)
+- [src/api/cron-job.ts:13-89](file://src/api/cron-job.ts#L13-L89)
+- [src/api/dict-data.ts:12-52](file://src/api/dict-data.ts#L12-L52)
+- [src/api/operation-log.ts:10-22](file://src/api/operation-log.ts#L10-L22)
+- [src/api/permission.ts:13-96](file://src/api/permission.ts#L13-L96)
+- [src/api/plugin.ts:13-53](file://src/api/plugin.ts#L13-L53)
+- [src/api/role.ts:16-115](file://src/api/role.ts#L16-L115)
+- [src/api/sys-permission.ts:13-59](file://src/api/sys-permission.ts#L13-L59)
 - [src/api/interceptor.ts:18-77](file://src/api/interceptor.ts#L18-L77)
 - [src/utils/auth.ts:7-9](file://src/utils/auth.ts#L7-L9)
 - [src/store/modules/user/index.ts:73-87](file://src/store/modules/user/index.ts#L73-L87)
@@ -398,7 +480,7 @@ Axios["axios"] --> Inter["拦截器"]
 Arco["@arco-design/web-vue"] --> Inter
 Pinia["pinia"] --> UserStore["用户Store"]
 UserStore --> Auth["认证工具"]
-UserStore --> APIs["用户API"]
+UserStore --> APIs["业务API模块"]
 Hook["useRequest"] --> Axios
 Hook --> Loading["loading钩子"]
 Mock["MockJS"] --> Setup["统一响应包装"]
@@ -411,6 +493,18 @@ DevCfg["开发配置"] --> Mock
 - [src/store/modules/user/index.ts:1-12](file://src/store/modules/user/index.ts#L1-L12)
 - [src/hooks/request.ts:1-5](file://src/hooks/request.ts#L1-L5)
 - [src/hooks/loading.ts:1-17](file://src/hooks/loading.ts#L1-L17)
+- [src/api/user.ts:1](file://src/api/user.ts#L1)
+- [src/api/dashboard.ts:1](file://src/api/dashboard.ts#L1)
+- [src/api/message.ts:1](file://src/api/message.ts#L1)
+- [src/api/attachment.ts:1](file://src/api/attachment.ts#L1)
+- [src/api/config.ts:1](file://src/api/config.ts#L1)
+- [src/api/cron-job.ts:1](file://src/api/cron-job.ts#L1)
+- [src/api/dict-data.ts:1](file://src/api/dict-data.ts#L1)
+- [src/api/operation-log.ts:1](file://src/api/operation-log.ts#L1)
+- [src/api/permission.ts:1](file://src/api/permission.ts#L1)
+- [src/api/plugin.ts:1](file://src/api/plugin.ts#L1)
+- [src/api/role.ts:1](file://src/api/role.ts#L1)
+- [src/api/sys-permission.ts:1](file://src/api/sys-permission.ts#L1)
 - [src/mock/user.ts:1-6](file://src/mock/user.ts#L1-L6)
 - [src/utils/setup-mock.ts:1-5](file://src/utils/setup-mock.ts#L1-L5)
 - [config/vite.config.dev.ts:1-24](file://config/vite.config.dev.ts#L1-L24)
@@ -421,6 +515,18 @@ DevCfg["开发配置"] --> Mock
 - [src/store/modules/user/index.ts:1-12](file://src/store/modules/user/index.ts#L1-L12)
 - [src/hooks/request.ts:1-5](file://src/hooks/request.ts#L1-L5)
 - [src/hooks/loading.ts:1-17](file://src/hooks/loading.ts#L1-L17)
+- [src/api/user.ts:1](file://src/api/user.ts#L1)
+- [src/api/dashboard.ts:1](file://src/api/dashboard.ts#L1)
+- [src/api/message.ts:1](file://src/api/message.ts#L1)
+- [src/api/attachment.ts:1](file://src/api/attachment.ts#L1)
+- [src/api/config.ts:1](file://src/api/config.ts#L1)
+- [src/api/cron-job.ts:1](file://src/api/cron-job.ts#L1)
+- [src/api/dict-data.ts:1](file://src/api/dict-data.ts#L1)
+- [src/api/operation-log.ts:1](file://src/api/operation-log.ts#L1)
+- [src/api/permission.ts:1](file://src/api/permission.ts#L1)
+- [src/api/plugin.ts:1](file://src/api/plugin.ts#L1)
+- [src/api/role.ts:1](file://src/api/role.ts#L1)
+- [src/api/sys-permission.ts:1](file://src/api/sys-permission.ts#L1)
 - [src/mock/user.ts:1-6](file://src/mock/user.ts#L1-L6)
 - [src/utils/setup-mock.ts:1-5](file://src/utils/setup-mock.ts#L1-L5)
 - [config/vite.config.dev.ts:1-24](file://config/vite.config.dev.ts#L1-L24)

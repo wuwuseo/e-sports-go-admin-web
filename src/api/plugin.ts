@@ -11,10 +11,9 @@ const pluginPath = (pluginId: string) => encodeURIComponent(pluginId);
 
 // 获取插件列表
 export function getPlugins(params?: PluginQuery) {
-  return axios.get<ApiResponse<PaginatedResponse<PluginResponse>>>(
-    '/api/v1/admin/auth/plugins',
-    { params }
-  );
+  return axios.get<
+    ApiResponse<PaginatedResponse<PluginResponse> | PluginResponse[]>
+  >('/api/v1/admin/auth/plugins', { params });
 }
 
 // 获取插件详情

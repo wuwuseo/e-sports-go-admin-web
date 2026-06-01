@@ -582,8 +582,8 @@ export interface PluginManifest {
 }
 
 export interface PluginResponse {
-  id?: number;
-  plugin_id: string;
+  id?: number | string;
+  plugin_id?: string;
   name: string;
   version: string;
   author: string;
