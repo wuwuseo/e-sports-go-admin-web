@@ -403,17 +403,31 @@
     showPageSize: true,
   });
 
+  const flattenPermissionTree = (
+    nodes: SysPermissionTreeNode[] = []
+  ): SysPermissionTreeNode[] => {
+    return nodes.reduce<SysPermissionTreeNode[]>((result, node) => {
+      result.push(node);
+      if (node.children?.length) {
+        result.push(...flattenPermissionTree(node.children));
+      }
+      return result;
+    }, []);
+  };
+
+  const allPermissions = computed(() =>
+    flattenPermissionTree(sysPermissionStore.permissionTree)
+  );
   const apiCount = computed(
-    () => sysPermissionStore.permissions.filter((p) => p.type === 'api').length
+    () => allPermissions.value.filter((p) => p.type === 'api').length
   );
   const menuCount = computed(
-    () => sysPermissionStore.permissions.filter((p) => p.type === 'menu').length
+    () => allPermissions.value.filter((p) => p.type === 'menu').length
   );
   const buttonCount = computed(
-    () =>
-      sysPermissionStore.permissions.filter((p) => p.type === 'button').length
+    () => allPermissions.value.filter((p) => p.type === 'button').length
   );
-  const totalCount = computed(() => sysPermissionStore.total);
+  const totalCount = computed(() => allPermissions.value.length);
 
   const typeTagColor = (type: string) => {
     const map: Record<string, string> = {
@@ -544,9 +558,8 @@
     currentPage.value = 1;
     if (viewMode.value === 'table') {
       fetchData();
-    } else {
-      fetchTreeData();
     }
+    fetchTreeData();
     Message.success(t('system.permission.refreshSuccess'));
   };
 
@@ -566,9 +579,8 @@
       Message.success(t('system.permission.deleteSuccess'));
       if (viewMode.value === 'table') {
         fetchData();
-      } else {
-        fetchTreeData();
       }
+      fetchTreeData();
     } catch (err) {
       // error handled by interceptor
     }
@@ -577,9 +589,8 @@
   const handleFormSuccess = () => {
     if (viewMode.value === 'table') {
       fetchData();
-    } else {
-      fetchTreeData();
     }
+    fetchTreeData();
   };
 
   watch(

@@ -45,12 +45,6 @@
         />
       </a-form-item>
       <a-form-item
-        v-if="!isView && !isEdit"
-        :label="$t('system.admin.form.isSuperAdmin')"
-      >
-        <a-switch v-model="formData.isSuperAdmin" />
-      </a-form-item>
-      <a-form-item
         v-if="isEdit || isView"
         :label="$t('system.admin.form.status')"
       >
@@ -142,7 +136,7 @@
           email: props.admin.email,
           phone: props.admin.phone || '',
           password: '',
-          isSuperAdmin: props.admin.is_super_admin,
+          isSuperAdmin: Boolean(props.admin.is_super_admin),
           status: props.admin.status,
         };
       } else if (val) {
@@ -174,6 +168,7 @@
           username: formData.value.username,
           email: formData.value.email,
           phone: formData.value.phone || undefined,
+          is_super_admin: formData.value.isSuperAdmin,
         });
         Message.success(t('system.admin.updateSuccess'));
       } else {

@@ -25,7 +25,7 @@
   import { useI18n } from 'vue-i18n';
   import useAdminManagementStore from '@/store/modules/admin-management';
   import useRoleStore from '@/store/modules/role';
-  import type { AdminDetailResponse } from '@/types/api';
+  import type { AdminDetailResponse, RoleResponse } from '@/types/api';
 
   const props = defineProps<{
     visible: boolean;
@@ -42,11 +42,16 @@
   const roleStore = useRoleStore();
   const submitting = ref(false);
   const selectedRoleIds = ref<number[]>([]);
-  const allRoles = ref<any[]>([]);
+  const allRoles = ref<RoleResponse[]>([]);
+
+  const isSuperAdminRole = (role: RoleResponse) => {
+    return role.name === 'super_admin' || role.display_name === '超级管理员';
+  };
 
   const loadAllRoles = async () => {
     try {
-      allRoles.value = await roleStore.fetchAllRoles();
+      const roles = await roleStore.fetchAllRoles();
+      allRoles.value = roles.filter((role) => !isSuperAdminRole(role));
     } catch (err) {
       // 错误已在API层处理
     }
@@ -64,7 +69,9 @@
           const adminRoles = await adminManagementStore.fetchAdminRoles(
             props.admin.id
           );
-          selectedRoleIds.value = adminRoles.map((r) => r.id);
+          selectedRoleIds.value = adminRoles
+            .filter((role) => !isSuperAdminRole(role))
+            .map((role) => role.id);
         } catch (err) {
           // 错误已在API层处理
         }

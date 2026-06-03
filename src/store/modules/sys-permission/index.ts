@@ -165,12 +165,12 @@ const useSysPermissionStore = defineStore('sys-permission', {
             } else if (node.type === 'menu' && node.code) {
               result.push({
                 object: node.code,
-                action: 'MENU',
+                action: node.type,
               });
             } else if (node.type === 'button' && node.code) {
               result.push({
                 object: node.code,
-                action: 'BUTTON',
+                action: node.type,
               });
             }
           }
