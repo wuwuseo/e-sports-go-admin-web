@@ -12,6 +12,7 @@ const MESSAGE: AppRouteRecordRaw = {
     requiresAuth: true,
     order: 3,
     roles: ['*'],
+    permissionCode: ['/message', 'message'],
   },
   children: [
     {
@@ -21,6 +22,7 @@ const MESSAGE: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.message.center',
         requiresAuth: true,
+        permissionCode: ['/message/center', 'messagecenter'],
       },
     },
     {
@@ -30,6 +32,7 @@ const MESSAGE: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.message.manage',
         requiresAuth: true,
+        permissionCode: ['/message/manage', 'messagemanage'],
       },
     },
     {
@@ -39,6 +42,7 @@ const MESSAGE: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.message.broadcast',
         requiresAuth: true,
+        permissionCode: ['/message/broadcast', 'messagebroadcast'],
       },
     },
     {
@@ -48,6 +52,7 @@ const MESSAGE: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.message.preference',
         requiresAuth: true,
+        permissionCode: ['/message/preference', 'messagepreference'],
         // 不在侧边菜单显示，仅通过消息中心右上角按钮跳转
         hideInMenu: true,
       },

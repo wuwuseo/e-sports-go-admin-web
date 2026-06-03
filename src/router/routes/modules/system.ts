@@ -11,6 +11,7 @@ const SYSTEM: AppRouteRecordRaw = {
     requiresAuth: true,
     order: 2,
     roles: ['*'],
+    permissionCode: '/system',
   },
   children: [
     {
@@ -20,6 +21,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.user',
         requiresAuth: true,
+        permissionCode: '/system/user',
       },
     },
     {
@@ -29,6 +31,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.thirdPartyUser',
         requiresAuth: true,
+        permissionCode: '/system/third-party-user',
       },
     },
     {
@@ -38,6 +41,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.role',
         requiresAuth: true,
+        permissionCode: '/system/role',
       },
     },
     {
@@ -47,6 +51,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.permission',
         requiresAuth: true,
+        permissionCode: '/system/permission',
       },
     },
     {
@@ -56,6 +61,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.attachment',
         requiresAuth: true,
+        permissionCode: '/system/attachment',
       },
     },
     {
@@ -65,6 +71,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.cronJob',
         requiresAuth: true,
+        permissionCode: '/system/cron-job',
       },
     },
     {
@@ -74,6 +81,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.operationLog',
         requiresAuth: true,
+        permissionCode: '/system/operation-log',
       },
     },
     {
@@ -83,6 +91,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.dict',
         requiresAuth: true,
+        permissionCode: '/system/dict-data',
       },
     },
     {
@@ -92,6 +101,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.admin',
         requiresAuth: true,
+        permissionCode: '/system/admin',
       },
     },
     {
@@ -101,6 +111,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.config',
         requiresAuth: true,
+        permissionCode: '/system/config',
       },
     },
     {
@@ -110,6 +121,7 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.plugin',
         requiresAuth: true,
+        permissionCode: ['/system/plugin', 'plugin'],
       },
     },
   ],

@@ -10,6 +10,7 @@ const DASHBOARD: AppRouteRecordRaw = {
     requiresAuth: true,
     icon: 'icon-dashboard',
     order: 0,
+    permissionCode: ['/dashboard', '/dashboard/workplace'],
   },
   children: [
     {
@@ -20,6 +21,7 @@ const DASHBOARD: AppRouteRecordRaw = {
         locale: 'menu.dashboard.workplace',
         requiresAuth: true,
         roles: ['*'],
+        permissionCode: '/dashboard/workplace',
       },
     },
   ],
