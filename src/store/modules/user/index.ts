@@ -3,8 +3,7 @@ import {
   login as userLogin,
   logout as userLogout,
   getCurrentUser,
-  getUserMenuPermissions,
-  getUserButtonPermissions,
+  getUserPermissions,
   adminLogin,
   adminLogout as adminLogoutApi,
   getCurrentAdmin,
@@ -41,8 +40,8 @@ const useUserStore = defineStore('user', {
     accountId: undefined,
     certification: undefined,
     role: '',
-    menuPermissions: [],
-    buttonPermissions: [],
+    permissions: [],
+    permissionCodes: [],
     permissionsLoading: false,
     isAdmin: false,
     isSuperAdmin: false,
@@ -53,26 +52,44 @@ const useUserStore = defineStore('user', {
       return { ...state };
     },
 
-    // 检查是否有指定的菜单权限
-    hasMenuPermission:
+    // 检查是否有指定类型的权限
+    hasPermissionByType:
       (state: UserState) =>
-      (permissionCode: string): boolean => {
+      (permissionCode: string, type?: 'api' | 'menu' | 'button'): boolean => {
         // admin 角色拥有所有权限
         if (state.role === 'admin') {
           return true;
         }
-        return state.menuPermissions.includes(permissionCode);
+
+        if (!state.permissionCodes.includes(permissionCode)) {
+          return false;
+        }
+
+        if (!type) {
+          return true;
+        }
+
+        return state.permissions.some(
+          (permission) =>
+            permission.type === type &&
+            PermissionTransformer.extractPermissionCodes(permission).includes(
+              permissionCode
+            )
+        );
+      },
+
+    // 检查是否有指定的菜单权限
+    hasMenuPermission:
+      () =>
+      (permissionCode: string): boolean => {
+        return useUserStore().hasPermissionByType(permissionCode, 'menu');
       },
 
     // 检查是否有指定的按钮权限
     hasButtonPermission:
-      (state: UserState) =>
+      () =>
       (permissionCode: string): boolean => {
-        // admin 角色拥有所有权限
-        if (state.role === 'admin') {
-          return true;
-        }
-        return state.buttonPermissions.includes(permissionCode);
+        return useUserStore().hasPermissionByType(permissionCode, 'button');
       },
 
     // 检查是否有任意一个权限
@@ -83,11 +100,7 @@ const useUserStore = defineStore('user', {
         if (state.role === 'admin') {
           return true;
         }
-        const allPermissions = [
-          ...state.menuPermissions,
-          ...state.buttonPermissions,
-        ];
-        return permissions.some((p) => allPermissions.includes(p));
+        return permissions.some((p) => state.permissionCodes.includes(p));
       },
 
     // 检查是否拥有所有指定的权限
@@ -98,11 +111,7 @@ const useUserStore = defineStore('user', {
         if (state.role === 'admin') {
           return true;
         }
-        const allPermissions = [
-          ...state.menuPermissions,
-          ...state.buttonPermissions,
-        ];
-        return permissions.every((p) => allPermissions.includes(p));
+        return permissions.every((p) => state.permissionCodes.includes(p));
       },
   },
 
@@ -117,6 +126,18 @@ const useUserStore = defineStore('user', {
       this.$reset();
     },
 
+    // 处理用户角色：如果 roles 数组中包含 admin，则设置为 admin
+    // 否则取第一个角色（如果有），否则使用默认值
+    processUserRole(roles: unknown, defaultRole: RoleType = ''): RoleType {
+      if (roles && Array.isArray(roles) && roles.length > 0) {
+        const isAdminRole = roles.some(
+          (r: string) => typeof r === 'string' && r.toLowerCase() === 'admin'
+        );
+        return (isAdminRole ? 'admin' : roles[0]) as RoleType;
+      }
+      return defaultRole;
+    },
+
     // Get user's information
     async info() {
       const res = await getCurrentUser();
@@ -129,45 +150,27 @@ const useUserStore = defineStore('user', {
         phone: apiData.phone,
         avatar: apiData.avatar,
         accountId: String(apiData.id),
+        role: this.processUserRole(apiData.roles),
       };
-
-      // 处理角色：如果 roles 数组中包含 admin，则设置为 admin
-      // 否则取第一个角色（如果有），否则默认为空（由调用方兜底）
-      if (
-        apiData.roles &&
-        Array.isArray(apiData.roles) &&
-        apiData.roles.length > 0
-      ) {
-        const isAdminRole = apiData.roles.some(
-          (r: string) => r.toLowerCase() === 'admin'
-        );
-        userInfo.role = (isAdminRole ? 'admin' : apiData.roles[0]) as RoleType;
-      } else {
-        userInfo.role = '';
-      }
 
       this.setInfo(userInfo);
     },
 
-    // 加载用户权限（菜单权限 + 按钮权限）
+    // 加载用户混合权限树
     async loadPermissions() {
       this.permissionsLoading = true;
       try {
-        const [menuRes, buttonRes] = await Promise.all([
-          getUserMenuPermissions({ domain: 'default' }),
-          getUserButtonPermissions({ domain: 'default' }),
-        ]);
-
-        this.menuPermissions = PermissionTransformer.extractPermissionCodes(
-          menuRes.data.data
+        const { data } = await getUserPermissions({ domain: 'default' });
+        this.permissions = PermissionTransformer.normalizePermissions(
+          data.data
         );
-        this.buttonPermissions = PermissionTransformer.extractPermissionCodes(
-          buttonRes.data.data
+        this.permissionCodes = PermissionTransformer.extractPermissionCodes(
+          this.permissions
         );
       } catch {
         // 加载失败时重置权限列表，但不抛出异常（不影响登录）
-        this.menuPermissions = [];
-        this.buttonPermissions = [];
+        this.permissions = [];
+        this.permissionCodes = [];
       } finally {
         this.permissionsLoading = false;
       }
@@ -180,8 +183,8 @@ const useUserStore = defineStore('user', {
 
     // 清除用户权限
     clearPermissions() {
-      this.menuPermissions = [];
-      this.buttonPermissions = [];
+      this.permissions = [];
+      this.permissionCodes = [];
       this.permissionsLoading = false;
     },
 
@@ -286,21 +289,8 @@ const useUserStore = defineStore('user', {
         accountId: String(apiData.id),
         isAdmin: true,
         isSuperAdmin: apiData.is_super_admin,
+        role: this.processUserRole(apiData.roles, 'admin'),
       };
-
-      // 处理角色
-      if (
-        apiData.roles &&
-        Array.isArray(apiData.roles) &&
-        apiData.roles.length > 0
-      ) {
-        const isAdminRole = apiData.roles.some(
-          (r: string) => r.toLowerCase() === 'admin'
-        );
-        adminInfo.role = (isAdminRole ? 'admin' : apiData.roles[0]) as RoleType;
-      } else {
-        adminInfo.role = 'admin';
-      }
 
       this.setInfo(adminInfo);
     },

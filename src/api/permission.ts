@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type {
   PermissionResponse,
+  SysPermissionTreeNode,
   CreatePermissionRequest,
   UpdatePermissionRequest,
   PermissionQuery,
@@ -63,34 +64,10 @@ export function getPermissionDetail(params: {
   );
 }
 
-// 获取用户所有权限
+// 获取用户混合权限树
 export function getUserPermissions(params?: { domain?: string }) {
-  return axios.get<ApiResponse<PermissionResponse[]>>(
+  return axios.get<ApiResponse<SysPermissionTreeNode[]>>(
     '/api/v1/admin/auth/user/permissions',
-    { params }
-  );
-}
-
-// 获取用户菜单权限
-export function getUserMenuPermissions(params?: { domain?: string }) {
-  return axios.get<ApiResponse<PermissionResponse[]>>(
-    '/api/v1/admin/auth/user/menu-permissions',
-    { params }
-  );
-}
-
-// 获取用户按钮权限
-export function getUserButtonPermissions(params?: { domain?: string }) {
-  return axios.get<ApiResponse<PermissionResponse[]>>(
-    '/api/v1/admin/auth/user/button-permissions',
-    { params }
-  );
-}
-
-// 获取用户API权限
-export function getUserApiPermissions(params?: { domain?: string }) {
-  return axios.get<ApiResponse<PermissionResponse[]>>(
-    '/api/v1/admin/auth/user/api-permissions',
     { params }
   );
 }

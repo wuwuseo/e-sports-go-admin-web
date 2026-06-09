@@ -16,6 +16,11 @@ const OBJECT_TO_PATH_MAP: Record<
     name: 'SystemUser',
     component: () => import('@/views/system/user/index.vue'),
   },
+  'system:thirdpartyuser': {
+    path: '/system/third-party-user',
+    name: 'SystemThirdPartyUser',
+    component: () => import('@/views/system/third-party-user/index.vue'),
+  },
   'system:role': {
     path: '/system/role',
     name: 'SystemRole',
@@ -31,25 +36,35 @@ const OBJECT_TO_PATH_MAP: Record<
     name: 'SystemAttachment',
     component: () => import('@/views/system/attachment/index.vue'),
   },
-  'system:cron-job': {
+  'system:cronjob': {
     path: '/system/cron-job',
     name: 'SystemCronJob',
     component: () => import('@/views/system/cron-job/index.vue'),
   },
-  'system:operation-log': {
+  'system:operationlog': {
     path: '/system/operation-log',
     name: 'SystemOperationLog',
     component: () => import('@/views/system/operation-log/index.vue'),
   },
-  'system:dict-data': {
+  'system:dictdata': {
     path: '/system/dict-data',
     name: 'SystemDictData',
     component: () => import('@/views/system/dict-data/index.vue'),
+  },
+  'system:admin': {
+    path: '/system/admin',
+    name: 'SystemAdmin',
+    component: () => import('@/views/system/admin/index.vue'),
   },
   'system:config': {
     path: '/system/config',
     name: 'SystemConfig',
     component: () => import('@/views/system/config/index.vue'),
+  },
+  'system:plugin': {
+    path: '/system/plugin',
+    name: 'SystemPlugin',
+    component: () => import('@/views/system/plugin/index.vue'),
   },
   'dashboard': {
     path: '/dashboard',
@@ -61,6 +76,42 @@ const OBJECT_TO_PATH_MAP: Record<
     component: () => import('@/views/dashboard/workplace/index.vue'),
   },
 };
+
+const MENU_OBJECT_ALIAS_MAP: Record<string, string> = {
+  unknown: 'system',
+  user: 'system:user',
+  thirdpartyuser: 'system:thirdpartyuser',
+  role: 'system:role',
+  permission: 'system:permission',
+  attachment: 'system:attachment',
+  cronjob: 'system:cronjob',
+  operationlog: 'system:operationlog',
+  dictdata: 'system:dictdata',
+  admin: 'system:admin',
+  config: 'system:config',
+  plugin: 'system:plugin',
+  workplace: 'dashboard:workplace',
+};
+
+function normalizeMenuObject(object: string): string {
+  if (MENU_OBJECT_ALIAS_MAP[object]) {
+    return MENU_OBJECT_ALIAS_MAP[object];
+  }
+
+  const compactObject = object.replace(/-/g, '');
+  if (OBJECT_TO_PATH_MAP[compactObject]) {
+    return compactObject;
+  }
+
+  const pathEntry = Object.entries(OBJECT_TO_PATH_MAP).find(
+    ([, config]) => config.path === object
+  );
+  if (pathEntry) {
+    return pathEntry[0];
+  }
+
+  return object;
+}
 
 // 父级路由映射
 const PARENT_ROUTE_MAP: Record<
@@ -92,19 +143,24 @@ function hasPathInPermissions(
   userMenuPermissions: PermissionResponse[]
 ): boolean {
   return userMenuPermissions.some((perm) => {
+    const normalizedObject = normalizeMenuObject(perm.object);
+
     // 1. 精确匹配：权限对象就是路由路径
-    if (perm.object === path) {
+    if (perm.object === path || normalizedObject === path) {
       return true;
     }
 
     // 2. 从权限映射中查找对应的路径
-    const pathConfig = OBJECT_TO_PATH_MAP[perm.object];
+    const pathConfig = OBJECT_TO_PATH_MAP[normalizedObject];
     if (pathConfig && pathConfig.path === path) {
       return true;
     }
 
     // 3. 前缀匹配：父级路径
-    if (perm.object && path.startsWith(perm.object.replace(/:/g, '/'))) {
+    if (
+      normalizedObject &&
+      path.startsWith(normalizedObject.replace(/:/g, '/'))
+    ) {
       return true;
     }
 
@@ -132,13 +188,19 @@ export function transformPermissionsToRoutes(
       return;
     }
 
+    const normalizedObject = normalizeMenuObject(perm.object);
+    const normalizedPermission = {
+      ...perm,
+      object: normalizedObject,
+    };
+
     // 提取模块名（例如：system:user -> system）
-    const moduleKey = perm.object.split(':')[0];
+    const moduleKey = normalizedObject.split(':')[0];
     const modulePermissions = moduleMap.get(moduleKey);
     if (modulePermissions) {
-      modulePermissions.push(perm);
+      modulePermissions.push(normalizedPermission);
     } else {
-      moduleMap.set(moduleKey, [perm]);
+      moduleMap.set(moduleKey, [normalizedPermission]);
     }
   });
 

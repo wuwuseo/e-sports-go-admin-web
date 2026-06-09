@@ -85,17 +85,47 @@ const useSysPermissionStore = defineStore('sys-permission', {
       }
     },
 
+    getPermissionNodeObject(node: SysPermissionTreeNode): string | null {
+      if (node.type === 'api' && node.path) {
+        return node.path;
+      }
+      if (node.type === 'menu') {
+        return node.menu_path || node.code || null;
+      }
+      if (node.type === 'button') {
+        return node.code || node.menu_path || null;
+      }
+      return null;
+    },
+
     getPermissionNodeKey(node: SysPermissionTreeNode): string | null {
       if (node.type === 'api' && node.path && node.method) {
         return `${node.method}:${node.path}`;
       }
-      if (node.type === 'menu' && node.code) {
-        return `MENU:${node.code}`;
-      }
-      if (node.type === 'button' && node.code) {
-        return `BUTTON:${node.code}`;
+      const object = this.getPermissionNodeObject(node);
+      if ((node.type === 'menu' || node.type === 'button') && object) {
+        return `${node.type}:${object}`;
       }
       return null;
+    },
+
+    getPermissionNodeKeys(node: SysPermissionTreeNode): string[] {
+      const keys = new Set<string>();
+      const primaryKey = this.getPermissionNodeKey(node);
+      if (primaryKey) {
+        keys.add(primaryKey);
+      }
+
+      if (node.type === 'menu' || node.type === 'button') {
+        const actions = [node.type, node.type.toUpperCase()];
+        [node.menu_path, node.code, node.name]
+          .filter((value): value is string => Boolean(value))
+          .forEach((object) => {
+            actions.forEach((action) => keys.add(`${action}:${object}`));
+          });
+      }
+
+      return Array.from(keys);
     },
 
     setTreeCheckedState(
@@ -111,10 +141,10 @@ const useSysPermissionStore = defineStore('sys-permission', {
       ): SysPermissionTreeNode[] => {
         return nodes.map((node) => {
           const newNode = { ...node };
-          const nodeKey = this.getPermissionNodeKey(node);
-          const nodeIsSelected = nodeKey ? selectedSet.has(nodeKey) : false;
+          const nodeKeys = this.getPermissionNodeKeys(node);
+          const nodeIsSelected = nodeKeys.some((key) => selectedSet.has(key));
 
-          if (nodeKey) {
+          if (nodeKeys.length) {
             newNode.checked = nodeIsSelected;
             newNode.indeterminate = false;
           }
@@ -162,14 +192,13 @@ const useSysPermissionStore = defineStore('sys-permission', {
                 object: node.path,
                 action: node.method,
               });
-            } else if (node.type === 'menu' && node.code) {
+            } else if (node.type === 'menu' || node.type === 'button') {
+              const object = this.getPermissionNodeObject(node);
+              if (!object) {
+                return;
+              }
               result.push({
-                object: node.code,
-                action: node.type,
-              });
-            } else if (node.type === 'button' && node.code) {
-              result.push({
-                object: node.code,
+                object,
                 action: node.type,
               });
             }

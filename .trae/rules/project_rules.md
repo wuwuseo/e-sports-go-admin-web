@@ -55,7 +55,14 @@ npx prettier --write "src/**/*.{ts,tsx,js,jsx,vue,less,css}" ; npx eslint --fix 
 - 调试用的 `console.xxx` 请在提交前移除；如确需保留，使用 `// eslint-disable-next-line no-console` 显式声明。
 - 未使用的导入、变量必须删除。
 
-## 4. 与 lint-staged 的关系
+## 4. 代码查询与索引使用
+
+- 在查询代码文件内容前，**必须先检查 codegraph 索引是否为最新状态**。
+- 如果索引不是最新的，必须执行 `codegraph sync` 命令同步更新索引。
+- 索引更新后，**优先使用 codegraph（语义搜索 / codebase 搜索）来查看和分析代码**，而不是直接使用 Grep 或 Read 工具。
+- 只有 codegraph 索引无法满足需求时，才考虑使用其他搜索方式（如 Grep、直接读文件等）。
+
+## 5. 与 lint-staged 的关系
 
 仓库已配置 husky + lint-staged，会在 `git commit` 时自动对暂存文件执行 prettier / eslint / stylelint。
 本规则要求在**修改后立刻**执行格式化，而不是等到提交时，避免开发期间被 vite-plugin-eslint 的告警刷屏。

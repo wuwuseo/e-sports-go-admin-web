@@ -1,3 +1,5 @@
+import type { PermissionResponse } from '@/types/api';
+
 export type RoleType = '' | '*' | 'admin' | 'user';
 export interface UserState {
   name?: string;
@@ -16,10 +18,10 @@ export interface UserState {
   accountId?: string;
   certification?: number;
   role: RoleType;
-  // 菜单权限列表（权限码）
-  menuPermissions: string[];
-  // 按钮权限列表（权限码）
-  buttonPermissions: string[];
+  // 用户混合权限列表
+  permissions: PermissionResponse[];
+  // 用户混合权限码列表
+  permissionCodes: string[];
   // 权限加载状态
   permissionsLoading: boolean;
   // 是否为管理员账号

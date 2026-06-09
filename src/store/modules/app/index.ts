@@ -3,8 +3,9 @@ import { Notification } from '@arco-design/web-vue';
 import type { NotificationReturn } from '@arco-design/web-vue/es/notification/interface';
 import type { RouteRecordNormalized } from 'vue-router';
 import defaultSettings from '@/config/settings.json';
-import { getUserMenuPermissions } from '@/api/permission';
+import { getUserPermissions } from '@/api/permission';
 import { transformToMenuRoutes } from '@/utils/permission-to-route';
+import PermissionTransformer from '@/utils/permission-transformer';
 import { AppState } from './types';
 
 const useAppStore = defineStore('app', {
@@ -53,9 +54,18 @@ const useAppStore = defineStore('app', {
           content: 'loading',
           closable: true,
         });
-        const { data } = await getUserMenuPermissions();
+        const { data } = await getUserPermissions();
+        const permissions = PermissionTransformer.normalizePermissions(
+          data.data
+        );
+        const menuPermissions = permissions.filter(
+          (permission) => permission.type === 'menu'
+        );
         // 将用户菜单权限数据传入，实现权限过滤：只有在权限中的路径才会被加载
-        this.serverMenu = transformToMenuRoutes(data.data, data.data);
+        this.serverMenu = transformToMenuRoutes(
+          menuPermissions,
+          menuPermissions
+        );
         notifyInstance = Notification.success({
           id: 'menuNotice',
           content: 'success',

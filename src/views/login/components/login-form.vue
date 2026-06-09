@@ -94,6 +94,21 @@
     password: loginConfig.value.password,
   });
 
+  const getLoginRedirectPath = () => {
+    const { redirect } = router.currentRoute.value.query;
+    const redirectValue = Array.isArray(redirect) ? redirect[0] : redirect;
+
+    if (
+      redirectValue &&
+      redirectValue !== 'undefined' &&
+      redirectValue.startsWith('/')
+    ) {
+      return redirectValue;
+    }
+
+    return '/dashboard/workplace';
+  };
+
   // RSA 加密函数
   async function rsaEncrypt(
     publicKeyPem: string,
@@ -192,21 +207,7 @@
           userStore.setInfo({ role: 'admin' });
         }
 
-        // 登录成功后直接跳转
-        const { redirect } = router.currentRoute.value.query;
-        const redirectValue = redirect as string | undefined;
-
-        // 处理 redirect：如果是有效路径则跳转，否则跳转到工作台
-        if (
-          redirectValue &&
-          redirectValue !== 'undefined' &&
-          redirectValue.startsWith('/')
-        ) {
-          await router.push(redirectValue);
-        } else {
-          // 默认跳转到工作台
-          await router.push('/dashboard/workplace');
-        }
+        await router.replace(getLoginRedirectPath());
       } catch (err) {
         errorMessage.value = (err as Error).message;
       } finally {

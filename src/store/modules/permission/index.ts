@@ -6,10 +6,8 @@ import {
   updatePermission,
   deletePermission,
   getUserPermissions,
-  getUserMenuPermissions,
-  getUserButtonPermissions,
-  getUserApiPermissions,
 } from '@/api/permission';
+import PermissionTransformer from '@/utils/permission-transformer';
 import type {
   PermissionResponse,
   CreatePermissionRequest,
@@ -26,12 +24,7 @@ const CACHE_TTL = 5 * 60 * 1000;
 export interface PermissionState {
   permissions: PermissionResponse[];
   allPermissions: PermissionResponse[];
-  userPermissions: {
-    menu: PermissionResponse[];
-    button: PermissionResponse[];
-    api: PermissionResponse[];
-    all: PermissionResponse[];
-  };
+  userPermissions: PermissionResponse[];
   total: number;
   loading: boolean;
   cache: Map<string, PermissionCacheItem>;
@@ -42,12 +35,7 @@ const usePermissionStore = defineStore('permission', {
   state: (): PermissionState => ({
     permissions: [],
     allPermissions: [],
-    userPermissions: {
-      menu: [],
-      button: [],
-      api: [],
-      all: [],
-    },
+    userPermissions: [],
     total: 0,
     loading: false,
     cache: new Map(),
@@ -70,12 +58,7 @@ const usePermissionStore = defineStore('permission', {
     },
 
     hasPermission: (state) => (object: string, action: string) => {
-      const userAllPermissions = [
-        ...state.userPermissions.menu,
-        ...state.userPermissions.button,
-        ...state.userPermissions.api,
-      ];
-      return userAllPermissions.some(
+      return state.userPermissions.some(
         (p) => p.object === object && p.action === action
       );
     },
@@ -137,41 +120,28 @@ const usePermissionStore = defineStore('permission', {
     async fetchUserPermissions(domain = 'default') {
       try {
         const { data: resData } = await getUserPermissions({ domain });
-        this.userPermissions.all = resData.data || [];
-        return this.userPermissions.all;
+        this.userPermissions = PermissionTransformer.normalizePermissions(
+          resData.data
+        );
+        return this.userPermissions;
       } catch (error) {
-        return null;
+        return [];
       }
     },
 
     async fetchUserMenuPermissions(domain = 'default') {
-      try {
-        const { data: resData } = await getUserMenuPermissions({ domain });
-        this.userPermissions.menu = resData.data || [];
-        return this.userPermissions.menu;
-      } catch (error) {
-        return [];
-      }
+      const permissions = await this.fetchUserPermissions(domain);
+      return permissions.filter((permission) => permission.type === 'menu');
     },
 
     async fetchUserButtonPermissions(domain = 'default') {
-      try {
-        const { data: resData } = await getUserButtonPermissions({ domain });
-        this.userPermissions.button = resData.data || [];
-        return this.userPermissions.button;
-      } catch (error) {
-        return [];
-      }
+      const permissions = await this.fetchUserPermissions(domain);
+      return permissions.filter((permission) => permission.type === 'button');
     },
 
     async fetchUserApiPermissions(domain = 'default') {
-      try {
-        const { data: resData } = await getUserApiPermissions({ domain });
-        this.userPermissions.api = resData.data || [];
-        return this.userPermissions.api;
-      } catch (error) {
-        return [];
-      }
+      const permissions = await this.fetchUserPermissions(domain);
+      return permissions.filter((permission) => permission.type === 'api');
     },
 
     async createPermission(data: CreatePermissionRequest) {
@@ -301,12 +271,7 @@ const usePermissionStore = defineStore('permission', {
     },
 
     clearUserPermissions() {
-      this.userPermissions = {
-        menu: [],
-        button: [],
-        api: [],
-        all: [],
-      };
+      this.userPermissions = [];
     },
   },
 });
