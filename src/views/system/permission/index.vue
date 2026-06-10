@@ -247,9 +247,14 @@
           >
             <template #cell="{ record }">
               <a-switch
+                v-permission="{
+                  permission: 'permission:edit',
+                  strategy: 'disable',
+                }"
                 :model-value="record.status === 1"
+                :loading="togglingMap[record.id]"
                 size="small"
-                disabled
+                @change="(value) => handleToggleStatus(record, Boolean(value))"
               />
             </template>
           </a-table-column>
@@ -331,31 +336,55 @@
                 {{ nodeData.description }}
               </span>
               <div class="node-actions">
-                <a-tooltip :content="$t('common.edit')">
-                  <a-button
-                    v-permission="'permission:edit'"
-                    type="text"
-                    size="mini"
-                    @click.stop="handleEdit(nodeData)"
-                  >
-                    <icon-edit />
-                  </a-button>
+                <a-tooltip
+                  :content="
+                    nodeData.status === 1
+                      ? $t('system.permission.disable')
+                      : $t('system.permission.enable')
+                  "
+                >
+                  <a-switch
+                    v-permission="{
+                      permission: 'permission:edit',
+                      strategy: 'disable',
+                    }"
+                    :model-value="nodeData.status === 1"
+                    :loading="togglingMap[nodeData.id]"
+                    size="small"
+                    class="node-status-switch"
+                    @click.stop
+                    @change="
+                      (value) => handleToggleStatus(nodeData, Boolean(value))
+                    "
+                  />
                 </a-tooltip>
-                <a-tooltip :content="$t('common.delete')">
-                  <a-popconfirm
-                    :content="$t('system.permission.deleteConfirm')"
-                    @ok="handleDelete(nodeData)"
-                  >
+                <div class="node-hover-actions">
+                  <a-tooltip :content="$t('common.edit')">
                     <a-button
-                      v-permission="'permission:delete'"
+                      v-permission="'permission:edit'"
                       type="text"
-                      status="danger"
                       size="mini"
+                      @click.stop="handleEdit(nodeData)"
                     >
-                      <icon-delete />
+                      <icon-edit />
                     </a-button>
-                  </a-popconfirm>
-                </a-tooltip>
+                  </a-tooltip>
+                  <a-tooltip :content="$t('common.delete')">
+                    <a-popconfirm
+                      :content="$t('system.permission.deleteConfirm')"
+                      @ok="handleDelete(nodeData)"
+                    >
+                      <a-button
+                        v-permission="'permission:delete'"
+                        type="text"
+                        status="danger"
+                        size="mini"
+                      >
+                        <icon-delete />
+                      </a-button>
+                    </a-popconfirm>
+                  </a-tooltip>
+                </div>
               </div>
             </div>
           </template>
@@ -374,7 +403,10 @@
   import { ref, reactive, computed, onMounted, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
-  import { deleteSysPermission } from '@/api/sys-permission';
+  import {
+    deleteSysPermission,
+    updateSysPermission,
+  } from '@/api/sys-permission';
   import useSysPermissionStore from '@/store/modules/sys-permission';
   import type {
     SysPermissionResponse,
@@ -394,6 +426,8 @@
   const currentPage = ref(1);
   const pageSize = ref(0);
   const expandedKeys = ref<string[]>([]);
+  // 记录每个权限项的状态切换 loading，避免重复点击
+  const togglingMap = ref<Record<number, boolean>>({});
 
   const pagination = reactive({
     current: currentPage.value,
@@ -583,6 +617,33 @@
       fetchTreeData();
     } catch (err) {
       // error handled by interceptor
+    }
+  };
+
+  // 切换权限启用/禁用状态（复用 update 接口传 status 字段）
+  const handleToggleStatus = async (
+    record: SysPermissionResponse,
+    nextStatus: boolean
+  ) => {
+    const newStatus = nextStatus ? 1 : 0;
+    togglingMap.value[record.id] = true;
+    try {
+      await updateSysPermission(record.id, { status: newStatus });
+      Message.success(
+        nextStatus
+          ? t('system.permission.enableSuccess')
+          : t('system.permission.disableSuccess')
+      );
+      // 刷新两个视图的数据源，保证表格与树视图状态同步
+      const tasks: Promise<unknown>[] = [fetchTreeData()];
+      if (viewMode.value === 'table') {
+        tasks.push(fetchData());
+      }
+      await Promise.all(tasks);
+    } catch (err) {
+      // error handled by interceptor
+    } finally {
+      togglingMap.value[record.id] = false;
     }
   };
 
@@ -787,8 +848,20 @@
   .node-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     margin-left: auto;
+  }
+
+  // 状态开关常驻显示
+  .node-status-switch {
+    opacity: 1;
+  }
+
+  // 编辑/删除按钮仅在 hover 时显示
+  .node-hover-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     opacity: 0;
     transition: opacity 0.2s;
 
