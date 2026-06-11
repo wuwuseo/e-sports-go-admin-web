@@ -55,6 +55,16 @@ const SYSTEM: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'department',
+      name: 'SystemDepartment',
+      component: () => import('@/views/system/department/index.vue'),
+      meta: {
+        locale: 'menu.system.department',
+        requiresAuth: true,
+        permissionCode: ['/system/department', 'department'],
+      },
+    },
+    {
       path: 'attachment',
       name: 'SystemAttachment',
       component: () => import('@/views/system/attachment/index.vue'),

@@ -18,6 +18,7 @@ const PERMISSION_CODE_ALIAS_MAP: Record<string, string[]> = {
   thirdpartyuser: ['/system/third-party-user'],
   role: ['/system/role'],
   permission: ['/system/permission'],
+  department: ['/system/department'],
   attachment: ['/system/attachment'],
   cronjob: ['/system/cron-job'],
   operationlog: ['/system/operation-log'],
