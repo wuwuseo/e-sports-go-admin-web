@@ -49,6 +49,14 @@ export interface ChangePasswordRequest {
 }
 
 // ===== 角色相关 =====
+// 角色数据权限范围枚举
+export type DataScope =
+  | 'all'
+  | 'self'
+  | 'department'
+  | 'department_and_child'
+  | 'custom';
+
 export interface RoleResponse {
   id: number;
   name: string;
@@ -60,6 +68,10 @@ export interface RoleResponse {
   created_at: string;
   updated_by: string;
   updated_at: string;
+  // 数据权限范围
+  data_scope: DataScope;
+  // 自定义部门列表（仅 data_scope = 'custom' 时生效）
+  data_scope_department_ids: number[];
 }
 
 export interface CreateRoleRequest {
@@ -67,6 +79,10 @@ export interface CreateRoleRequest {
   display_name: string;
   description?: string;
   created_by?: string;
+  // 数据权限范围（默认 self）
+  data_scope?: DataScope;
+  // 自定义部门 ID 列表
+  data_scope_department_ids?: number[];
 }
 
 export interface UpdateRoleRequest {
@@ -74,6 +90,10 @@ export interface UpdateRoleRequest {
   display_name?: string;
   description?: string;
   updated_by?: string;
+  // 数据权限范围
+  data_scope?: DataScope;
+  // 自定义部门 ID 列表
+  data_scope_department_ids?: number[];
 }
 
 // ===== 权限相关 =====
@@ -188,6 +208,52 @@ export interface SysPermissionQuery {
   type?: SysPermissionType;
   keyword?: string;
   status?: number;
+}
+
+// ===== 部门管理相关 =====
+export type DepartmentStatus = 'active' | 'inactive';
+
+export interface Department {
+  id: number;
+  name: string;
+  parent_id: number;
+  path: string;
+  sort: number;
+  status: DepartmentStatus;
+  leader?: string;
+  phone?: string;
+  email?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DepartmentTreeNode extends Department {
+  children?: DepartmentTreeNode[];
+}
+
+export interface CreateDepartmentPayload {
+  name: string;
+  parent_id: number;
+  sort: number;
+  status: DepartmentStatus;
+  leader?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface UpdateDepartmentPayload {
+  name: string;
+  parent_id: number;
+  sort: number;
+  status: DepartmentStatus;
+  leader?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface DepartmentTreeQuery {
+  keyword?: string;
+  status?: DepartmentStatus;
 }
 
 // 保存角色权限请求（覆盖式，基于 Casbin）
@@ -716,6 +782,8 @@ export interface AdminResponse {
   avatar?: string;
   status: 'active' | 'inactive';
   is_super_admin: boolean;
+  // 所属部门 ID（0 表示未分配）
+  department_id?: number;
   last_login_at?: string;
   created_at: string;
   updated_at: string;
@@ -734,6 +802,8 @@ export interface CreateAdminRequest {
   phone?: string;
   avatar?: string;
   is_super_admin?: boolean;
+  // 所属部门 ID
+  department_id?: number;
 }
 
 export interface UpdateAdminRequest {
@@ -743,6 +813,8 @@ export interface UpdateAdminRequest {
   avatar?: string;
   password?: string;
   is_super_admin?: boolean;
+  // 所属部门 ID
+  department_id?: number;
 }
 
 export interface AdminQuery extends PaginationQuery {

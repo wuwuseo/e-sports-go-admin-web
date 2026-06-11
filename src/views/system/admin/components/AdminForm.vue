@@ -34,6 +34,19 @@
         />
       </a-form-item>
       <a-form-item
+        field="department_id"
+        :label="$t('system.admin.form.department')"
+      >
+        <a-tree-select
+          v-model="formData.departmentId"
+          :data="departmentTreeOptions"
+          allow-clear
+          :disabled="isView"
+          :placeholder="$t('system.admin.form.department.placeholder')"
+          style="width: 100%"
+        />
+      </a-form-item>
+      <a-form-item
         v-if="!isEdit"
         field="password"
         :label="$t('system.admin.form.password')"
@@ -65,7 +78,15 @@
   import { Message } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
   import useAdminManagementStore from '@/store/modules/admin-management';
-  import type { AdminDetailResponse } from '@/types/api';
+  import { getDepartmentTree } from '@/api/department';
+  import type { AdminDetailResponse, DepartmentTreeNode } from '@/types/api';
+
+  // 部门树选项的内部结构（用于 a-tree-select）
+  interface DepartmentTreeOption {
+    key: number;
+    title: string;
+    children?: DepartmentTreeOption[];
+  }
 
   const props = defineProps<{
     visible: boolean;
@@ -103,7 +124,37 @@
     password: '',
     isSuperAdmin: false,
     status: 'active' as 'active' | 'inactive',
+    departmentId: undefined as number | undefined,
   });
+
+  // 部门树缓存
+  const departmentTreeOptions = ref<DepartmentTreeOption[]>([]);
+
+  // 将后端返回的部门树转换为 a-tree-select 期望的结构
+  const transformDepartmentTree = (
+    nodes: DepartmentTreeNode[]
+  ): DepartmentTreeOption[] => {
+    return nodes.map((node) => ({
+      key: node.id,
+      title: node.name,
+      children: node.children?.length
+        ? transformDepartmentTree(node.children)
+        : undefined,
+    }));
+  };
+
+  // 加载部门树（失败时静默，避免影响表单展示）
+  const loadDepartmentTree = async () => {
+    try {
+      const res = await getDepartmentTree();
+      departmentTreeOptions.value = transformDepartmentTree(
+        res.data.data || []
+      );
+    } catch (err) {
+      // 加载失败时保留空数组，错误已由 axios 拦截器统一提示
+      departmentTreeOptions.value = [];
+    }
+  };
 
   const rules = computed(() => ({
     username: [
@@ -130,6 +181,10 @@
   watch(
     () => props.visible,
     (val) => {
+      if (val) {
+        // 打开弹窗时加载部门树
+        loadDepartmentTree();
+      }
       if (val && props.admin) {
         formData.value = {
           username: props.admin.username,
@@ -138,6 +193,10 @@
           password: '',
           isSuperAdmin: Boolean(props.admin.is_super_admin),
           status: props.admin.status,
+          departmentId:
+            props.admin.department_id && props.admin.department_id > 0
+              ? props.admin.department_id
+              : undefined,
         };
       } else if (val) {
         formData.value = {
@@ -147,6 +206,7 @@
           password: '',
           isSuperAdmin: false,
           status: 'active',
+          departmentId: undefined,
         };
       }
     }
@@ -169,6 +229,7 @@
           email: formData.value.email,
           phone: formData.value.phone || undefined,
           is_super_admin: formData.value.isSuperAdmin,
+          department_id: formData.value.departmentId ?? 0,
         });
         Message.success(t('system.admin.updateSuccess'));
       } else {
@@ -178,6 +239,7 @@
           password: formData.value.password,
           phone: formData.value.phone || undefined,
           is_super_admin: formData.value.isSuperAdmin,
+          department_id: formData.value.departmentId ?? 0,
         });
         Message.success(t('system.admin.createSuccess'));
       }
