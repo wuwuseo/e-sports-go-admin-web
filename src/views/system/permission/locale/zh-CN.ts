@@ -45,6 +45,9 @@ export default {
   'system.permission.disable': '禁用',
   'system.permission.enableSuccess': '启用成功',
   'system.permission.disableSuccess': '禁用成功',
+  'system.permission.toggleStatus.title': '{action}确认',
+  'system.permission.toggleStatus.cascadeTip':
+    '{action}该权限将自动{action}其所有子权限，是否继续？',
   'system.permission.fold': '折叠',
   'system.permission.unfold': '展开',
   'system.permission.apiCount': 'API 权限',

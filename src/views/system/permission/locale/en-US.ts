@@ -46,6 +46,9 @@ export default {
   'system.permission.disable': 'Disable',
   'system.permission.enableSuccess': 'Enabled successfully',
   'system.permission.disableSuccess': 'Disabled successfully',
+  'system.permission.toggleStatus.title': 'Confirm {action}',
+  'system.permission.toggleStatus.cascadeTip':
+    '{action} this permission will also {action} all its sub-permissions. Continue?',
   'system.permission.fold': 'Fold',
   'system.permission.unfold': 'Unfold',
   'system.permission.apiCount': 'API Permissions',

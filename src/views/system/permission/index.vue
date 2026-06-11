@@ -401,7 +401,7 @@
 
 <script lang="ts" setup>
   import { ref, reactive, computed, onMounted, watch } from 'vue';
-  import { Message } from '@arco-design/web-vue';
+  import { Message, Modal } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
   import {
     deleteSysPermission,
@@ -621,30 +621,45 @@
   };
 
   // 切换权限启用/禁用状态（复用 update 接口传 status 字段）
+  // 由于父权限禁用会级联禁用所有子权限，先弹出二次确认避免误操作
   const handleToggleStatus = async (
     record: SysPermissionResponse,
     nextStatus: boolean
   ) => {
     const newStatus = nextStatus ? 1 : 0;
-    togglingMap.value[record.id] = true;
-    try {
-      await updateSysPermission(record.id, { status: newStatus });
-      Message.success(
-        nextStatus
-          ? t('system.permission.enableSuccess')
-          : t('system.permission.disableSuccess')
-      );
-      // 刷新两个视图的数据源，保证表格与树视图状态同步
-      const tasks: Promise<unknown>[] = [fetchTreeData()];
-      if (viewMode.value === 'table') {
-        tasks.push(fetchData());
-      }
-      await Promise.all(tasks);
-    } catch (err) {
-      // error handled by interceptor
-    } finally {
-      togglingMap.value[record.id] = false;
-    }
+    const actionText = nextStatus
+      ? t('system.permission.enable')
+      : t('system.permission.disable');
+
+    Modal.confirm({
+      title: t('system.permission.toggleStatus.title', { action: actionText }),
+      content: t('system.permission.toggleStatus.cascadeTip', {
+        action: actionText,
+      }),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      onOk: async () => {
+        togglingMap.value[record.id] = true;
+        try {
+          await updateSysPermission(record.id, { status: newStatus });
+          Message.success(
+            nextStatus
+              ? t('system.permission.enableSuccess')
+              : t('system.permission.disableSuccess')
+          );
+          // 刷新两个视图的数据源，保证表格与树视图状态同步
+          const tasks: Promise<unknown>[] = [fetchTreeData()];
+          if (viewMode.value === 'table') {
+            tasks.push(fetchData());
+          }
+          await Promise.all(tasks);
+        } catch (err) {
+          // error handled by interceptor
+        } finally {
+          togglingMap.value[record.id] = false;
+        }
+      },
+    });
   };
 
   const handleFormSuccess = () => {

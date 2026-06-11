@@ -174,6 +174,24 @@
             </template>
           </a-table-column>
           <a-table-column
+            :title="$t('system.role.column.dataScope')"
+            data-index="data_scope"
+            :width="140"
+            align="center"
+          >
+            <template #cell="{ record }">
+              <a-tag :color="dataScopeColor(record.data_scope)">
+                {{
+                  $t(
+                    `system.role.form.dataScope.${dataScopeKey(
+                      record.data_scope
+                    )}`
+                  )
+                }}
+              </a-tag>
+            </template>
+          </a-table-column>
+          <a-table-column
             :title="$t('system.role.createdAt')"
             data-index="created_at"
             :width="170"
@@ -248,7 +266,7 @@
   import { useI18n } from 'vue-i18n';
   import { formatDateTime } from '@/utils';
   import useRoleStore from '@/store/modules/role';
-  import type { RoleResponse } from '@/types/api';
+  import type { DataScope, RoleResponse } from '@/types/api';
   import RoleForm from './components/RoleForm.vue';
   import PermissionAssign from './components/PermissionAssign.vue';
 
@@ -279,6 +297,25 @@
       system: roles.filter((r) => r.is_system).length,
     };
   });
+
+  // 数据权限范围 -> i18n key 映射（处理 department_and_child -> deptAndChild）
+  const dataScopeKey = (scope?: DataScope): string => {
+    if (!scope) return 'self';
+    if (scope === 'department_and_child') return 'deptAndChild';
+    return scope;
+  };
+
+  // 数据权限范围对应的标签颜色
+  const dataScopeColor = (scope?: DataScope): string => {
+    const map: Record<string, string> = {
+      all: 'red',
+      self: 'gray',
+      department: 'blue',
+      department_and_child: 'cyan',
+      custom: 'purple',
+    };
+    return scope ? map[scope] || 'gray' : 'gray';
+  };
 
   const fetchData = async () => {
     await roleStore.fetchRoles({
