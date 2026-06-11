@@ -262,9 +262,9 @@ export function getAdmins(params?: AdminQuery) {
 }
 
 // 获取管理员详情
-export function getAdminDetail(uid: string | number) {
+export function getAdminDetail(id: number) {
   return axios.get<ApiResponse<AdminDetailResponse>>(
-    `/api/v1/admin/auth/admins/${uid}`
+    `/api/v1/admin/auth/admins/${id}`
   );
 }
 
@@ -290,18 +290,15 @@ export function deactivateAdmin(id: number) {
   );
 }
 
-// 删除管理员
-export function deleteAdmin(id: number) {
-  return axios.delete<ApiResponse<null>>(`/api/v1/admin/auth/admins/${id}`);
-}
-
 // 获取管理员角色列表
 export function getAdminRoles(id: number) {
-  return axios.get<ApiResponse<any[]>>(`/api/v1/admin/auth/admins/${id}/roles`);
+  return axios.get<ApiResponse<RoleResponse[]>>(
+    `/api/v1/admin/auth/admins/${id}/roles`
+  );
 }
 
 // 分配管理员角色
-export function assignAdminRoles(id: number, data: any) {
+export function assignAdminRoles(id: number, data: AssignUserRolesRequest) {
   return axios.put<ApiResponse<null>>(
     `/api/v1/admin/auth/admins/${id}/roles`,
     data

@@ -245,10 +245,6 @@
                       <template #icon><icon-safe /></template>
                       {{ $t('system.admin.assignRole') }}
                     </a-doption>
-                    <a-doption value="delete" style="color: #f5222d">
-                      <template #icon><icon-delete /></template>
-                      {{ $t('common.delete') }}
-                    </a-doption>
                   </template>
                 </a-dropdown>
               </a-space>
@@ -376,16 +372,6 @@
     }
   };
 
-  const handleDelete = async (record: AdminResponse) => {
-    try {
-      await adminStore.deleteAdmin(record.id);
-      Message.success(t('system.admin.deleteSuccess'));
-      fetchData();
-    } catch (err) {
-      // 错误已在API层处理
-    }
-  };
-
   const handleAssignRole = (record: AdminResponse) => {
     currentAdmin.value = record as AdminDetailResponse;
     roleAssignVisible.value = true;
@@ -409,13 +395,6 @@
         break;
       case 'assignRole':
         handleAssignRole(record);
-        break;
-      case 'delete':
-        Modal.confirm({
-          title: t('system.admin.deleteConfirm'),
-          content: '',
-          onOk: () => handleDelete(record),
-        });
         break;
       default:
         break;

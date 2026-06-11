@@ -5,7 +5,6 @@ import {
   getAdminDetail,
   activateAdmin,
   deactivateAdmin,
-  deleteAdmin,
   getAdminRoles,
   assignAdminRoles,
   updateAdmin,
@@ -55,8 +54,8 @@ const useAdminManagementStore = defineStore('adminManagement', {
     },
 
     // 获取管理员详情
-    async fetchDetail(uid: string | number) {
-      const res = await getAdminDetail(uid);
+    async fetchDetail(id: number) {
+      const res = await getAdminDetail(id);
       this.currentItem = res.data.data;
       return res.data.data;
     },
@@ -81,8 +80,8 @@ const useAdminManagementStore = defineStore('adminManagement', {
       return this.create(data);
     },
 
-    fetchAdminDetail(uid: string | number) {
-      return this.fetchDetail(uid);
+    fetchAdminDetail(id: number) {
+      return this.fetchDetail(id);
     },
 
     setCurrentAdmin(admin?: AdminDetailResponse) {
@@ -95,10 +94,6 @@ const useAdminManagementStore = defineStore('adminManagement', {
 
     async deactivateAdmin(id: number) {
       await deactivateAdmin(id);
-    },
-
-    async deleteAdmin(id: number) {
-      await deleteAdmin(id);
     },
 
     async fetchAdminRoles(id: number): Promise<RoleResponse[]> {
