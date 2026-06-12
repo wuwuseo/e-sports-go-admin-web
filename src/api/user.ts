@@ -64,6 +64,14 @@ export function getUserPermissions(params?: { domain?: string }) {
   );
 }
 
+// 获取用户按钮权限
+export function getUserButtonPermissions(params?: { domain?: string }) {
+  return axios.get<ApiResponse<unknown>>(
+    '/api/v1/admin/auth/user/button-permissions',
+    { params }
+  );
+}
+
 // 登出
 export function logout() {
   return axios.post<ApiResponse<null>>('/api/v1/admin/auth/logout');

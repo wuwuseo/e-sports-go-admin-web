@@ -4,11 +4,16 @@ import {
   logout as userLogout,
   getCurrentUser,
   getUserPermissions,
+  getUserButtonPermissions,
   adminLogin,
   adminLogout as adminLogoutApi,
   getCurrentAdmin,
 } from '@/api/user';
-import type { LoginRequest, AdminLoginRequest } from '@/types/api';
+import type {
+  LoginRequest,
+  AdminLoginRequest,
+  PermissionResponse,
+} from '@/types/api';
 import {
   setToken,
   clearToken,
@@ -161,9 +166,31 @@ const useUserStore = defineStore('user', {
       this.permissionsLoading = true;
       try {
         const { data } = await getUserPermissions({ domain: 'default' });
-        this.permissions = PermissionTransformer.normalizePermissions(
+        const mixedPermissions = PermissionTransformer.normalizePermissions(
           data.data
         );
+        let buttonPermissions: PermissionResponse[] = [];
+
+        try {
+          const buttonResponse = await getUserButtonPermissions({
+            domain: 'default',
+          });
+          buttonPermissions = PermissionTransformer.normalizePermissions(
+            buttonResponse.data.data
+          );
+        } catch {
+          buttonPermissions = [];
+        }
+
+        const permissionMap = new Map<string, PermissionResponse>();
+        [...mixedPermissions, ...buttonPermissions].forEach((permission) => {
+          permissionMap.set(
+            `${permission.type}:${permission.action}:${permission.object}`,
+            permission
+          );
+        });
+
+        this.permissions = Array.from(permissionMap.values());
         this.permissionCodes = PermissionTransformer.extractPermissionCodes(
           this.permissions
         );

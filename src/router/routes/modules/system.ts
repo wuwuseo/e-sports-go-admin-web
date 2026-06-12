@@ -61,7 +61,11 @@ const SYSTEM: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.system.department',
         requiresAuth: true,
-        permissionCode: ['/system/department', 'department'],
+        permissionCode: [
+          '/system/department',
+          'system:department',
+          'department',
+        ],
       },
     },
     {

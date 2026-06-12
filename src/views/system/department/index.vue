@@ -61,7 +61,8 @@
         </div>
         <div class="page-toolbar-right">
           <a-button
-            v-permission="'department:create'"
+            v-if="permissionsReady"
+            v-permission="'department:add'"
             type="primary"
             @click="handleCreate"
           >
@@ -160,7 +161,8 @@
             <template #cell="{ record }">
               <a-space>
                 <a-button
-                  v-permission="'department:create'"
+                  v-if="permissionsReady"
+                  v-permission="'department:add'"
                   type="text"
                   size="small"
                   @click="handleAddChild(record)"
@@ -169,7 +171,8 @@
                   {{ $t('system.department.addChild') }}
                 </a-button>
                 <a-button
-                  v-permission="'department:update'"
+                  v-if="permissionsReady"
+                  v-permission="'department:edit'"
                   type="text"
                   size="small"
                   @click="handleEdit(record)"
@@ -178,6 +181,7 @@
                   {{ $t('system.department.edit') }}
                 </a-button>
                 <a-button
+                  v-if="permissionsReady"
                   v-permission="'department:delete'"
                   type="text"
                   status="danger"
@@ -220,11 +224,14 @@
     DepartmentStatus,
     DepartmentTreeNode,
   } from '@/types/api';
+  import { useUserStore } from '@/store';
   import DepartmentForm from './components/DepartmentForm.vue';
 
   const { t } = useI18n();
+  const userStore = useUserStore();
 
   const loading = ref(false);
+  const permissionsReady = ref(false);
   const departmentTree = ref<DepartmentTreeNode[]>([]);
   const expandedKeys = ref<(string | number)[]>([]);
   const formVisible = ref(false);
@@ -337,8 +344,14 @@
     fetchDepartmentTree({ silent: true });
   };
 
+  const initializePage = async () => {
+    await userStore.refreshPermissions();
+    permissionsReady.value = true;
+    await fetchDepartmentTree();
+  };
+
   onMounted(() => {
-    fetchDepartmentTree();
+    initializePage();
   });
 </script>
 
