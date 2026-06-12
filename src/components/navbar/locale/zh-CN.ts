@@ -1,0 +1,18 @@
+export default {
+  'navbar.profile.title': '个人资料',
+  'navbar.profile.username': '用户名',
+  'navbar.profile.usernameRequired': '请输入用户名',
+  'navbar.profile.email': '邮箱',
+  'navbar.profile.phone': '手机号',
+  'navbar.profile.avatar': '头像',
+  'navbar.profile.saveSuccess': '保存成功',
+  'navbar.changePassword.title': '修改密码',
+  'navbar.changePassword.oldPassword': '旧密码',
+  'navbar.changePassword.oldPasswordRequired': '请输入旧密码',
+  'navbar.changePassword.newPassword': '新密码',
+  'navbar.changePassword.newPasswordRequired': '请输入新密码',
+  'navbar.changePassword.confirmPassword': '确认密码',
+  'navbar.changePassword.confirmPasswordRequired': '请确认新密码',
+  'navbar.changePassword.passwordMismatch': '两次输入的密码不一致',
+  'navbar.changePassword.success': '修改成功',
+};

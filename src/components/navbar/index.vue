@@ -140,6 +140,18 @@
             <icon-user v-else />
           </a-avatar>
           <template #content>
+            <a-doption @click="openProfile">
+              <a-space>
+                <icon-user />
+                <span>{{ $t('navbar.profile.title') }}</span>
+              </a-space>
+            </a-doption>
+            <a-doption @click="openChangePassword">
+              <a-space>
+                <icon-lock />
+                <span>{{ $t('navbar.changePassword.title') }}</span>
+              </a-space>
+            </a-doption>
             <a-doption @click="goMessagePreference">
               <a-space>
                 <icon-settings />
@@ -158,6 +170,8 @@
         </a-dropdown>
       </li>
     </ul>
+    <ProfileModal ref="profileModalRef" v-model:visible="profileVisible" />
+    <ChangePasswordModal v-model:visible="passwordVisible" />
   </div>
 </template>
 
@@ -172,6 +186,8 @@
   import useSseMessage from '@/hooks/sse-message';
   import Menu from '@/components/menu/index.vue';
   import MessageBox from '../message-box/index.vue';
+  import ProfileModal from './components/ProfileModal.vue';
+  import ChangePasswordModal from './components/ChangePasswordModal.vue';
 
   const appStore = useAppStore();
   const userStore = useUserStore();
@@ -182,6 +198,20 @@
   // 跳转到消息偏好设置页
   const goMessagePreference = () => {
     router.push({ name: 'MessagePreference' });
+  };
+
+  // 个人资料弹窗
+  const profileVisible = ref(false);
+  const profileModalRef = ref<InstanceType<typeof ProfileModal>>();
+  const openProfile = () => {
+    profileModalRef.value?.initFormData();
+    profileVisible.value = true;
+  };
+
+  // 修改密码弹窗
+  const passwordVisible = ref(false);
+  const openChangePassword = () => {
+    passwordVisible.value = true;
   };
 
   // 启动 SSE 站内消息推送（仅登录用户）
