@@ -57,21 +57,35 @@
   });
 
   watch(
-    () => props.visible,
-    async (val) => {
-      if (val && props.user) {
-        try {
-          const userRoles = await userManagementStore.fetchUserRoles(
-            props.user.id
-          );
-          selectedRoleIds.value = userRoles.map((r) => r.id);
-        } catch (err) {
-          // 错误已在API层处理
-        }
-      } else if (val) {
+    [() => props.visible, () => props.user?.id],
+    async ([val, userId]) => {
+      // 弹窗关闭时立即清空，避免下次打开残留上一次的勾选
+      if (!val) {
         selectedRoleIds.value = [];
+        return;
       }
-    }
+      // 弹窗打开但没有目标用户
+      if (!props.user) {
+        selectedRoleIds.value = [];
+        return;
+      }
+      // 每次打开/切换用户，先重置为初始空态，再异步拉取该用户的真实角色
+      selectedRoleIds.value = [];
+      try {
+        const currentUserId = userId;
+        const userRoles = await userManagementStore.fetchUserRoles(
+          props.user.id
+        );
+        // 防止异步竞态：请求返回时若已切换到另一个用户，则丢弃旧结果
+        if (!props.visible || !props.user || props.user.id !== currentUserId) {
+          return;
+        }
+        selectedRoleIds.value = userRoles.map((r) => r.id);
+      } catch (err) {
+        // 错误已在API层处理
+      }
+    },
+    { immediate: true }
   );
 
   const handleSubmit = async () => {

@@ -128,10 +128,16 @@ const useUserManagementStore = defineStore('userManagement', {
       }
     },
 
-    async fetchUserRoles(id: number) {
+    async fetchUserRoles(id: number): Promise<RoleResponse[]> {
       const res = await getUserRoles(id);
-      this.userRoles = res.data.data;
-      return res.data.data;
+      // 后端返回结构为 { roles: RoleResponse[], primary_role_id, primary_role }，
+      // 这里统一只对外暴露角色数组，避免上层调用 .filter/.map 时出错
+      const data = res.data.data as unknown as
+        | RoleResponse[]
+        | { roles?: RoleResponse[] };
+      const roles = Array.isArray(data) ? data : data?.roles ?? [];
+      this.userRoles = roles;
+      return roles;
     },
 
     async assignUserRoles(id: number, data: AssignUserRolesRequest) {

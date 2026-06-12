@@ -62,23 +62,41 @@
   });
 
   watch(
-    () => props.visible,
-    async (val) => {
-      if (val && props.admin) {
-        try {
-          const adminRoles = await adminManagementStore.fetchAdminRoles(
-            props.admin.id
-          );
-          selectedRoleIds.value = adminRoles
-            .filter((role) => !isSuperAdminRole(role))
-            .map((role) => role.id);
-        } catch (err) {
-          // 错误已在API层处理
-        }
-      } else if (val) {
+    [() => props.visible, () => props.admin?.id],
+    async ([val, adminId]) => {
+      // 弹窗关闭时立即清空，避免下次打开残留上一次的勾选
+      if (!val) {
         selectedRoleIds.value = [];
+        return;
       }
-    }
+      // 弹窗打开但没有目标管理员
+      if (!props.admin) {
+        selectedRoleIds.value = [];
+        return;
+      }
+      // 每次打开/切换管理员，先重置为初始空态，再异步拉取该管理员的真实角色
+      selectedRoleIds.value = [];
+      try {
+        const currentAdminId = adminId;
+        const adminRoles = await adminManagementStore.fetchAdminRoles(
+          props.admin.id
+        );
+        // 防止异步竞态：请求返回时若已切换到另一个管理员，则丢弃旧结果
+        if (
+          !props.visible ||
+          !props.admin ||
+          props.admin.id !== currentAdminId
+        ) {
+          return;
+        }
+        selectedRoleIds.value = adminRoles
+          .filter((role) => !isSuperAdminRole(role))
+          .map((role) => role.id);
+      } catch (err) {
+        // 错误已在API层处理
+      }
+    },
+    { immediate: true }
   );
 
   const handleSubmit = async () => {
