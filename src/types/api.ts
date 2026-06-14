@@ -351,6 +351,10 @@ export interface AttachmentResponse {
   name: string;
   original_name: string;
   path: string;
+  disk?: string;
+  driver?: string;
+  directory?: string;
+  content_hash?: string;
   mime_type: string;
   extension: string;
   size: number;
@@ -358,6 +362,15 @@ export interface AttachmentResponse {
   uploaded_by: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface AttachmentAccessUrlResponse {
+  url: string;
+  expires_in: number;
+  mode?: string;
+  public?: boolean;
+  disk?: string;
+  driver?: string;
 }
 
 export interface AttachmentGroupResponse {

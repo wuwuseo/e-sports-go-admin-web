@@ -124,11 +124,37 @@
                 :tooltip="true"
               >
                 <template #cell="{ record }">
-                  <div style="display: flex; align-items: center; gap: 8px">
+                  <div class="attachment-name-cell">
                     <span class="file-icon" :class="getFileIconClass(record)">{{
                       getFileIcon(record)
                     }}</span>
-                    <span>{{ record.original_name }}</span>
+                    <div class="attachment-name-content">
+                      <span class="attachment-name-text">
+                        {{ record.original_name }}
+                      </span>
+                      <div class="attachment-badges">
+                        <a-tag
+                          :color="getAccessPublicColor(record)"
+                          size="small"
+                        >
+                          {{ getAccessPublicLabel(record) }}
+                        </a-tag>
+                        <a-tag
+                          v-if="getAccessDriverLabel(record) !== '-'"
+                          color="blue"
+                          size="small"
+                        >
+                          {{ getAccessDriverLabel(record) }}
+                        </a-tag>
+                        <a-tag
+                          v-if="getAccessModeLabel(record)"
+                          color="purple"
+                          size="small"
+                        >
+                          {{ getAccessModeLabel(record) }}
+                        </a-tag>
+                      </div>
+                    </div>
                   </div>
                 </template>
               </a-table-column>
@@ -281,6 +307,10 @@
     updateAttachmentGroup,
     deleteAttachmentGroup,
   } from '@/api/attachment';
+  import {
+    getAttachmentAccessInfo,
+    type AttachmentAccessInfo,
+  } from '@/services/attachment-access.service';
   import FileUpload from './components/FileUpload.vue';
   import AttachmentPreview from './components/AttachmentPreview.vue';
 
@@ -296,6 +326,10 @@
   const currentPage = ref(1);
   const pageSize = ref(10);
   const currentAttachment = ref<AttachmentResponse | undefined>(undefined);
+  const attachmentAccessInfoMap = reactive<
+    Record<number, AttachmentAccessInfo>
+  >({});
+  let accessInfoBatchId = 0;
 
   const pagination = reactive({
     current: 1,
@@ -359,12 +393,70 @@
       attachments.value = res.data.data.data;
       pagination.total = res.data.data.total;
       pagination.current = currentPage.value;
+      loadAttachmentAccessInfos(attachments.value);
     } catch (err) {
       // error handled by interceptor
+      attachments.value = [];
+      loadAttachmentAccessInfos([]);
     } finally {
       loading.value = false;
     }
   };
+
+  async function loadAttachmentAccessInfos(records: AttachmentResponse[]) {
+    accessInfoBatchId += 1;
+    const requestId = accessInfoBatchId;
+    const currentIds = new Set(records.map((record) => record.id));
+
+    Object.keys(attachmentAccessInfoMap).forEach((key) => {
+      const id = Number(key);
+      if (!currentIds.has(id)) {
+        delete attachmentAccessInfoMap[id];
+      }
+    });
+
+    await Promise.all(
+      records.map(async (record) => {
+        try {
+          const info = await getAttachmentAccessInfo(record.id);
+          if (requestId === accessInfoBatchId) {
+            attachmentAccessInfoMap[record.id] = info;
+          }
+        } catch {
+          if (requestId === accessInfoBatchId) {
+            delete attachmentAccessInfoMap[record.id];
+          }
+        }
+      })
+    );
+  }
+
+  const getAccessInfo = (record: AttachmentResponse) =>
+    attachmentAccessInfoMap[record.id];
+
+  const getAccessPublicLabel = (record: AttachmentResponse) => {
+    const isPublic = getAccessInfo(record)?.public;
+    if (isPublic === true) return t('system.attachment.access.public');
+    if (isPublic === false) return t('system.attachment.access.private');
+    return t('system.attachment.access.loading');
+  };
+
+  const getAccessPublicColor = (record: AttachmentResponse) => {
+    const isPublic = getAccessInfo(record)?.public;
+    if (isPublic === true) return 'green';
+    if (isPublic === false) return 'orange';
+    return 'gray';
+  };
+
+  const getAccessDriverLabel = (record: AttachmentResponse) => {
+    const driver = getAccessInfo(record)?.driver;
+    if (driver === 'local') return t('system.attachment.driver.local');
+    if (driver === 's3') return t('system.attachment.driver.s3');
+    return driver || '-';
+  };
+
+  const getAccessModeLabel = (record: AttachmentResponse) =>
+    getAccessInfo(record)?.mode || '';
 
   const fetchGroups = async () => {
     try {
@@ -600,6 +692,32 @@
     &.icon-default {
       background: #f1f5f9;
     }
+  }
+
+  .attachment-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .attachment-name-content {
+    min-width: 0;
+  }
+
+  .attachment-name-text {
+    display: block;
+    overflow: hidden;
+    color: rgb(var(--gray-8));
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .attachment-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
   }
 
   body[arco-theme='dark'] & {

@@ -44,6 +44,15 @@ export default {
   'system.attachment.upload.chunkInfo': 'Chunk {current}/{total}',
   'system.attachment.upload.partialFail':
     'Some files failed to upload, please check and retry',
+  'system.attachment.upload.directory.placeholder':
+    'Upload directory, e.g. public/avatar',
+  'system.attachment.upload.directory.hint':
+    'Files under public/ are publicly accessible; other directories are private by default and require temporary signed links.',
+  'system.attachment.access.public': 'Public',
+  'system.attachment.access.private': 'Private',
+  'system.attachment.access.loading': 'Loading',
+  'system.attachment.driver.local': 'Local',
+  'system.attachment.driver.s3': 'Cloud storage',
   'system.attachment.moveTo': 'Move to Group',
   'system.attachment.moveSuccess': 'Moved successfully',
   'system.attachment.group.panelTitle': 'Group Management',
@@ -51,4 +60,15 @@ export default {
   'system.attachment.filter.mimeType.all': 'All',
   'system.attachment.filter.status': 'Status',
   'system.attachment.filter.status.all': 'All',
+  'components.attachmentSelector.trigger': 'Select Attachment',
+  'components.attachmentSelector.title': 'Select Attachment',
+  'components.attachmentSelector.tab.upload': 'Upload',
+  'components.attachmentSelector.tab.library': 'File Browser',
+  'components.attachmentSelector.upload.drag':
+    'Click or drag file to this area to upload',
+  'components.attachmentSelector.confirm': 'Select',
+  'components.attachmentSelector.selectRequired': 'Please select an attachment',
+  'components.attachmentSelector.filter.image': 'Image',
+  'components.attachmentSelector.filter.text': 'Text',
+  'components.attachmentSelector.filter.archive': 'Archive',
 };

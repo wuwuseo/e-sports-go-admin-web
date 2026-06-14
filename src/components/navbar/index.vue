@@ -176,7 +176,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { computed, ref, inject } from 'vue';
+  import { computed, ref, inject, watch } from 'vue';
   import { useDark, useToggle, useFullscreen } from '@vueuse/core';
   import { useRouter } from 'vue-router';
   import { useAppStore, useUserStore, useMessageStore } from '@/store';
@@ -184,6 +184,7 @@
   import useLocale from '@/hooks/locale';
   import useUser from '@/hooks/user';
   import useSseMessage from '@/hooks/sse-message';
+  import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
   import Menu from '@/components/menu/index.vue';
   import MessageBox from '../message-box/index.vue';
   import ProfileModal from './components/ProfileModal.vue';
@@ -222,9 +223,46 @@
   const { changeLocale, currentLocale } = useLocale();
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();
   const locales = [...LOCALE_OPTIONS];
-  const avatar = computed(() => {
-    return userStore.avatar;
-  });
+  const avatar = ref('');
+  let avatarRequestId = 0;
+
+  const resolveAvatar = async (value?: string) => {
+    avatarRequestId += 1;
+    const requestId = avatarRequestId;
+    if (!value) {
+      avatar.value = '';
+      return;
+    }
+
+    if (value.startsWith('http')) {
+      avatar.value = value;
+      return;
+    }
+
+    if (/^\d+$/.test(value)) {
+      try {
+        const url = await resolveAttachmentAccessUrl(Number(value));
+        if (requestId === avatarRequestId) {
+          avatar.value = url;
+        }
+      } catch {
+        if (requestId === avatarRequestId) {
+          avatar.value = '';
+        }
+      }
+      return;
+    }
+
+    avatar.value = '';
+  };
+
+  watch(
+    () => userStore.avatar,
+    (value) => {
+      resolveAvatar(value);
+    },
+    { immediate: true }
+  );
   const theme = computed(() => {
     return appStore.theme;
   });

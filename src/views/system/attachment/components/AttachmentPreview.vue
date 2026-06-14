@@ -8,7 +8,12 @@
   >
     <div v-if="attachment" class="preview-content">
       <div v-if="isImage" class="preview-image">
-        <img :src="previewUrl" :alt="attachment.original_name" />
+        <a-spin v-if="previewLoading" />
+        <img
+          v-else-if="previewUrl"
+          :src="previewUrl"
+          :alt="attachment.original_name"
+        />
       </div>
       <div v-else class="preview-file">
         <icon-file style="font-size: 64px; color: var(--color-text-3)" />
@@ -48,8 +53,9 @@
 
 <script lang="ts" setup>
   import { ref, computed, watch } from 'vue';
+  import { Message } from '@arco-design/web-vue';
   import type { AttachmentResponse } from '@/types/api';
-  import { downloadAttachment } from '@/api/attachment';
+  import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
   import { formatSize } from '@/utils';
 
   const props = defineProps<{
@@ -62,33 +68,50 @@
   }>();
 
   const previewUrl = ref('');
+  const previewLoading = ref(false);
   const downloadLoading = ref(false);
+  let previewRequestId = 0;
 
   const isImage = computed(() => {
     return props.attachment?.mime_type?.startsWith('image/');
   });
 
-  // 通过 axios 带认证获取图片 blob 并生成 object URL
+  const getAccessErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : '获取附件访问地址失败';
+
   const loadPreview = async () => {
     if (!props.attachment) return;
+    previewRequestId += 1;
+    const requestId = previewRequestId;
+    previewUrl.value = '';
+    previewLoading.value = true;
+
     try {
-      const res = await downloadAttachment(props.attachment.id);
-      const blob = res.data;
-      previewUrl.value = URL.createObjectURL(blob);
-    } catch {
-      previewUrl.value = '';
+      const url = await resolveAttachmentAccessUrl(props.attachment.id);
+      if (requestId === previewRequestId && props.visible) {
+        previewUrl.value = url;
+      }
+    } catch (error) {
+      if (requestId === previewRequestId) {
+        previewUrl.value = '';
+        Message.error(getAccessErrorMessage(error));
+      }
+    } finally {
+      if (requestId === previewRequestId) {
+        previewLoading.value = false;
+      }
     }
   };
 
   watch(
-    () => props.visible && props.attachment,
-    (val) => {
-      if (val) {
+    () => [props.visible, props.attachment?.id] as const,
+    ([visible]) => {
+      if (visible && props.attachment && isImage.value) {
         loadPreview();
-      } else if (previewUrl.value) {
-        // 组件关闭时释放 object URL
-        URL.revokeObjectURL(previewUrl.value);
+      } else {
+        previewRequestId += 1;
         previewUrl.value = '';
+        previewLoading.value = false;
       }
     }
   );
@@ -97,18 +120,15 @@
     if (!props.attachment) return;
     downloadLoading.value = true;
     try {
-      const res = await downloadAttachment(props.attachment.id);
-      const blob = res.data;
-      const url = URL.createObjectURL(blob);
+      const url = await resolveAttachmentAccessUrl(props.attachment.id);
       const a = document.createElement('a');
       a.href = url;
       a.download = props.attachment.original_name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      // error handled by interceptor
+    } catch (error) {
+      Message.error(getAccessErrorMessage(error));
     } finally {
       downloadLoading.value = false;
     }

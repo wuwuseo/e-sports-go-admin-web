@@ -26,6 +26,18 @@
       </template>
     </a-upload>
 
+    <div class="upload-directory">
+      <a-input
+        v-model="uploadDirectory"
+        allow-clear
+        :disabled="isUploading"
+        :placeholder="$t('system.attachment.upload.directory.placeholder')"
+      />
+      <div class="upload-directory-hint">
+        {{ $t('system.attachment.upload.directory.hint') }}
+      </div>
+    </div>
+
     <!-- 文件列表与进度 -->
     <div v-if="uploadItems.length > 0" class="file-list">
       <div v-for="(item, index) in uploadItems" :key="index" class="file-item">
@@ -142,6 +154,7 @@
   const isUploading = ref(false);
   const chunkThreshold = ref(10 * 1024 * 1024);
   const chunkSize = ref(5 * 1024 * 1024);
+  const uploadDirectory = ref('');
 
   // 是否全部上传完毕
   const allUploaded = computed(
@@ -163,6 +176,7 @@
         arcoFileList.value = [];
         uploadItems.value = [];
         isUploading.value = false;
+        uploadDirectory.value = '';
       }
     }
   );
@@ -238,9 +252,11 @@
     }
   };
 
+  const getUploadDirectory = () => uploadDirectory.value.trim() || undefined;
+
   // 简单上传
   const uploadSimple = async (item: UploadItem) => {
-    await uploadAttachment(item.file, props.groupId);
+    await uploadAttachment(item.file, props.groupId, getUploadDirectory());
     item.progress = 100;
   };
 
@@ -277,6 +293,7 @@
           filename: file.name,
           fileSize: file.size,
           chunkSize: chunkSize.value,
+          directory: getUploadDirectory(),
         },
         (progressEvent) => {
           // 防御：total 不存在或为 0 时跳过本次回调，避免 Infinity / NaN
@@ -326,6 +343,7 @@
     arcoFileList.value = [];
     uploadItems.value = [];
     isUploading.value = false;
+    uploadDirectory.value = '';
     emit('update:visible', false);
   };
 </script>
@@ -354,6 +372,17 @@
     margin-top: 16px;
     max-height: 300px;
     overflow-y: auto;
+  }
+
+  .upload-directory {
+    margin-top: 12px;
+  }
+
+  .upload-directory-hint {
+    margin-top: 6px;
+    color: rgb(var(--gray-5));
+    font-size: 12px;
+    line-height: 1.4;
   }
 
   .file-item {
