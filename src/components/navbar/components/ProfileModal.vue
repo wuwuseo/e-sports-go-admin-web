@@ -16,13 +16,20 @@
           @select="handleAvatarSelect"
         >
           <template #trigger="{ open }">
-            <a-avatar :size="64" class="profile-avatar-trigger" @click="open">
-              <template v-if="avatarPreviewUrl">
-                <img :src="avatarPreviewUrl" alt="avatar" />
-              </template>
-              <template v-else>
-                <icon-user />
-              </template>
+            <div
+              v-if="avatarPreviewUrl"
+              class="profile-avatar-trigger profile-avatar-image-trigger"
+              @click="open"
+            >
+              <img :src="avatarPreviewUrl" alt="avatar" />
+            </div>
+            <a-avatar
+              v-else
+              :size="64"
+              class="profile-avatar-trigger"
+              @click="open"
+            >
+              <icon-user />
             </a-avatar>
           </template>
         </AttachmentSelector>
@@ -192,10 +199,17 @@
       border-color: rgb(var(--primary-6));
     }
 
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+    &.profile-avatar-image-trigger {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+
+      img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
     }
   }
 </style>
