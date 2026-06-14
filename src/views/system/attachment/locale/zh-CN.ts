@@ -47,6 +47,7 @@ export default {
   'system.attachment.access.public': '公开',
   'system.attachment.access.private': '私有',
   'system.attachment.access.loading': '加载中',
+  'system.attachment.access.failed': '获取失败',
   'system.attachment.driver.local': '本地',
   'system.attachment.driver.s3': '云存储',
   'system.attachment.moveTo': '移动到分组',

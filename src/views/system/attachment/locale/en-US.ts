@@ -51,6 +51,7 @@ export default {
   'system.attachment.access.public': 'Public',
   'system.attachment.access.private': 'Private',
   'system.attachment.access.loading': 'Loading',
+  'system.attachment.access.failed': 'Failed',
   'system.attachment.driver.local': 'Local',
   'system.attachment.driver.s3': 'Cloud storage',
   'system.attachment.moveTo': 'Move to Group',

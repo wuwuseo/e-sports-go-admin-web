@@ -4,7 +4,6 @@ import {
   logout as userLogout,
   getCurrentUser,
   getUserPermissions,
-  getUserButtonPermissions,
   adminLogin,
   adminLogout as adminLogoutApi,
   getCurrentAdmin,
@@ -166,24 +165,12 @@ const useUserStore = defineStore('user', {
       this.permissionsLoading = true;
       try {
         const { data } = await getUserPermissions({ domain: 'default' });
-        const mixedPermissions = PermissionTransformer.normalizePermissions(
+        const permissions = PermissionTransformer.normalizePermissions(
           data.data
         );
-        let buttonPermissions: PermissionResponse[] = [];
-
-        try {
-          const buttonResponse = await getUserButtonPermissions({
-            domain: 'default',
-          });
-          buttonPermissions = PermissionTransformer.normalizePermissions(
-            buttonResponse.data.data
-          );
-        } catch {
-          buttonPermissions = [];
-        }
 
         const permissionMap = new Map<string, PermissionResponse>();
-        [...mixedPermissions, ...buttonPermissions].forEach((permission) => {
+        permissions.forEach((permission) => {
           permissionMap.set(
             `${permission.type}:${permission.action}:${permission.object}`,
             permission
@@ -195,7 +182,6 @@ const useUserStore = defineStore('user', {
           this.permissions
         );
       } catch {
-        // 加载失败时重置权限列表，但不抛出异常（不影响登录）
         this.permissions = [];
         this.permissionCodes = [];
       } finally {

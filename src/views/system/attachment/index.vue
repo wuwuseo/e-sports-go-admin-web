@@ -125,9 +125,11 @@
               >
                 <template #cell="{ record }">
                   <div class="attachment-name-cell">
-                    <span class="file-icon" :class="getFileIconClass(record)">{{
-                      getFileIcon(record)
-                    }}</span>
+                    <span class="file-icon" :class="getFileIconClass(record)">
+                      <icon-image v-if="isImageFile(record)" />
+                      <icon-file-pdf v-else-if="isPdfFile(record)" />
+                      <icon-file v-else />
+                    </span>
                     <div class="attachment-name-content">
                       <span class="attachment-name-text">
                         {{ record.original_name }}
@@ -326,8 +328,12 @@
   const currentPage = ref(1);
   const pageSize = ref(10);
   const currentAttachment = ref<AttachmentResponse | undefined>(undefined);
+  type AttachmentAccessInfoState = AttachmentAccessInfo & {
+    failed?: boolean;
+  };
+
   const attachmentAccessInfoMap = reactive<
-    Record<number, AttachmentAccessInfo>
+    Record<number, AttachmentAccessInfoState>
   >({});
   let accessInfoBatchId = 0;
 
@@ -359,23 +365,21 @@
     return group ? group.name : '-';
   };
 
-  const getFileIcon = (record: AttachmentResponse): string => {
-    const ext = record.extension?.toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(ext)) return '🖼';
-    if (['pdf'].includes(ext)) return '📄';
-    if (['doc', 'docx'].includes(ext)) return '📝';
-    if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
-    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '📦';
-    if (['mp4', 'avi', 'mov', 'mkv'].includes(ext)) return '🎬';
-    if (['mp3', 'wav', 'flac'].includes(ext)) return '🎵';
-    return '📁';
-  };
+  const getFileExtension = (record: AttachmentResponse) =>
+    record.extension?.toLowerCase() || '';
+
+  const isImageFile = (record: AttachmentResponse): boolean =>
+    ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(
+      getFileExtension(record)
+    );
+
+  const isPdfFile = (record: AttachmentResponse): boolean =>
+    getFileExtension(record) === 'pdf';
 
   const getFileIconClass = (record: AttachmentResponse): string => {
-    const ext = record.extension?.toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(ext))
-      return 'icon-image';
-    if (['pdf'].includes(ext)) return 'icon-pdf';
+    const ext = getFileExtension(record);
+    if (isImageFile(record)) return 'icon-image';
+    if (isPdfFile(record)) return 'icon-pdf';
     if (['zip', 'rar', '7z'].includes(ext)) return 'icon-archive';
     return 'icon-default';
   };
@@ -424,7 +428,14 @@
           }
         } catch {
           if (requestId === accessInfoBatchId) {
-            delete attachmentAccessInfoMap[record.id];
+            attachmentAccessInfoMap[record.id] = {
+              failed: true,
+              public: false,
+              driver: record.driver,
+              mode: '',
+              url: '',
+              expires_in: 0,
+            };
           }
         }
       })
@@ -434,18 +445,26 @@
   const getAccessInfo = (record: AttachmentResponse) =>
     attachmentAccessInfoMap[record.id];
 
+  const isPublicAttachment = (record: AttachmentResponse) => {
+    const normalizedPath = [record.directory, record.path]
+      .filter(Boolean)
+      .join('/')
+      .replace(/^\/+/, '');
+
+    return normalizedPath.startsWith('public/');
+  };
+
   const getAccessPublicLabel = (record: AttachmentResponse) => {
-    const isPublic = getAccessInfo(record)?.public;
-    if (isPublic === true) return t('system.attachment.access.public');
-    if (isPublic === false) return t('system.attachment.access.private');
-    return t('system.attachment.access.loading');
+    const accessInfo = getAccessInfo(record);
+    const isPublic = accessInfo?.public ?? isPublicAttachment(record);
+    if (isPublic) return t('system.attachment.access.public');
+    return t('system.attachment.access.private');
   };
 
   const getAccessPublicColor = (record: AttachmentResponse) => {
-    const isPublic = getAccessInfo(record)?.public;
-    if (isPublic === true) return 'green';
-    if (isPublic === false) return 'orange';
-    return 'gray';
+    const accessInfo = getAccessInfo(record);
+    const isPublic = accessInfo?.public ?? isPublicAttachment(record);
+    return isPublic ? 'green' : 'orange';
   };
 
   const getAccessDriverLabel = (record: AttachmentResponse) => {
@@ -681,15 +700,19 @@
     flex-shrink: 0;
 
     &.icon-image {
+      color: #2563eb;
       background: #dbeafe;
     }
     &.icon-pdf {
+      color: #dc2626;
       background: #fef2f2;
     }
     &.icon-archive {
+      color: #d97706;
       background: #fef3c7;
     }
     &.icon-default {
+      color: #64748b;
       background: #f1f5f9;
     }
   }
