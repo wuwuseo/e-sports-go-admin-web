@@ -378,6 +378,9 @@ export interface AttachmentGroupResponse {
   name: string;
   description?: string;
   sort: number;
+  attachment_count?: number;
+  file_count?: number;
+  count?: number;
   created_at: string;
   updated_at: string;
 }

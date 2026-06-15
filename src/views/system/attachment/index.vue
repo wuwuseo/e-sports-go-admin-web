@@ -32,6 +32,9 @@
               >
                 <icon-folder class="group-item-icon" />
                 <span class="group-item-name">{{ group.name }}</span>
+                <span class="group-item-count">{{
+                  getGroupFileCount(group)
+                }}</span>
                 <a-dropdown trigger="click" position="br">
                   <a-button
                     type="text"
@@ -364,6 +367,9 @@
     const group = groups.value.find((g) => g.id === groupId);
     return group ? group.name : '-';
   };
+
+  const getGroupFileCount = (group: AttachmentGroupResponse) =>
+    group.attachment_count ?? group.file_count ?? group.count ?? 0;
 
   const getFileExtension = (record: AttachmentResponse) =>
     record.extension?.toLowerCase() || '';
