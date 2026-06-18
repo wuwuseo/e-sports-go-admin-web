@@ -20,17 +20,6 @@ const PUBLIC_CACHE_EXPIRES_AT = Number.POSITIVE_INFINITY;
 const accessInfoCache = new Map<number, CachedAccessInfo>();
 const pendingRequests = new Map<number, Promise<AttachmentAccessInfo>>();
 
-function getAbsoluteApiBaseUrl() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL;
-  if (!baseUrl) return '';
-
-  try {
-    return new URL(baseUrl).toString();
-  } catch {
-    return '';
-  }
-}
-
 function getAttachmentAccessErrorMessage(error: unknown) {
   const candidate = error as { response?: { status?: number } };
   const status = candidate.response?.status;
@@ -72,12 +61,24 @@ function getCacheExpiresAt(data: AttachmentAccessInfo) {
 export function normalizeAttachmentAccessUrl(url: string) {
   if (!url) return '';
 
+  // 已是完整绝对 URL（含协议）：保持不变
   try {
     return new URL(url).toString();
   } catch {
-    const baseUrl = getAbsoluteApiBaseUrl();
-    if (!baseUrl) return url;
-    return new URL(url, baseUrl).toString();
+    // 进入相对路径分支
+  }
+
+  // 仅在浏览器环境下根据当前站点 origin 解析相对路径
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return url;
+  }
+
+  // 无前导斜杠时补一个，统一基于 origin 解析
+  const relativePath = url.startsWith('/') ? url : `/${url}`;
+  try {
+    return new URL(relativePath, window.location.origin).toString();
+  } catch {
+    return url;
   }
 }
 
