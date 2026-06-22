@@ -94,10 +94,12 @@ axios.interceptors.response.use(
       res.code !== 1 &&
       res.code !== 2
     ) {
-      Message.error({
-        content: res.message || 'Request Error',
-        duration: 5 * 1000,
-      });
+      if (!response.config.silentError) {
+        Message.error({
+          content: res.message || 'Request Error',
+          duration: 5 * 1000,
+        });
+      }
       return Promise.reject(new Error(res.message || 'Request Error'));
     }
     return response;

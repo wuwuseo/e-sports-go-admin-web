@@ -17,6 +17,7 @@
   import {
     consumeOAuthRedirectPath,
     formatOAuthErrorMessage,
+    parseOAuthCallbackQuery,
   } from '@/utils/oauth';
 
   const route = useRoute();
@@ -34,49 +35,41 @@
     () => errorMessage.value || '请稍候，正在初始化会话'
   );
 
-  const firstQueryValue = (value: unknown) => {
-    if (Array.isArray(value)) return value[0];
-    return typeof value === 'string' ? value : undefined;
-  };
-
   const goLogin = () => {
     router.replace({ name: 'login' });
   };
 
-  onMounted(async () => {
-    const code = firstQueryValue(route.query.code);
-    const provider = firstQueryValue(route.query.provider) || 'github';
-    const error = firstQueryValue(route.query.error);
+  const clearSensitiveQuery = () => {
+    window.history.replaceState({}, '', route.path);
+  };
 
-    if (error) {
-      errorMessage.value = formatOAuthErrorMessage(error);
+  onMounted(async () => {
+    const callback = parseOAuthCallbackQuery(route.query);
+    clearSensitiveQuery();
+
+    if (callback.kind === 'error') {
+      errorMessage.value = formatOAuthErrorMessage(callback.code);
       Message.error(errorMessage.value);
       loading.value = false;
       return;
     }
 
-    if (!code) {
-      errorMessage.value = '缺少 OAuth 授权码';
-      Message.error(errorMessage.value);
+    if (callback.kind === 'bound') {
+      Message.success('GitHub 身份绑定成功');
       loading.value = false;
+      await router.replace({ path: consumeOAuthRedirectPath() });
       return;
     }
 
     try {
-      const res = await exchangeOAuthCode({
-        code,
-        provider,
-        subject_type: 'admin',
-        redirect_uri: `${window.location.origin}/oauth/callback`,
-      });
+      const res = await exchangeOAuthCode({ code: callback.code });
       await userStore.initAdminSession(res.data.data);
       await router.replace({ path: consumeOAuthRedirectPath() });
     } catch (err) {
       errorMessage.value = formatOAuthErrorMessage(
-        (err as any)?.response?.data?.code || (err as Error).message
+        (err as any)?.response?.data?.message || (err as Error).message
       );
       Message.error(errorMessage.value);
-      await router.replace({ path: '/oauth/callback' });
     } finally {
       loading.value = false;
     }

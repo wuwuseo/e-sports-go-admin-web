@@ -3,27 +3,19 @@ import { describe, expect, it } from 'vitest';
 import shouldShowProviderLogin from './oauth-flow';
 
 describe('oauth flow', () => {
-  it('仅在管理员 GitHub Provider 启用时显示登录按钮', () => {
+  it('后端返回 GitHub Provider 时显示登录按钮', () => {
     expect(
       shouldShowProviderLogin({
         provider: 'github',
-        enabled: true,
-        subject_type: 'admin',
+        display_name: 'GitHub',
       })
     ).toBe(true);
     expect(
       shouldShowProviderLogin({
-        provider: 'github',
-        enabled: false,
-        subject_type: 'admin',
+        provider: 'wechat',
+        display_name: '微信',
       })
     ).toBe(false);
-    expect(
-      shouldShowProviderLogin({
-        provider: 'github',
-        enabled: true,
-        subject_type: 'user',
-      })
-    ).toBe(false);
+    expect(shouldShowProviderLogin(undefined)).toBe(false);
   });
 });

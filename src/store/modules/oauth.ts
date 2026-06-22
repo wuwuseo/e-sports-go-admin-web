@@ -22,9 +22,7 @@ const useOAuthStore = defineStore('oauth', {
 
   getters: {
     adminGithubProvider(state) {
-      return state.providers.find(
-        (item) => item.provider === 'github' && item.enabled
-      );
+      return state.providers.find((item) => item.provider === 'github');
     },
   },
 

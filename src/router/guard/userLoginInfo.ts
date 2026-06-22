@@ -20,6 +20,11 @@ export default function setupUserLoginInfoGuard(router: Router) {
       });
     };
 
+    if (to.meta?.requiresAuth === false && to.name !== 'login') {
+      next();
+      return;
+    }
+
     if (isLogin()) {
       if (to.name === 'login') {
         const { redirect } = to.query;

@@ -323,7 +323,7 @@
   });
 
   const canViewOAuthIdentities = computed(() =>
-    userStore.hasAnyPermission(['admin-oauth:list', 'admin-oauth:delete'])
+    userStore.hasAnyPermission(['admin-oauth:list'])
   );
 
   const adminStat = computed(() => {

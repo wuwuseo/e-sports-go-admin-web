@@ -44,47 +44,64 @@ export interface RefreshTokenRequest {
 
 export interface PublicOAuthProvider {
   provider: string;
-  name?: string;
-  display_name?: string;
-  icon?: string;
-  enabled: boolean;
-  authorize_url?: string;
-  subject_type?: 'admin' | 'user';
+  display_name: string;
 }
 
 export interface OAuthExchangeRequest {
   code: string;
-  provider: string;
-  subject_type: 'admin' | 'user';
-  redirect_uri: string;
 }
 
 export interface OAuthIdentity {
   id: number;
   provider: string;
-  platform?: string;
+  display_name: string;
   openid: string;
-  provider_user_id?: string;
-  platform_username?: string;
-  nickname?: string;
-  avatar_url?: string;
-  status: 'active' | 'inactive';
-  created_at: string;
-  updated_at?: string;
+  nickname: string;
+  avatar_url: string;
+  status: string;
+  last_sync_at?: string;
 }
 
 export interface OAuthProviderConfig {
   provider: string;
-  client_id?: string;
+  display_name: string;
+  client_id: string;
   client_secret?: string;
-  callback_url?: string;
-  admin_redirect_url?: string;
-  enabled: boolean;
+  secret_configured: boolean;
+  callback_url: string;
+  user_redirect_url: string;
+  admin_redirect_url: string;
+  user_enabled: boolean;
+  admin_enabled: boolean;
 }
 
-export interface AdminOAuthIdentityListItem extends OAuthIdentity {
+export interface OAuthProviderConfigInput {
+  provider: string;
+  display_name: string;
+  client_id: string;
+  client_secret?: string;
+  clear_secret?: boolean;
+  callback_url: string;
+  user_redirect_url: string;
+  admin_redirect_url: string;
+  user_enabled: boolean;
+  admin_enabled: boolean;
+}
+
+export interface AdminOAuthIdentityListItem {
+  id: number;
   admin_id: number;
-  admin_username: string;
+  admin_uid: string;
+  admin_email: string;
+  admin_name: string;
+  provider: string;
+  display_name: string;
+  openid: string;
+  nickname: string;
+  avatar_url: string;
+  status: string;
+  last_sync_at?: string;
+  created_at: string;
 }
 
 // ===== 用户相关 =====
@@ -789,17 +806,20 @@ export interface UserQuery extends PaginationQuery {
 export interface ThirdPartyUserResponse {
   id: number;
   user_id: number;
+  user_uid?: string;
+  user_name?: string;
+  user_email?: string;
   platform: string;
-  provider?: string;
+  platform_name: string;
   openid: string;
-  provider_user_id?: string;
   username?: string;
   nickname?: string;
   avatar_url?: string;
-  avatar?: string;
-  status: 'active' | 'inactive';
+  source?: string;
+  company?: string;
+  status: string;
+  last_sync_at?: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface ThirdPartyUserQuery extends PaginationQuery {

@@ -90,7 +90,10 @@
   import { useOAuthStore, useUserStore } from '@/store';
   import useLoading from '@/hooks/loading';
   import { getPublicKey } from '@/api/user';
-  import { saveOAuthRedirectPath } from '@/utils/oauth';
+  import {
+    buildAdminOAuthAuthorizeUrl,
+    saveOAuthRedirectPath,
+  } from '@/utils/oauth';
   import shouldShowProviderLogin from '@/utils/oauth-flow';
   import type { AdminLoginRequest } from '@/types/api';
 
@@ -244,9 +247,9 @@
 
   const handleGithubLogin = () => {
     const provider = oauthStore.adminGithubProvider;
-    if (!provider?.authorize_url) return;
+    if (!provider) return;
     saveOAuthRedirectPath(getLoginRedirectPath());
-    window.location.href = provider.authorize_url;
+    window.location.href = buildAdminOAuthAuthorizeUrl(provider.provider);
   };
 
   onMounted(async () => {

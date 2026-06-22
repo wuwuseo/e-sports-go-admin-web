@@ -52,7 +52,7 @@
           </a-form-item>
         </a-form>
       </a-tab-pane>
-      <a-tab-pane key="login-methods" title="登录方式">
+      <a-tab-pane v-if="adminLogin" key="login-methods" title="登录方式">
         <a-spin :loading="oauthLoading" style="width: 100%">
           <a-list :data="oauthStore.identities" bordered>
             <template #empty>
@@ -77,7 +77,7 @@
                 <template #actions>
                   <a-popconfirm
                     content="确认解绑该登录方式？"
-                    @ok="handleUnbindOAuth(item.id)"
+                    @ok="handleUnbindOAuth(item.provider)"
                   >
                     <a-button type="text" status="danger">解绑</a-button>
                   </a-popconfirm>
@@ -85,13 +85,16 @@
               </a-list-item>
             </template>
           </a-list>
-          <a-button
-            type="primary"
-            style="margin-top: 16px"
-            @click="handleBindGithub"
-          >
-            绑定 GitHub 身份
-          </a-button>
+          <a-alert type="warning" style="margin-top: 16px">
+            当前后端绑定入口要求在浏览器跳转请求中携带 Bearer
+            Token，前端无法安全发起。 请先由后端提供返回授权地址的接口或支持安全
+            Cookie 会话，再开放自助绑定。
+          </a-alert>
+          <a-tooltip content="等待后端提供可由浏览器安全发起的绑定入口">
+            <a-button type="primary" disabled style="margin-top: 16px">
+              绑定 GitHub 身份
+            </a-button>
+          </a-tooltip>
         </a-spin>
       </a-tab-pane>
     </a-tabs>
@@ -104,17 +107,13 @@
   import type { FormInstance } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
   import { useOAuthStore, useUserStore } from '@/store';
-  import { bindOAuthIdentity, unbindCurrentOAuthIdentity } from '@/api/oauth';
+  import { unbindCurrentOAuthIdentity } from '@/api/oauth';
   import { updateCurrentUser, updateCurrentAdmin } from '@/api/user';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import type { AttachmentResponse } from '@/types/api';
   import { isAdminLogin } from '@/utils/auth';
-  import {
-    getOAuthCallbackUrl,
-    getOAuthProviderLabel,
-    saveOAuthRedirectPath,
-  } from '@/utils/oauth';
+  import { getOAuthProviderLabel } from '@/utils/oauth';
 
   defineProps<{
     visible: boolean;
@@ -128,6 +127,7 @@
 
   const userStore = useUserStore();
   const oauthStore = useOAuthStore();
+  const adminLogin = isAdminLogin();
   const formRef = ref<FormInstance>();
   const loading = ref(false);
   const oauthLoading = ref(false);
@@ -205,7 +205,9 @@
     formData.avatar = userStore.avatar || '';
     activeTab.value = 'profile';
     selectedAvatar.value = null;
-    loadOAuthIdentities();
+    if (adminLogin) {
+      loadOAuthIdentities();
+    }
   };
 
   // 暴露初始化方法供父组件调用
@@ -226,14 +228,8 @@
     selectedAvatar.value = nextAttachment;
   };
 
-  const handleBindGithub = async () => {
-    const res = await bindOAuthIdentity('github', getOAuthCallbackUrl());
-    saveOAuthRedirectPath(window.location.pathname || '/dashboard/workplace');
-    window.location.href = res.data.data.authorize_url;
-  };
-
-  const handleUnbindOAuth = async (id: number) => {
-    await unbindCurrentOAuthIdentity(id);
+  const handleUnbindOAuth = async (provider: string) => {
+    await unbindCurrentOAuthIdentity(provider);
     Message.success('解绑成功');
     await loadOAuthIdentities();
   };

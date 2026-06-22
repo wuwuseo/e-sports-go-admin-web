@@ -5,15 +5,16 @@ import type {
   OAuthExchangeRequest,
   OAuthIdentity,
   OAuthProviderConfig,
+  OAuthProviderConfigInput,
   PaginatedResponse,
   PublicOAuthProvider,
+  TokenResponse,
 } from '@/types/api';
 
 export interface OAuthIdentityQuery {
   page?: number;
   page_size?: number;
   provider?: string;
-  platform?: string;
   keyword?: string;
 }
 
@@ -27,9 +28,13 @@ export function getPublicOAuthProviders(params?: {
 }
 
 export function exchangeOAuthCode(data: OAuthExchangeRequest) {
-  return axios.post<ApiResponse<any>>('/api/v1/public/oauth/exchange', data, {
-    silentError: true,
-  });
+  return axios.post<ApiResponse<TokenResponse>>(
+    '/api/v1/public/oauth/exchange',
+    data,
+    {
+      silentError: true,
+    }
+  );
 }
 
 export function getCurrentOAuthIdentities() {
@@ -38,44 +43,44 @@ export function getCurrentOAuthIdentities() {
   );
 }
 
-export function bindOAuthIdentity(provider: string, redirectUri: string) {
-  return axios.post<ApiResponse<{ authorize_url: string }>>(
-    '/api/v1/admin/auth/oauth/bind',
-    { provider, redirect_uri: redirectUri }
-  );
-}
-
-export function unbindCurrentOAuthIdentity(id: number) {
+export function unbindCurrentOAuthIdentity(provider: string) {
   return axios.delete<ApiResponse<null>>(
-    `/api/v1/admin/auth/oauth/identities/${id}`
+    `/api/v1/admin/auth/oauth/${provider}`
   );
 }
 
 export function getAdminOAuthIdentities(params?: OAuthIdentityQuery) {
   return axios.get<ApiResponse<PaginatedResponse<AdminOAuthIdentityListItem>>>(
-    '/api/v1/admin/auth/admin-oauth/identities',
+    '/api/v1/admin/auth/third-party-admins',
     { params }
   );
 }
 
 export function deleteAdminOAuthIdentity(id: number) {
   return axios.delete<ApiResponse<null>>(
-    `/api/v1/admin/auth/admin-oauth/identities/${id}`
+    `/api/v1/admin/auth/third-party-admins/${id}`
   );
 }
 
 export function getOAuthProviderConfig(provider: string) {
   return axios.get<ApiResponse<OAuthProviderConfig>>(
-    `/api/v1/admin/auth/oauth/providers/${provider}`
+    `/api/v1/admin/auth/oauth/providers/${provider}`,
+    { silentError: true }
   );
 }
 
 export function updateOAuthProviderConfig(
   provider: string,
-  data: Partial<OAuthProviderConfig> & { clear_secret?: boolean }
+  data: OAuthProviderConfigInput
 ) {
   return axios.put<ApiResponse<OAuthProviderConfig>>(
     `/api/v1/admin/auth/oauth/providers/${provider}`,
     data
+  );
+}
+
+export function deleteOAuthProviderConfig(provider: string) {
+  return axios.delete<ApiResponse<null>>(
+    `/api/v1/admin/auth/oauth/providers/${provider}`
   );
 }

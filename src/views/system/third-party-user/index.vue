@@ -13,6 +13,8 @@
             v-model="platformFilter"
             style="width: 150px; margin-left: 12px"
             :placeholder="$t('system.thirdPartyUser.provider')"
+            allow-create
+            allow-search
             @change="handleSearch"
           >
             <a-option value="">{{
@@ -41,7 +43,9 @@
           <a-table-column title="ID" data-index="id" :width="70" />
           <a-table-column title="用户名" data-index="username" :width="140">
             <template #cell="{ record }">
-              {{ record.username || `用户 ${record.user_id}` }}
+              {{
+                record.user_name || record.username || `用户 ${record.user_id}`
+              }}
             </template>
           </a-table-column>
           <a-table-column
@@ -52,7 +56,7 @@
           >
             <template #cell="{ record }">
               <a-tag color="arcoblue">{{
-                getOAuthProviderLabel(record.platform || record.provider)
+                record.platform_name || getOAuthProviderLabel(record.platform)
               }}</a-tag>
             </template>
           </a-table-column>
@@ -60,14 +64,26 @@
             <template #cell="{ record }">
               <div style="display: flex; gap: 8px; align-items: center">
                 <a-avatar
-                  v-if="record.avatar_url || record.avatar"
-                  :src="record.avatar_url || record.avatar"
+                  v-if="record.avatar_url"
+                  :image-url="record.avatar_url"
                   :size="28"
                 />
                 <a-avatar v-else :size="28">{{
-                  (record.nickname || record.username || '-')?.charAt(0)
+                  (
+                    record.nickname ||
+                    record.user_name ||
+                    record.username ||
+                    '-'
+                  )?.charAt(0)
                 }}</a-avatar>
-                <span>{{ record.nickname || record.username || '-' }}</span>
+                <span>
+                  {{
+                    record.nickname ||
+                    record.user_name ||
+                    record.username ||
+                    '-'
+                  }}
+                </span>
               </div>
             </template>
           </a-table-column>
@@ -75,7 +91,7 @@
           <a-table-column title="状态" data-index="status" :width="100">
             <template #cell="{ record }">
               <a-tag :color="record.status === 'active' ? 'green' : 'red'">
-                {{ record.status === 'active' ? '正常' : '停用' }}
+                {{ record.status === 'active' ? '正常' : record.status }}
               </a-tag>
             </template>
           </a-table-column>
@@ -138,9 +154,9 @@
 
   const platformOptions = computed(() => {
     const platforms = userManagementStore.thirdPartyUsers
-      .map((item) => item.platform || item.provider)
+      .map((item) => item.platform)
       .filter(Boolean) as string[];
-    return Array.from(new Set(['github', ...platforms]));
+    return Array.from(new Set(platforms));
   });
 
   const fetchData = async () => {
