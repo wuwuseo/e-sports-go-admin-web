@@ -9,31 +9,49 @@ type PermissionLike = Partial<PermissionResponse> & {
   children?: PermissionLike[];
 };
 
-const PERMISSION_CODE_ALIAS_MAP: Record<string, string[]> = {
-  system: ['/system'],
-  dashboard: ['/dashboard'],
-  workplace: ['/dashboard/workplace'],
-  unknown: ['/system'],
-  user: ['/system/user'],
-  thirdpartyuser: ['/system/third-party-user'],
-  role: ['/system/role'],
-  permission: ['/system/permission'],
-  department: ['/system/department'],
-  attachment: ['/system/attachment'],
-  cronjob: ['/system/cron-job'],
-  operationlog: ['/system/operation-log'],
-  dictdata: ['/system/dict-data'],
-  admin: ['/system/admin'],
-  config: ['/system/config'],
-  plugin: ['/system/plugin'],
-  message: ['/message'],
-  messagecenter: ['/message/center'],
-  messagemanage: ['/message/manage'],
-  messagebroadcast: ['/message/broadcast'],
-  messagepreference: ['/message/preference'],
+type PermissionRouteLike = {
+  path: string;
+  name?: string | symbol;
+  meta?: {
+    permissionCode?: string | string[];
+  };
+  children?: PermissionRouteLike[];
 };
 
 export default class PermissionTransformer {
+  private static aliasMap = new Map<string, Set<string>>();
+
+  static registerAlias(code: string, aliases: string | string[]) {
+    const normalizedAliases = Array.isArray(aliases) ? aliases : [aliases];
+    const existing =
+      PermissionTransformer.aliasMap.get(code) || new Set<string>();
+
+    normalizedAliases.filter(Boolean).forEach((alias) => {
+      existing.add(alias);
+    });
+    PermissionTransformer.aliasMap.set(code, existing);
+  }
+
+  static registerAliases(aliases: Record<string, string | string[]>) {
+    Object.entries(aliases).forEach(([code, values]) => {
+      PermissionTransformer.registerAlias(code, values);
+    });
+  }
+
+  static unregisterAlias(code: string) {
+    PermissionTransformer.aliasMap.delete(code);
+  }
+
+  static clearAliasCache() {
+    PermissionTransformer.aliasMap.clear();
+  }
+
+  static registerRouteAliases(routes: PermissionRouteLike[]) {
+    routes.forEach((route) => {
+      PermissionTransformer.registerRouteAlias(route);
+    });
+  }
+
   static extractPermissionCodes(rawData: unknown): string[] {
     return PermissionTransformer.extractPermissionCodesByType(rawData);
   }
@@ -60,13 +78,64 @@ export default class PermissionTransformer {
     codes.forEach((code) => {
       PermissionTransformer.addPermissionCodeVariants(expandedCodes, code);
 
-      const aliases = PERMISSION_CODE_ALIAS_MAP[code] || [];
+      const aliases =
+        PermissionTransformer.aliasMap.get(code) || new Set<string>();
       aliases.forEach((alias) => {
         PermissionTransformer.addPermissionCodeVariants(expandedCodes, alias);
       });
     });
 
     return Array.from(expandedCodes);
+  }
+
+  private static registerRouteAlias(
+    route: PermissionRouteLike,
+    parentPath = ''
+  ) {
+    const fullPath = PermissionTransformer.resolveRoutePath(
+      parentPath,
+      route.path
+    );
+    const permissionCodes = PermissionTransformer.normalizePermissionCodes(
+      route.meta?.permissionCode
+    );
+    const pathCodes = PermissionTransformer.extractRoutePathCodes(fullPath);
+    const routeName = typeof route.name === 'string' ? route.name : undefined;
+    const routeCodes = routeName ? [routeName, routeName.toLowerCase()] : [];
+    const codes = Array.from(
+      new Set([...permissionCodes, ...pathCodes, ...routeCodes])
+    );
+    const aliases = Array.from(new Set([...permissionCodes, fullPath]));
+
+    codes.forEach((code) => {
+      PermissionTransformer.registerAlias(
+        code,
+        aliases.filter((alias) => alias !== code)
+      );
+    });
+
+    route.children?.forEach((child) => {
+      PermissionTransformer.registerRouteAlias(child, fullPath);
+    });
+  }
+
+  private static resolveRoutePath(parentPath: string, routePath: string) {
+    if (routePath.startsWith('/')) {
+      return routePath;
+    }
+    return `${parentPath.replace(/\/$/, '')}/${routePath}`;
+  }
+
+  private static normalizePermissionCodes(permissionCode?: string | string[]) {
+    if (!permissionCode) {
+      return [];
+    }
+    return Array.isArray(permissionCode) ? permissionCode : [permissionCode];
+  }
+
+  private static extractRoutePathCodes(path: string) {
+    const segments = path.split('/').filter(Boolean);
+    return segments.map((segment) => segment.replace(/-/g, ''));
   }
 
   private static addPermissionCodeVariants(
