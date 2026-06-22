@@ -1,4 +1,5 @@
 import type { RouteRecordNormalized } from 'vue-router';
+import PermissionTransformer from '@/utils/permission-transformer';
 
 const modules = import.meta.glob('./modules/*.ts', { eager: true });
 const externalModules = import.meta.glob('./externalModules/*.ts', {
@@ -19,7 +20,12 @@ function formatModules(_modules: any, result: RouteRecordNormalized[]) {
 
 export const appRoutes: RouteRecordNormalized[] = formatModules(modules, []);
 
+PermissionTransformer.registerRouteAliases(appRoutes);
+PermissionTransformer.registerAlias('unknown', '/system');
+
 export const appExternalRoutes: RouteRecordNormalized[] = formatModules(
   externalModules,
   []
 );
+
+PermissionTransformer.registerRouteAliases(appExternalRoutes);
