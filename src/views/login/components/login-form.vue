@@ -62,20 +62,36 @@
       >
         {{ $t('login.form.login') }}
       </a-button>
+      <a-divider v-if="showGithubLogin" margin="18px">
+        {{ $t('login.form.oauth.divider') }}
+      </a-divider>
+      <a-button
+        v-if="showGithubLogin"
+        long
+        size="large"
+        class="github-login-btn"
+        :loading="oauthLoading"
+        @click="handleGithubLogin"
+      >
+        <template #icon><icon-github /></template>
+        {{ $t('login.form.github') }}
+      </a-button>
     </a-form>
   </div>
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive } from 'vue';
+  import { computed, onMounted, ref, reactive } from 'vue';
   import { useRouter } from 'vue-router';
   import { Message } from '@arco-design/web-vue';
   import { ValidatedError } from '@arco-design/web-vue/es/form/interface';
   import { useI18n } from 'vue-i18n';
   import { useStorage } from '@vueuse/core';
-  import { useUserStore } from '@/store';
+  import { useOAuthStore, useUserStore } from '@/store';
   import useLoading from '@/hooks/loading';
   import { getPublicKey } from '@/api/user';
+  import { saveOAuthRedirectPath } from '@/utils/oauth';
+  import shouldShowProviderLogin from '@/utils/oauth-flow';
   import type { AdminLoginRequest } from '@/types/api';
 
   const router = useRouter();
@@ -83,6 +99,11 @@
   const errorMessage = ref('');
   const { loading, setLoading } = useLoading();
   const userStore = useUserStore();
+  const oauthStore = useOAuthStore();
+  const oauthLoading = ref(false);
+  const showGithubLogin = computed(() =>
+    shouldShowProviderLogin(oauthStore.adminGithubProvider)
+  );
 
   const loginConfig = useStorage('login-config', {
     rememberPassword: true,
@@ -220,6 +241,22 @@
   ) => {
     loginConfig.value.rememberPassword = value as boolean;
   };
+
+  const handleGithubLogin = () => {
+    const provider = oauthStore.adminGithubProvider;
+    if (!provider?.authorize_url) return;
+    saveOAuthRedirectPath(getLoginRedirectPath());
+    window.location.href = provider.authorize_url;
+  };
+
+  onMounted(async () => {
+    oauthLoading.value = true;
+    try {
+      await oauthStore.fetchProviders('admin', true);
+    } finally {
+      oauthLoading.value = false;
+    }
+  });
 </script>
 
 <style lang="less" scoped>
@@ -230,21 +267,21 @@
   .login-form {
     &-error-msg {
       display: flex;
-      align-items: center;
       gap: 6px;
-      padding: 10px 14px;
+      align-items: center;
       margin-bottom: 20px;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      border-radius: 8px;
+      padding: 10px 14px;
       color: #dc2626;
       font-size: 13px;
       line-height: 1.4;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
       animation: shake 0.4s ease;
 
       .arco-icon {
-        font-size: 16px;
         flex-shrink: 0;
+        font-size: 16px;
       }
     }
 
@@ -257,8 +294,8 @@
 
   .login-btn {
     height: 44px !important;
-    font-size: 15px !important;
     font-weight: 600 !important;
+    font-size: 15px !important;
     letter-spacing: 0.03em;
     border-radius: 10px !important;
   }
@@ -268,9 +305,11 @@
     100% {
       transform: translateX(0);
     }
+
     25% {
       transform: translateX(-4px);
     }
+
     75% {
       transform: translateX(4px);
     }
@@ -279,9 +318,9 @@
   // 暗色模式
   body[arco-theme='dark'] & {
     .login-form-error-msg {
-      background: rgba(239, 68, 68, 0.1);
-      border-color: rgba(239, 68, 68, 0.3);
       color: #fca5a5;
+      background: rgb(239 68 68 / 10%);
+      border-color: rgb(239 68 68 / 30%);
     }
   }
 </style>

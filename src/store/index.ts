@@ -7,6 +7,7 @@ import usePermissionStore from './modules/permission';
 import useUserManagementStore from './modules/user-management';
 import useAdminManagementStore from './modules/admin-management';
 import useMessageStore from './modules/message';
+import useOAuthStore from './modules/oauth';
 
 const pinia = createPinia();
 
@@ -19,5 +20,6 @@ export {
   useUserManagementStore,
   useAdminManagementStore,
   useMessageStore,
+  useOAuthStore,
 };
 export default pinia;

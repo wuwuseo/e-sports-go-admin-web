@@ -12,6 +12,7 @@ import type {
   LoginRequest,
   AdminLoginRequest,
   PermissionResponse,
+  TokenResponse,
 } from '@/types/api';
 import {
   setToken,
@@ -261,25 +262,26 @@ const useUserStore = defineStore('user', {
       }
     },
 
+    // 初始化管理员会话
+    async initAdminSession(tokenData: TokenResponse) {
+      setToken(tokenData.access_token);
+      setRefreshToken(tokenData.refresh_token);
+      setAdminLogin(true);
+
+      try {
+        await this.loadAdminInfo();
+      } catch {
+        this.setInfo({ role: 'admin', isAdmin: true });
+      }
+
+      await this.loadPermissions();
+    },
+
     // 管理员登录
     async adminLogin(loginForm: AdminLoginRequest) {
       try {
         const res = await adminLogin(loginForm);
-        const tokenData = res.data.data;
-        setToken(tokenData.access_token);
-        setRefreshToken(tokenData.refresh_token);
-        setAdminLogin(true);
-
-        // 登录成功后加载管理员信息和权限
-        try {
-          await this.loadAdminInfo();
-        } catch {
-          // 设置默认角色，确保能正常使用系统
-          this.setInfo({ role: 'admin', isAdmin: true });
-        }
-
-        // 加载权限（不抛出异常，不影响登录流程）
-        await this.loadPermissions();
+        await this.initAdminSession(res.data.data);
       } catch (err) {
         clearToken();
         clearRefreshToken();

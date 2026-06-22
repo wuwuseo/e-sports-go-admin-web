@@ -23,6 +23,14 @@ const router = createRouter({
         requiresAuth: false,
       },
     },
+    {
+      path: '/oauth/callback',
+      name: 'OAuthCallback',
+      component: () => import('@/views/oauth/callback.vue'),
+      meta: {
+        requiresAuth: false,
+      },
+    },
     ...appRoutes,
     REDIRECT_MAIN,
     NOT_FOUND_ROUTE,

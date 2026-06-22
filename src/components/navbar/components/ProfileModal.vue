@@ -8,42 +8,93 @@
     @cancel="handleCancel"
     @ok="handleOk"
   >
-    <a-form ref="formRef" :model="formData" :rules="rules" layout="vertical">
-      <a-form-item field="avatar" :label="$t('navbar.profile.avatar')">
-        <AttachmentSelector
-          v-model="selectedAvatar"
-          accept="image/*"
-          @select="handleAvatarSelect"
+    <a-tabs v-model:active-key="activeTab">
+      <a-tab-pane key="profile" title="基本资料">
+        <a-form
+          ref="formRef"
+          :model="formData"
+          :rules="rules"
+          layout="vertical"
         >
-          <template #trigger="{ open }">
-            <div
-              v-if="avatarPreviewUrl"
-              class="profile-avatar-trigger profile-avatar-image-trigger"
-              @click="open"
+          <a-form-item field="avatar" :label="$t('navbar.profile.avatar')">
+            <AttachmentSelector
+              v-model="selectedAvatar"
+              accept="image/*"
+              @select="handleAvatarSelect"
             >
-              <img :src="avatarPreviewUrl" alt="avatar" />
-            </div>
-            <a-avatar
-              v-else
-              :size="64"
-              class="profile-avatar-trigger"
-              @click="open"
-            >
-              <icon-user />
-            </a-avatar>
-          </template>
-        </AttachmentSelector>
-      </a-form-item>
-      <a-form-item field="username" :label="$t('navbar.profile.username')">
-        <a-input v-model="formData.username" />
-      </a-form-item>
-      <a-form-item field="email" :label="$t('navbar.profile.email')">
-        <a-input v-model="formData.email" />
-      </a-form-item>
-      <a-form-item field="phone" :label="$t('navbar.profile.phone')">
-        <a-input v-model="formData.phone" />
-      </a-form-item>
-    </a-form>
+              <template #trigger="{ open }">
+                <div
+                  v-if="avatarPreviewUrl"
+                  class="profile-avatar-trigger profile-avatar-image-trigger"
+                  @click="open"
+                >
+                  <img :src="avatarPreviewUrl" alt="avatar" />
+                </div>
+                <a-avatar
+                  v-else
+                  :size="64"
+                  class="profile-avatar-trigger"
+                  @click="open"
+                >
+                  <icon-user />
+                </a-avatar>
+              </template>
+            </AttachmentSelector>
+          </a-form-item>
+          <a-form-item field="username" :label="$t('navbar.profile.username')">
+            <a-input v-model="formData.username" />
+          </a-form-item>
+          <a-form-item field="email" :label="$t('navbar.profile.email')">
+            <a-input v-model="formData.email" />
+          </a-form-item>
+          <a-form-item field="phone" :label="$t('navbar.profile.phone')">
+            <a-input v-model="formData.phone" />
+          </a-form-item>
+        </a-form>
+      </a-tab-pane>
+      <a-tab-pane key="login-methods" title="登录方式">
+        <a-spin :loading="oauthLoading" style="width: 100%">
+          <a-list :data="oauthStore.identities" bordered>
+            <template #empty>
+              <a-empty description="暂未绑定 GitHub 身份" />
+            </template>
+            <template #item="{ item }">
+              <a-list-item>
+                <a-list-item-meta
+                  :title="getOAuthProviderLabel(item.provider)"
+                  :description="item.openid"
+                >
+                  <template #avatar>
+                    <a-avatar
+                      v-if="item.avatar_url"
+                      :image-url="item.avatar_url"
+                    />
+                    <a-avatar v-else>{{
+                      getOAuthProviderLabel(item.provider).charAt(0)
+                    }}</a-avatar>
+                  </template>
+                </a-list-item-meta>
+                <template #actions>
+                  <a-popconfirm
+                    content="确认解绑该登录方式？"
+                    @ok="handleUnbindOAuth(item.id)"
+                  >
+                    <a-button type="text" status="danger">解绑</a-button>
+                  </a-popconfirm>
+                </template>
+              </a-list-item>
+            </template>
+          </a-list>
+          <a-button
+            type="primary"
+            style="margin-top: 16px"
+            @click="handleBindGithub"
+          >
+            绑定 GitHub 身份
+          </a-button>
+        </a-spin>
+      </a-tab-pane>
+    </a-tabs>
   </a-modal>
 </template>
 
@@ -52,12 +103,18 @@
   import { Message } from '@arco-design/web-vue';
   import type { FormInstance } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
-  import { useUserStore } from '@/store';
+  import { useOAuthStore, useUserStore } from '@/store';
+  import { bindOAuthIdentity, unbindCurrentOAuthIdentity } from '@/api/oauth';
   import { updateCurrentUser, updateCurrentAdmin } from '@/api/user';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import type { AttachmentResponse } from '@/types/api';
   import { isAdminLogin } from '@/utils/auth';
+  import {
+    getOAuthCallbackUrl,
+    getOAuthProviderLabel,
+    saveOAuthRedirectPath,
+  } from '@/utils/oauth';
 
   defineProps<{
     visible: boolean;
@@ -70,8 +127,11 @@
   const { t } = useI18n();
 
   const userStore = useUserStore();
+  const oauthStore = useOAuthStore();
   const formRef = ref<FormInstance>();
   const loading = ref(false);
+  const oauthLoading = ref(false);
+  const activeTab = ref('profile');
   const selectedAvatar = ref<AttachmentResponse | null>(null);
 
   const formData = reactive({
@@ -129,12 +189,23 @@
     ],
   };
 
+  const loadOAuthIdentities = async () => {
+    oauthLoading.value = true;
+    try {
+      await oauthStore.fetchCurrentIdentities();
+    } finally {
+      oauthLoading.value = false;
+    }
+  };
+
   const initFormData = () => {
     formData.username = userStore.name || '';
     formData.email = userStore.email || '';
     formData.phone = userStore.phone || '';
     formData.avatar = userStore.avatar || '';
+    activeTab.value = 'profile';
     selectedAvatar.value = null;
+    loadOAuthIdentities();
   };
 
   // 暴露初始化方法供父组件调用
@@ -155,7 +226,24 @@
     selectedAvatar.value = nextAttachment;
   };
 
+  const handleBindGithub = async () => {
+    const res = await bindOAuthIdentity('github', getOAuthCallbackUrl());
+    saveOAuthRedirectPath(window.location.pathname || '/dashboard/workplace');
+    window.location.href = res.data.data.authorize_url;
+  };
+
+  const handleUnbindOAuth = async (id: number) => {
+    await unbindCurrentOAuthIdentity(id);
+    Message.success('解绑成功');
+    await loadOAuthIdentities();
+  };
+
   const handleOk = async () => {
+    if (activeTab.value !== 'profile') {
+      emit('update:visible', false);
+      return;
+    }
+
     const valid = await formRef.value?.validate();
     if (valid) return;
 
@@ -192,8 +280,8 @@
 <style lang="less" scoped>
   .profile-avatar-trigger {
     overflow: hidden;
-    cursor: pointer;
     border: 1px solid var(--color-border-2);
+    cursor: pointer;
 
     &:hover {
       border-color: rgb(var(--primary-6));

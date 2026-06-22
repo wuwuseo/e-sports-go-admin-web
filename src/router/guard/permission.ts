@@ -11,7 +11,10 @@ export default function setupPermissionGuard(router: Router) {
     const userStore = useUserStore();
     const permission = usePermission();
 
-    if (WHITE_LIST.find((el) => el.name === to.name)) {
+    if (
+      WHITE_LIST.find((el) => el.name === to.name) ||
+      to.meta?.requiresAuth === false
+    ) {
       next();
       return;
     }

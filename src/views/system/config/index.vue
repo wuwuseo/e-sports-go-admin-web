@@ -24,7 +24,7 @@
               <!-- 正常分组tab -->
               <a-tab-pane v-for="group in groups" :key="group.key">
                 <template #title>
-                  <div style="display: flex; align-items: center; gap: 8px">
+                  <div style="display: flex; gap: 8px; align-items: center">
                     <span>{{ group.label }}</span>
                   </div>
                 </template>
@@ -390,8 +390,8 @@
                                     >
                                       <div
                                         style="
-                                          flex: 1;
                                           display: flex;
+                                          flex: 1;
                                           flex-direction: column;
                                           gap: 4px;
                                         "
@@ -730,6 +730,11 @@
                     </a-button>
                   </div>
                 </a-spin>
+              </a-tab-pane>
+
+              <a-tab-pane v-if="userStore.isSuperAdmin" key="oauth-login">
+                <template #title>OAuth 登录</template>
+                <OAuthConfig />
               </a-tab-pane>
 
               <!-- 新增分组的占位tab（不显示内容） -->
@@ -1084,6 +1089,8 @@
   import { ref, reactive, computed, watch, onMounted } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
+  // eslint-disable-next-line import/no-cycle
+  import useUserStore from '@/store/modules/user';
   import type {
     ConfigResponse,
     ConfigGroup,
@@ -1109,8 +1116,10 @@
     type ArrayItem,
     type Array2dItem,
   } from '@/utils';
+  import OAuthConfig from './components/OAuthConfig.vue';
 
   const { t } = useI18n();
+  const userStore = useUserStore();
 
   // 分组定义：key 对应后端的 group 字段值，label 为显示名称
   const groups = ref<Array<{ key: string; label: string }>>([]);
@@ -1542,6 +1551,11 @@
   const handleTabChange = async (tabKey: string | number) => {
     const key = String(tabKey);
 
+    if (key === 'oauth-login') {
+      activeTab.value = key;
+      return;
+    }
+
     // 如果点击了 add-group tab，不切换，直接打开弹窗
     if (key === 'add-group') {
       openCreateGroupModal();
@@ -1765,13 +1779,13 @@
     :deep(.general-card) {
       .page-header {
         display: flex;
-        align-items: baseline;
         gap: 12px;
+        align-items: baseline;
 
         .page-desc {
-          font-size: 13px;
-          font-weight: 400;
           color: var(--color-text-3);
+          font-weight: 400;
+          font-size: 13px;
         }
       }
     }
@@ -1783,9 +1797,9 @@
     .bottom-actions {
       display: flex;
       justify-content: center;
+      margin-top: 8px;
       padding-top: 16px;
       border-top: 1px solid var(--color-border-2);
-      margin-top: 8px;
     }
 
     :deep(.arco-form-item) {

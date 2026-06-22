@@ -42,6 +42,51 @@ export interface RefreshTokenRequest {
   refresh_token: string;
 }
 
+export interface PublicOAuthProvider {
+  provider: string;
+  name?: string;
+  display_name?: string;
+  icon?: string;
+  enabled: boolean;
+  authorize_url?: string;
+  subject_type?: 'admin' | 'user';
+}
+
+export interface OAuthExchangeRequest {
+  code: string;
+  provider: string;
+  subject_type: 'admin' | 'user';
+  redirect_uri: string;
+}
+
+export interface OAuthIdentity {
+  id: number;
+  provider: string;
+  platform?: string;
+  openid: string;
+  provider_user_id?: string;
+  platform_username?: string;
+  nickname?: string;
+  avatar_url?: string;
+  status: 'active' | 'inactive';
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface OAuthProviderConfig {
+  provider: string;
+  client_id?: string;
+  client_secret?: string;
+  callback_url?: string;
+  admin_redirect_url?: string;
+  enabled: boolean;
+}
+
+export interface AdminOAuthIdentityListItem extends OAuthIdentity {
+  admin_id: number;
+  admin_username: string;
+}
+
 // ===== 用户相关 =====
 export interface ChangePasswordRequest {
   old_password: string;
@@ -744,17 +789,22 @@ export interface UserQuery extends PaginationQuery {
 export interface ThirdPartyUserResponse {
   id: number;
   user_id: number;
-  provider: string;
-  provider_user_id: string;
+  platform: string;
+  provider?: string;
+  openid: string;
+  provider_user_id?: string;
+  username?: string;
   nickname?: string;
+  avatar_url?: string;
   avatar?: string;
+  status: 'active' | 'inactive';
   created_at: string;
   updated_at: string;
 }
 
 export interface ThirdPartyUserQuery extends PaginationQuery {
   keyword?: string;
-  provider?: string;
+  platform?: string;
 }
 
 // ===== 黑名单相关 =====

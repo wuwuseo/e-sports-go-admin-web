@@ -10,7 +10,7 @@
             @search="handleSearch"
           />
           <a-select
-            v-model="providerFilter"
+            v-model="platformFilter"
             style="width: 150px; margin-left: 12px"
             :placeholder="$t('system.thirdPartyUser.provider')"
             @change="handleSearch"
@@ -18,10 +18,13 @@
             <a-option value="">{{
               $t('system.thirdPartyUser.filter.all')
             }}</a-option>
-            <a-option value="wechat">微信</a-option>
-            <a-option value="qq">QQ</a-option>
-            <a-option value="weibo">微博</a-option>
-            <a-option value="github">GitHub</a-option>
+            <a-option
+              v-for="platform in platformOptions"
+              :key="platform"
+              :value="platform"
+            >
+              {{ getOAuthProviderLabel(platform) }}
+            </a-option>
           </a-select>
         </div>
       </div>
@@ -36,38 +39,44 @@
       >
         <template #columns>
           <a-table-column title="ID" data-index="id" :width="70" />
-          <a-table-column
-            :title="$t('system.thirdPartyUser.userId')"
-            data-index="user_id"
-            :width="100"
-          />
+          <a-table-column title="用户名" data-index="username" :width="140">
+            <template #cell="{ record }">
+              {{ record.username || `用户 ${record.user_id}` }}
+            </template>
+          </a-table-column>
           <a-table-column
             :title="$t('system.thirdPartyUser.provider')"
-            data-index="provider"
+            data-index="platform"
             :width="120"
             align="center"
           >
             <template #cell="{ record }">
-              <a-tag color="arcoblue">{{ record.provider }}</a-tag>
+              <a-tag color="arcoblue">{{
+                getOAuthProviderLabel(record.platform || record.provider)
+              }}</a-tag>
             </template>
           </a-table-column>
-          <a-table-column
-            :title="$t('system.thirdPartyUser.nickname')"
-            data-index="nickname"
-            :width="150"
-          >
+          <a-table-column title="平台账号" data-index="nickname" :width="150">
             <template #cell="{ record }">
-              <div style="display: flex; align-items: center; gap: 8px">
+              <div style="display: flex; gap: 8px; align-items: center">
                 <a-avatar
-                  v-if="record.avatar"
-                  :src="record.avatar"
+                  v-if="record.avatar_url || record.avatar"
+                  :src="record.avatar_url || record.avatar"
                   :size="28"
                 />
                 <a-avatar v-else :size="28">{{
-                  record.nickname?.charAt(0)
+                  (record.nickname || record.username || '-')?.charAt(0)
                 }}</a-avatar>
-                <span>{{ record.nickname || '-' }}</span>
+                <span>{{ record.nickname || record.username || '-' }}</span>
               </div>
+            </template>
+          </a-table-column>
+          <a-table-column title="OpenID" data-index="openid" ellipsis tooltip />
+          <a-table-column title="状态" data-index="status" :width="100">
+            <template #cell="{ record }">
+              <a-tag :color="record.status === 'active' ? 'green' : 'red'">
+                {{ record.status === 'active' ? '正常' : '停用' }}
+              </a-tag>
             </template>
           </a-table-column>
           <a-table-column
@@ -103,10 +112,11 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, onMounted } from 'vue';
+  import { computed, ref, reactive, onMounted } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
   import { formatDateTime } from '@/utils';
+  import { getOAuthProviderLabel } from '@/utils/oauth';
   import useUserManagementStore from '@/store/modules/user-management';
   import type { ThirdPartyUserResponse } from '@/types/api';
 
@@ -114,7 +124,7 @@
   const userManagementStore = useUserManagementStore();
 
   const searchKeyword = ref('');
-  const providerFilter = ref('');
+  const platformFilter = ref('');
   const currentPage = ref(1);
   const pageSize = ref(10);
 
@@ -126,12 +136,19 @@
     showPageSize: true,
   });
 
+  const platformOptions = computed(() => {
+    const platforms = userManagementStore.thirdPartyUsers
+      .map((item) => item.platform || item.provider)
+      .filter(Boolean) as string[];
+    return Array.from(new Set(['github', ...platforms]));
+  });
+
   const fetchData = async () => {
     await userManagementStore.fetchThirdPartyUsers({
       page: currentPage.value,
       page_size: pageSize.value,
       keyword: searchKeyword.value || undefined,
-      provider: providerFilter.value || undefined,
+      platform: platformFilter.value || undefined,
     });
     pagination.total = userManagementStore.thirdPartyTotal;
     pagination.current = currentPage.value;
