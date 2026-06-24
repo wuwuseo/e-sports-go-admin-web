@@ -913,3 +913,98 @@ export interface ChangeAdminPasswordRequest {
   old_password: string;
   new_password: string;
 }
+
+// ===== 验证码相关 =====
+export type CaptchaScene = 'admin_login';
+export type CaptchaProviderType = string;
+export type CaptchaChallengeType = 'image_text' | 'image_click' | 'geetest_gt4';
+export type CaptchaFieldType = 'text' | 'textarea' | 'number' | 'multi_select';
+
+export type CaptchaLocalizedText = Record<string, string>;
+
+export interface CaptchaProviderSecretDescriptor {
+  label: CaptchaLocalizedText;
+  help?: CaptchaLocalizedText;
+  required: boolean;
+  min_length?: number;
+}
+
+export interface CaptchaProviderFieldOption {
+  value: string;
+  label: CaptchaLocalizedText;
+}
+
+export interface CaptchaProviderFieldDescriptor {
+  key: string;
+  type: CaptchaFieldType;
+  label: CaptchaLocalizedText;
+  help?: CaptchaLocalizedText;
+  default_value?: unknown;
+  required?: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  min_length?: number;
+  max_length?: number;
+  options?: CaptchaProviderFieldOption[];
+}
+
+export interface CaptchaProviderDescriptor {
+  display_name: CaptchaLocalizedText;
+  challenge_type: CaptchaChallengeType;
+  secret: CaptchaProviderSecretDescriptor;
+  fields: CaptchaProviderFieldDescriptor[];
+}
+
+export interface CaptchaImagePayload {
+  image_base64: string;
+  mime_type: string;
+  width: number;
+  height: number;
+}
+
+export interface CaptchaChallenge {
+  required: boolean;
+  challenge_id?: string;
+  provider?: string;
+  challenge_type?: CaptchaChallengeType;
+  expires_in?: number;
+  payload?: Partial<
+    CaptchaImagePayload & {
+      prompt: string;
+      point_count: number;
+      captcha_id: string;
+    }
+  >;
+}
+
+export interface CaptchaVerification {
+  captcha_token: string;
+  expires_in: number;
+}
+
+export interface CaptchaProviderSettingsRequest {
+  config: Record<string, unknown>;
+  secret?: string;
+  clear_secret?: boolean;
+}
+
+export interface CaptchaProviderSettingsResponse {
+  provider: string;
+  config: Record<string, unknown>;
+  secret_configured: boolean;
+  key_version?: string;
+  descriptor?: CaptchaProviderDescriptor;
+}
+
+export interface CaptchaSceneSettings {
+  enabled: boolean;
+  provider: string;
+  challenge_ttl: number;
+  proof_ttl: number;
+}
+
+export interface CaptchaSettings {
+  providers: Record<string, CaptchaProviderSettingsResponse>;
+  scenes: Partial<Record<CaptchaScene, CaptchaSceneSettings>>;
+}

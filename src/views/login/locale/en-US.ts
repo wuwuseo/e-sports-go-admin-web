@@ -5,7 +5,7 @@ export default {
   'login.form.username.errMsg': 'Username cannot be empty',
   'login.form.password.errMsg': 'Password cannot be empty',
   'login.form.login.errMsg': 'Login error, refresh and try again',
-  'login.form.login.success': 'welcome to use',
+  'login.form.login.success': 'Welcome',
   'login.form.email.placeholder': 'Enter email address',
   'login.form.username.placeholder': 'Enter username',
   'login.form.password.placeholder': 'Enter password',
@@ -15,12 +15,26 @@ export default {
   'login.form.oauth.divider': 'Other login methods',
   'login.form.github': 'Sign in with GitHub',
   'login.form.register': 'Register account',
+  'login.form.captcha.placeholder': 'Enter the captcha text or answer',
+  'login.form.captcha.errMsg': 'Please enter the captcha answer',
+  'login.form.captcha.refresh': 'Click image to refresh captcha',
+  'login.form.captcha.refreshShort': 'Refresh',
+  'login.form.captcha.wrong': 'Captcha verification failed, please try again',
+  'login.form.captcha.unavailable':
+    'Captcha is unavailable, please retry later or contact an administrator',
+  'login.form.captcha.clickPrompt': 'Click in this order:',
+  'login.form.captcha.clearClicks': 'Clear clicks',
+  'login.form.captcha.clickStatus': 'Selected {current}/{total}',
+  'login.form.captcha.clickIncomplete': 'Complete all required clicks',
+  'login.form.captcha.geetestTip':
+    'Click Login to complete GeeTest verification',
+  'login.form.captcha.cancelled': 'Captcha verification was cancelled',
   'login.banner.slogan1': 'Out-of-the-box high-quality template',
   'login.banner.subSlogan1':
-    'Rich page templates, covering most typical business scenarios',
+    'Rich page templates covering typical business scenarios',
   'login.banner.slogan2': 'Built-in solutions to common problems',
   'login.banner.subSlogan2':
-    'Internationalization, routing configuration, state management everything',
+    'Internationalization, routing, and state management included',
   'login.banner.slogan3': 'Access visualization enhancement tool AUX',
-  'login.banner.subSlogan3': 'Realize flexible block development',
+  'login.banner.subSlogan3': 'Build flexible block-based experiences',
 };

@@ -14,6 +14,7 @@ import localeSystemPlugin from '@/views/system/plugin/locale/zh-CN';
 import localeSystemUser from '@/views/system/user/locale/zh-CN';
 import localeSystemAdmin from '@/views/system/admin/locale/zh-CN';
 import localeSystemDepartment from '@/views/system/department/locale/zh-CN';
+import localeSystemCaptcha from '@/views/system/captcha/locale/zh-CN';
 import localeMessage from '@/views/message/locale/zh-CN';
 
 import localeSettings from './zh-CN/settings';
@@ -51,5 +52,6 @@ export default {
   ...localeSystemUser,
   ...localeSystemAdmin,
   ...localeSystemDepartment,
+  ...localeSystemCaptcha,
   ...localeMessage,
 };

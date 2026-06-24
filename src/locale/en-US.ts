@@ -14,6 +14,7 @@ import localeSystemPlugin from '@/views/system/plugin/locale/en-US';
 import localeSystemUser from '@/views/system/user/locale/en-US';
 import localeSystemAdmin from '@/views/system/admin/locale/en-US';
 import localeSystemDepartment from '@/views/system/department/locale/en-US';
+import localeSystemCaptcha from '@/views/system/captcha/locale/en-US';
 import localeMessage from '@/views/message/locale/en-US';
 
 import localeSettings from './en-US/settings';
@@ -51,5 +52,6 @@ export default {
   ...localeSystemUser,
   ...localeSystemAdmin,
   ...localeSystemDepartment,
+  ...localeSystemCaptcha,
   ...localeMessage,
 };

@@ -138,6 +138,16 @@ const SYSTEM: AppRouteRecordRaw = {
         permissionCode: ['/system/plugin', 'plugin'],
       },
     },
+    {
+      path: 'captcha',
+      name: 'SystemCaptcha',
+      component: () => import('@/views/system/captcha/index.vue'),
+      meta: {
+        locale: 'menu.system.captcha',
+        requiresAuth: true,
+        permissionCode: ['/system/captcha', 'system:captcha', 'captcha'],
+      },
+    },
   ],
 };
 

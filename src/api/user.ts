@@ -226,10 +226,15 @@ export function unbindThirdPartyUser(id: number) {
 // ==========================================
 
 // 管理员登录
-export function adminLogin(data: AdminLoginRequest) {
+export function adminLogin(data: AdminLoginRequest, captchaToken?: string) {
+  const headers: Record<string, string> = {};
+  if (captchaToken) {
+    headers['X-Captcha-Token'] = captchaToken;
+  }
   return axios.post<ApiResponse<TokenResponse>>(
     '/api/v1/admin/public/login',
-    data
+    data,
+    { headers }
   );
 }
 

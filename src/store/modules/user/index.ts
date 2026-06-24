@@ -278,9 +278,9 @@ const useUserStore = defineStore('user', {
     },
 
     // 管理员登录
-    async adminLogin(loginForm: AdminLoginRequest) {
+    async adminLogin(loginForm: AdminLoginRequest, captchaToken?: string) {
       try {
-        const res = await adminLogin(loginForm);
+        const res = await adminLogin(loginForm, captchaToken);
         await this.initAdminSession(res.data.data);
       } catch (err) {
         clearToken();

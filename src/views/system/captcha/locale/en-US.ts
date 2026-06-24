@@ -1,0 +1,46 @@
+export default {
+  'menu.system.captcha': 'Login Captcha',
+  'system.captcha.title': 'Admin Login Captcha',
+  'system.captcha.description':
+    'Configure captcha providers and choose the provider used by admin login. Saving a provider does not switch the active login provider.',
+  'system.captcha.provider.title': 'Captcha Provider',
+  'system.captcha.provider.select': 'Provider to edit',
+  'system.captcha.provider.active': 'Active',
+  'system.captcha.provider.pending': 'Pending switch',
+  'system.captcha.provider.empty': 'No configurable captcha providers',
+  'system.captcha.provider.secretPlaceholder':
+    'Leave blank to keep the existing secret (secrets are never echoed)',
+  'system.captcha.provider.secretConfigured': 'Secret configured',
+  'system.captcha.provider.secretNotConfigured': 'Secret not configured',
+  'system.captcha.provider.clearSecret': 'Clear configured secret',
+  'system.captcha.provider.clearSecretLocked':
+    'This provider is active for login. Disable captcha or switch providers before clearing its secret.',
+  'system.captcha.scene.title': 'Admin Login Scene',
+  'system.captcha.scene.enabled': 'Enable Login Captcha',
+  'system.captcha.scene.provider': 'Provider to activate',
+  'system.captcha.scene.challengeTtl': 'Challenge TTL (seconds)',
+  'system.captcha.scene.tokenTtl': 'Proof TTL (seconds)',
+  'system.captcha.actions.validate': 'Validate',
+  'system.captcha.actions.saveProvider': 'Save Provider',
+  'system.captcha.actions.saveScene': 'Save Scene',
+  'system.captcha.validate.success': 'Configuration validated',
+  'system.captcha.validate.failed': 'Configuration validation failed',
+  'system.captcha.save.providerSuccess': 'Provider configuration saved',
+  'system.captcha.save.providerFailed': 'Failed to save provider configuration',
+  'system.captcha.save.sceneSuccess': 'Scene policy saved',
+  'system.captcha.save.sceneFailed': 'Failed to save scene policy',
+  'system.captcha.loadError': 'Failed to load captcha configuration',
+  'system.captcha.error.required': 'Complete the required field',
+  'system.captcha.error.minLength': 'The value is too short',
+  'system.captcha.error.maxLength': 'The value is too long',
+  'system.captcha.error.numberRange': 'The number is outside its allowed range',
+  'system.captcha.error.secretRequired': 'Configure the provider secret first',
+  'system.captcha.error.secretMinLength': 'The provider secret is too short',
+  'system.captcha.error.ttlPositive': 'TTL must be a positive integer',
+  'system.captcha.error.clearSecretLocked':
+    'The active login provider secret cannot be cleared',
+  'system.captcha.error.saveProviderFirst':
+    'Save the provider configuration before switching the login scene',
+  'system.captcha.noPermission':
+    'You have no permission to edit captcha config',
+};
