@@ -732,7 +732,10 @@
                 </a-spin>
               </a-tab-pane>
 
-              <a-tab-pane v-if="userStore.isSuperAdmin" key="oauth-login">
+              <a-tab-pane
+                v-if="userStore.isSuperAdmin || userStore.role === 'admin'"
+                key="oauth-login"
+              >
                 <template #title>OAuth 登录</template>
                 <OAuthConfig />
               </a-tab-pane>
