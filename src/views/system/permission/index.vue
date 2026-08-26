@@ -133,6 +133,7 @@
             style="width: 220px"
             allow-clear
             @search="handleSearch"
+            @press-enter="handleSearch"
           />
         </div>
         <div v-if="viewMode === 'tree'" class="page-toolbar-right">
@@ -540,6 +541,7 @@
       page: currentPage.value,
       page_size: pageSize.value,
       type: filterType.value || undefined,
+      keyword: searchKeyword.value.trim() || undefined,
     });
     pagination.total = sysPermissionStore.total;
     pagination.current = currentPage.value;

@@ -124,7 +124,8 @@ export function moveAttachment(id: number, groupId?: number | null) {
 
 export function getAttachmentAccessUrl(id: number) {
   return axios.get<ApiResponse<AttachmentAccessUrlResponse>>(
-    `/api/v1/admin/auth/attachments/${id}/access-url`
+    `/api/v1/admin/auth/attachments/${id}/access-url`,
+    { silentError: true }
   );
 }
 
