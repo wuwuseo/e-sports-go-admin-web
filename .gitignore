@@ -6,5 +6,6 @@ dist-ssr
 /.vscode
 /.codegraph
 /.playwright-cli
+/.superpowers
 /src/data/permission-seed.ts
 /nul
