@@ -16,7 +16,7 @@
         <a-input
           v-model="formData.username"
           :placeholder="$t('system.admin.form.username.placeholder')"
-          :disabled="isView"
+          :disabled="isView || isEdit"
         />
       </a-form-item>
       <a-form-item field="email" :label="$t('system.admin.form.email')">
