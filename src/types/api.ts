@@ -608,6 +608,33 @@ export interface OperationLogQuery extends PaginationQuery {
   end_time?: string;
 }
 
+// ===== 登录日志相关 =====
+export type LoginLogType = 'user' | 'admin';
+export type LoginLogStatus = 'success' | 'fail';
+
+export interface LoginLogResponse {
+  id: number;
+  user_id: number;
+  username: string;
+  login_type: string;
+  status: string;
+  message?: string;
+  ip: string;
+  user_agent?: string;
+  browser?: string;
+  os?: string;
+  created_at: string;
+}
+
+export interface LoginLogQuery extends PaginationQuery {
+  username?: string;
+  login_type?: LoginLogType;
+  status?: LoginLogStatus;
+  ip?: string;
+  start_time?: string;
+  end_time?: string;
+}
+
 // ===== 数据字典相关 =====
 export interface DictDataResponse {
   id: number;
@@ -786,6 +813,10 @@ export interface CreateUserRequest {
   password: string;
   phone?: string;
   avatar?: string;
+  // 创建时直接分配的角色（编辑仍走 RoleAssign 弹窗）
+  role_ids?: number[];
+  // 主角色（不传时后端默认取 role_ids 的第一个）
+  primary_role_id?: number;
 }
 
 export interface UpdateUserRequest {

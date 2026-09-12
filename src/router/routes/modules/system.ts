@@ -99,6 +99,16 @@ const SYSTEM: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'login-log',
+      name: 'SystemLoginLog',
+      component: () => import('@/views/system/login-log/index.vue'),
+      meta: {
+        locale: 'menu.system.loginLog',
+        requiresAuth: true,
+        permissionCode: ['/system/login-log', 'loginlog'],
+      },
+    },
+    {
       path: 'dict-data',
       name: 'SystemDictData',
       component: () => import('@/views/system/dict-data/index.vue'),

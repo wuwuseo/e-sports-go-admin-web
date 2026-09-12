@@ -55,6 +55,10 @@ export default {
   'system.user.form.password.placeholder': 'Enter password',
   'system.user.form.password.required': 'Password is required',
   'system.user.form.roles': 'Roles',
+  'system.user.form.roles.placeholder': 'Select roles (optional)',
+  'system.user.form.primaryRole': 'Primary Role',
+  'system.user.form.primaryRole.placeholder':
+    'Select primary role (defaults to first)',
   'system.user.form.status': 'Status',
   'system.user.form.active': 'Active',
   'system.user.form.inactive': 'Inactive',

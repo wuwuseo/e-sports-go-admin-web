@@ -7,6 +7,7 @@ import localeSystemRole from '@/views/system/role/locale/zh-CN';
 import localeSystemAttachment from '@/views/system/attachment/locale/zh-CN';
 import localeSystemPermission from '@/views/system/permission/locale/zh-CN';
 import localeOperationLog from '@/views/system/operation-log/locale/zh-CN';
+import localeLoginLog from '@/views/system/login-log/locale/zh-CN';
 import localeSystemCronJob from '@/views/system/cron-job/locale/zh-CN';
 import localeDictData from '@/views/system/dict-data/locale/zh-CN';
 import localeConfig from '@/views/system/config/locale/zh-CN';
@@ -45,6 +46,7 @@ export default {
   ...localeSystemAttachment,
   ...localeSystemPermission,
   ...localeOperationLog,
+  ...localeLoginLog,
   ...localeSystemCronJob,
   ...localeDictData,
   ...localeConfig,

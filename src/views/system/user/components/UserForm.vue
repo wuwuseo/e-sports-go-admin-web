@@ -45,6 +45,44 @@
         />
       </a-form-item>
       <a-form-item
+        v-if="isCreate"
+        field="role_ids"
+        :label="$t('system.user.form.roles')"
+      >
+        <a-select
+          v-model="selectedRoleIds"
+          :placeholder="$t('system.user.form.roles.placeholder')"
+          :loading="roleLoading"
+          multiple
+          allow-clear
+          allow-search
+        >
+          <a-option v-for="role in roleOptions" :key="role.id" :value="role.id">
+            {{ role.display_name }}
+          </a-option>
+        </a-select>
+      </a-form-item>
+      <a-form-item
+        v-if="isCreate"
+        field="primary_role_id"
+        :label="$t('system.user.form.primaryRole')"
+      >
+        <a-select
+          v-model="primaryRoleId"
+          :placeholder="$t('system.user.form.primaryRole.placeholder')"
+          :disabled="selectedRoleIds.length === 0"
+          allow-clear
+        >
+          <a-option
+            v-for="role in selectedRoleOptions"
+            :key="role.id"
+            :value="role.id"
+          >
+            {{ role.display_name }}
+          </a-option>
+        </a-select>
+      </a-form-item>
+      <a-form-item
         v-if="isEdit || isView"
         :label="$t('system.user.form.status')"
       >
@@ -65,7 +103,13 @@
   import { Message } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
   import useUserManagementStore from '@/store/modules/user-management';
-  import type { UserResponse, UserDetailResponse } from '@/types/api';
+  import useRoleStore from '@/store/modules/role';
+  import type {
+    CreateUserRequest,
+    RoleResponse,
+    UserResponse,
+    UserDetailResponse,
+  } from '@/types/api';
 
   const props = defineProps<{
     visible: boolean;
@@ -80,11 +124,36 @@
 
   const { t } = useI18n();
   const userManagementStore = useUserManagementStore();
+  const roleStore = useRoleStore();
   const formRef = ref();
   const submitting = ref(false);
 
   const isEdit = computed(() => props.mode === 'edit');
   const isView = computed(() => props.mode === 'view');
+  const isCreate = computed(() => !isEdit.value && !isView.value);
+
+  // ===== 创建模式下的角色分配 =====
+  const roleLoading = ref(false);
+  const roleOptions = ref<RoleResponse[]>([]);
+  const selectedRoleIds = ref<number[]>([]);
+  const primaryRoleId = ref<number | undefined>(undefined);
+
+  // 主角色下拉仅列出已勾选的角色
+  const selectedRoleOptions = computed(() =>
+    roleOptions.value.filter((role) => selectedRoleIds.value.includes(role.id))
+  );
+
+  const loadAllRoles = async () => {
+    roleLoading.value = true;
+    try {
+      roleOptions.value = await roleStore.fetchAllRoles();
+    } catch (err) {
+      // 加载失败时静默置空，不阻塞表单
+      roleOptions.value = [];
+    } finally {
+      roleLoading.value = false;
+    }
+  };
 
   const title = computed(() => {
     if (isEdit.value) {
@@ -129,25 +198,38 @@
   watch(
     () => props.visible,
     (val) => {
-      if (val && props.user) {
-        formData.value = {
-          username: props.user.username,
-          email: props.user.email,
-          phone: props.user.phone || '',
-          password: '',
-          status: props.user.status,
-        };
-      } else if (val) {
-        formData.value = {
-          username: '',
-          email: '',
-          phone: '',
-          password: '',
-          status: 'active',
-        };
+      if (val) {
+        // 打开弹窗时确保角色选项已加载（失败静默，不阻塞表单）
+        loadAllRoles();
+        selectedRoleIds.value = [];
+        primaryRoleId.value = undefined;
+        if (props.user) {
+          formData.value = {
+            username: props.user.username,
+            email: props.user.email,
+            phone: props.user.phone || '',
+            password: '',
+            status: props.user.status,
+          };
+        } else {
+          formData.value = {
+            username: '',
+            email: '',
+            phone: '',
+            password: '',
+            status: 'active',
+          };
+        }
       }
     }
   );
+
+  // 已勾选角色变化时，若主角色不在其中则清空（留空 = 后端默认第一个）
+  watch(selectedRoleIds, (ids) => {
+    if (primaryRoleId.value && !ids.includes(primaryRoleId.value)) {
+      primaryRoleId.value = undefined;
+    }
+  });
 
   const handleSubmit = async () => {
     if (isView.value) {
@@ -169,12 +251,18 @@
         });
         Message.success(t('system.user.updateSuccess'));
       } else {
-        await userManagementStore.createUser({
+        // 创建模式：仅创建时提交角色分配（编辑仍走 RoleAssign 弹窗）
+        const payload: CreateUserRequest = {
           username: formData.value.username,
           email: formData.value.email,
           password: formData.value.password,
           phone: formData.value.phone || undefined,
-        });
+          role_ids: [...selectedRoleIds.value],
+        };
+        if (primaryRoleId.value) {
+          payload.primary_role_id = primaryRoleId.value;
+        }
+        await userManagementStore.createUser(payload);
         Message.success(t('system.user.createSuccess'));
       }
       emit('update:visible', false);
