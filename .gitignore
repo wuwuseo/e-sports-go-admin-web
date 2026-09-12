@@ -9,3 +9,4 @@ dist-ssr
 /.superpowers
 /src/data/permission-seed.ts
 /nul
+package-lock.json
