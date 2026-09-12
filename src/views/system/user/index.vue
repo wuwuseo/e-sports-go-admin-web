@@ -7,8 +7,8 @@
             <div
               class="stat-card-icon"
               style="
-                background: linear-gradient(135deg, #dbeafe, #eff6ff);
                 color: #2563eb;
+                background: linear-gradient(135deg, #dbeafe, #eff6ff);
               "
             >
               <icon-user />
@@ -26,8 +26,8 @@
             <div
               class="stat-card-icon"
               style="
-                background: linear-gradient(135deg, #d1fae5, #ecfdf5);
                 color: #10b981;
+                background: linear-gradient(135deg, #d1fae5, #ecfdf5);
               "
             >
               <icon-check-circle />
@@ -45,8 +45,8 @@
             <div
               class="stat-card-icon"
               style="
-                background: linear-gradient(135deg, #fee2e2, #fef2f2);
                 color: #ef4444;
+                background: linear-gradient(135deg, #fee2e2, #fef2f2);
               "
             >
               <icon-stop />
@@ -64,8 +64,8 @@
             <div
               class="stat-card-icon"
               style="
-                background: linear-gradient(135deg, #fef3c7, #fffbeb);
                 color: #f59e0b;
+                background: linear-gradient(135deg, #fef3c7, #fffbeb);
               "
             >
               <icon-ban />
@@ -129,7 +129,7 @@
             :width="120"
           >
             <template #cell="{ record }">
-              <div style="display: flex; align-items: center; gap: 8px">
+              <div style="display: flex; gap: 8px; align-items: center">
                 <a-avatar :size="28">{{
                   record.username.charAt(0).toUpperCase()
                 }}</a-avatar>
@@ -486,28 +486,28 @@
 <style scoped>
   .stat-card {
     display: flex;
-    align-items: center;
     gap: 12px;
+    align-items: center;
   }
 
   .stat-card-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 48px;
+    height: 48px;
     font-size: 20px;
+    border-radius: 8px;
   }
 
   .stat-card-value {
-    font-size: 20px;
-    font-weight: 600;
     color: #1d2129;
+    font-weight: 600;
+    font-size: 20px;
   }
 
   .stat-card-label {
-    font-size: 13px;
     color: #86909c;
+    font-size: 13px;
   }
 </style>

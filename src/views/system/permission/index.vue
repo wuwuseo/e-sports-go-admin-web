@@ -700,25 +700,25 @@
 <style lang="less" scoped>
   .stat-card {
     display: flex;
-    align-items: center;
     gap: 12px;
+    align-items: center;
     padding: 16px;
     background: var(--color-bg-2);
-    border-radius: 8px;
     border: 1px solid var(--color-border-2);
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
 
     &:hover {
       border-color: rgb(var(--primary-6));
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
     }
 
     &.active {
-      border-color: rgb(var(--primary-6));
       background: var(--color-primary-light-1);
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+      border-color: rgb(var(--primary-6));
+      box-shadow: 0 2px 12px rgb(0 0 0 / 10%);
     }
   }
 
@@ -728,10 +728,10 @@
     justify-content: center;
     width: 48px;
     height: 48px;
-    border-radius: 8px;
     color: white;
     font-weight: 600;
     font-size: 14px;
+    border-radius: 8px;
 
     &.api-icon {
       background: linear-gradient(135deg, #3b82f6, #1d4ed8);
@@ -751,21 +751,21 @@
   }
 
   .stat-card-value {
-    font-size: 24px;
-    font-weight: 600;
     color: var(--color-text-1);
+    font-weight: 600;
+    font-size: 24px;
   }
 
   .stat-card-label {
-    font-size: 13px;
     color: var(--color-text-2);
+    font-size: 13px;
   }
 
   .tree-view-container {
     padding: 12px;
     background: var(--color-bg-1);
-    border-radius: 8px;
     border: 1px solid var(--color-border-2);
+    border-radius: 8px;
   }
 
   .permission-tree {
@@ -776,18 +776,18 @@
 
   .tree-node-title {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
+    align-items: center;
     width: 100%;
     padding: 6px 0;
-    flex-wrap: wrap;
   }
 
   .type-dot {
+    flex-shrink: 0;
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    flex-shrink: 0;
 
     &.api {
       background: #3b82f6;
@@ -810,11 +810,11 @@
   .method-badge {
     display: inline-block;
     padding: 1px 6px;
-    font-size: 10px;
-    font-weight: 600;
-    border-radius: 4px;
     color: white;
+    font-weight: 600;
+    font-size: 10px;
     text-transform: uppercase;
+    border-radius: 4px;
 
     &.get {
       background: #10b981;
@@ -838,34 +838,34 @@
   }
 
   .path-text {
-    font-size: 12px;
+    padding: 2px 6px;
     color: var(--color-text-3);
+    font-size: 12px;
     font-family: monospace;
     background: var(--color-bg-3);
-    padding: 2px 6px;
     border-radius: 4px;
   }
 
   .code-text,
   .code-cell {
-    font-size: 12px;
+    padding: 2px 8px;
     color: var(--color-text-3);
+    font-size: 12px;
     font-family: monospace;
     background: var(--color-bg-3);
-    padding: 2px 8px;
     border-radius: 4px;
   }
 
   .desc-text {
-    font-size: 12px;
-    color: var(--color-text-3);
     margin-left: auto;
+    color: var(--color-text-3);
+    font-size: 12px;
   }
 
   .node-actions {
     display: flex;
-    align-items: center;
     gap: 8px;
+    align-items: center;
     margin-left: auto;
   }
 
@@ -877,8 +877,8 @@
   // 编辑/删除按钮仅在 hover 时显示
   .node-hover-actions {
     display: flex;
-    align-items: center;
     gap: 4px;
+    align-items: center;
     opacity: 0;
     transition: opacity 0.2s;
 
@@ -888,16 +888,16 @@
   }
 
   .highlight {
+    padding: 0 2px;
     color: #f59e0b;
     font-weight: 600;
-    background: rgba(245, 158, 11, 0.1);
-    padding: 0 2px;
+    background: rgb(245 158 11 / 10%);
     border-radius: 2px;
   }
 
   .type-option {
     display: flex;
-    align-items: center;
     gap: 6px;
+    align-items: center;
   }
 </style>

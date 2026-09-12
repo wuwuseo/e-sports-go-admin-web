@@ -41,18 +41,16 @@
   --gradient-card-header: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%);
 
   // ---------- 阴影 ----------
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-    0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-dropdown: 0 10px 25px -5px rgba(0, 0, 0, 0.15),
-    0 4px 10px -5px rgba(0, 0, 0, 0.1);
-  --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 5%);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 4%);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -1px rgb(0 0 0 / 6%);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -2px rgb(0 0 0 / 5%);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 10%),
+    0 10px 10px -5px rgb(0 0 0 / 4%);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 6%), 0 1px 2px rgb(0 0 0 / 4%);
+  --shadow-dropdown: 0 10px 25px -5px rgb(0 0 0 / 15%),
+    0 4px 10px -5px rgb(0 0 0 / 10%);
+  --shadow-modal: 0 25px 50px -12px rgb(0 0 0 / 25%);
 
   // ---------- 圆角 ----------
   --radius-xs: 4px;
@@ -83,7 +81,7 @@
 
   // ---------- 背景色 ----------
   --bg-subtle: #f8fafc;
-  --bg-elevated: #ffffff;
+  --bg-elevated: #fff;
   --bg-card-hover: #f1f5f9;
   --border-subtle: #e2e8f0;
   --border-default: #cbd5e1;
@@ -98,12 +96,12 @@ body[arco-theme='dark'] {
   --bg-card-hover: #334155;
   --border-subtle: #334155;
   --border-default: #475569;
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.4);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 20%);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 30%);
+  --shadow-md: 0 4px 6px rgb(0 0 0 / 30%);
+  --shadow-lg: 0 10px 15px rgb(0 0 0 / 30%);
+  --shadow-xl: 0 20px 25px rgb(0 0 0 / 40%);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 20%);
 }
 
 // ============================================
@@ -112,23 +110,23 @@ body[arco-theme='dark'] {
 
 // -------- Card 增强 --------
 .arco-card {
+  border: 1px solid var(--border-subtle) !important;
   border-radius: var(--radius-lg) !important;
   box-shadow: var(--shadow-card) !important;
   transition: var(--transition-base) !important;
-  border: 1px solid var(--border-subtle) !important;
 
   &:hover {
     box-shadow: var(--shadow-md) !important;
   }
 
   &-header {
-    border-bottom: 1px solid var(--border-subtle) !important;
     padding: var(--space-5) var(--space-6) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
 
     .arco-card-header-title {
-      font-size: 16px;
-      font-weight: 600;
       color: rgb(var(--gray-9));
+      font-weight: 600;
+      font-size: 16px;
     }
   }
 
@@ -139,14 +137,14 @@ body[arco-theme='dark'] {
 
 // -------- 通用卡片（.general-card 增强）--------
 .general-card {
-  border-radius: var(--radius-lg) !important;
-  border: 1px solid var(--border-subtle) !important;
   overflow: hidden;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-lg) !important;
 
   & > .arco-card-header {
-    background: var(--gradient-card-header);
-    padding: var(--space-4) var(--space-6) !important;
     min-height: 52px;
+    padding: var(--space-4) var(--space-6) !important;
+    background: var(--gradient-card-header);
   }
 
   & > .arco-card-body {
@@ -156,14 +154,14 @@ body[arco-theme='dark'] {
 
 // -------- Table 表格增强 --------
 .arco-table {
-  border-radius: var(--radius-md);
   overflow: hidden;
+  border-radius: var(--radius-md);
 
   .arco-table-th {
-    background: var(--bg-subtle) !important;
+    color: rgb(var(--gray-7));
     font-weight: 600 !important;
     font-size: 13px;
-    color: rgb(var(--gray-7));
+    background: var(--bg-subtle) !important;
     border-bottom: 2px solid var(--border-subtle) !important;
   }
 
@@ -184,103 +182,103 @@ body[arco-theme='dark'] {
   }
 
   .arco-pagination {
-    padding: var(--space-4) 0;
     margin-top: var(--space-2);
+    padding: var(--space-4) 0;
   }
 }
 
 // -------- Button 增强 --------
 .arco-btn {
+  font-weight: 500 !important;
   border-radius: var(--radius-sm) !important;
   transition: var(--transition-base) !important;
-  font-weight: 500 !important;
 
   &-primary {
     background: var(--gradient-primary) !important;
     border: none !important;
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3) !important;
+    box-shadow: 0 2px 8px rgb(37 99 235 / 30%) !important;
 
     &:hover {
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4) !important;
+      box-shadow: 0 4px 12px rgb(37 99 235 / 40%) !important;
       transform: translateY(-1px);
     }
 
     &:active {
+      box-shadow: 0 1px 4px rgb(37 99 235 / 30%) !important;
       transform: translateY(0);
-      box-shadow: 0 1px 4px rgba(37, 99, 235, 0.3) !important;
     }
   }
 
   &-outline {
     &:hover {
-      border-color: var(--primary-500) !important;
       color: var(--primary-600) !important;
+      border-color: var(--primary-500) !important;
     }
   }
 
   &-text {
     &:hover {
-      background: var(--primary-50) !important;
       color: var(--primary-600) !important;
+      background: var(--primary-50) !important;
     }
   }
 
   &-status-danger&-text {
     &:hover {
-      background: var(--danger-bg) !important;
       color: var(--danger) !important;
+      background: var(--danger-bg) !important;
     }
   }
 }
 
 // -------- Tag 标签增强 --------
 .arco-tag {
-  border-radius: var(--radius-xs) !important;
-  font-weight: 500 !important;
   padding: 0 8px !important;
+  font-weight: 500 !important;
   border: none !important;
+  border-radius: var(--radius-xs) !important;
 
   &-blue,
   &-arcoblue {
-    background: var(--primary-50) !important;
     color: var(--primary-600) !important;
+    background: var(--primary-50) !important;
   }
 
   &-green {
-    background: var(--success-bg) !important;
     color: var(--success) !important;
+    background: var(--success-bg) !important;
   }
 
   &-orange {
-    background: var(--warning-bg) !important;
     color: var(--warning) !important;
+    background: var(--warning-bg) !important;
   }
 
   &-red {
-    background: var(--danger-bg) !important;
     color: var(--danger) !important;
+    background: var(--danger-bg) !important;
   }
 
   &-purple {
-    background: var(--info-bg) !important;
     color: var(--info) !important;
+    background: var(--info-bg) !important;
   }
 
   &-gray {
-    background: #f1f5f9 !important;
     color: #64748b !important;
+    background: #f1f5f9 !important;
   }
 }
 
 // -------- Modal 弹窗增强 --------
 .arco-modal {
-  border-radius: var(--radius-xl) !important;
   overflow: hidden;
+  border-radius: var(--radius-xl) !important;
   box-shadow: var(--shadow-modal) !important;
 
   &-header {
-    border-bottom: 1px solid var(--border-subtle) !important;
     padding: var(--space-5) var(--space-6) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
 
     .arco-modal-title {
       font-weight: 600 !important;
@@ -293,16 +291,16 @@ body[arco-theme='dark'] {
   }
 
   &-footer {
-    border-top: 1px solid var(--border-subtle) !important;
     padding: var(--space-4) var(--space-6) !important;
+    border-top: 1px solid var(--border-subtle) !important;
   }
 }
 
 // -------- Drawer 抽屉增强 --------
 .arco-drawer {
   &-header {
-    border-bottom: 1px solid var(--border-subtle) !important;
     padding: var(--space-5) var(--space-6) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
 
     .arco-drawer-title {
       font-weight: 600 !important;
@@ -314,8 +312,8 @@ body[arco-theme='dark'] {
   }
 
   &-footer {
-    border-top: 1px solid var(--border-subtle) !important;
     padding: var(--space-4) var(--space-6) !important;
+    border-top: 1px solid var(--border-subtle) !important;
   }
 }
 
@@ -326,9 +324,9 @@ body[arco-theme='dark'] {
   }
 
   &-item-label {
+    color: rgb(var(--gray-8));
     font-weight: 500 !important;
     font-size: 14px;
-    color: rgb(var(--gray-8));
   }
 }
 
@@ -336,14 +334,14 @@ body[arco-theme='dark'] {
 .arco-input,
 .arco-textarea,
 .arco-select-view {
+  border-color: var(--border-subtle) !important;
   border-radius: var(--radius-sm) !important;
   transition: var(--transition-base) !important;
-  border-color: var(--border-subtle) !important;
 
   &:focus,
   &-focus {
     border-color: var(--primary-500) !important;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 10%) !important;
   }
 
   &:hover {
@@ -360,19 +358,19 @@ body[arco-theme='dark'] {
 
 // -------- Select 下拉选择器增强 --------
 .arco-select-dropdown {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-dropdown) !important;
-  border: 1px solid var(--border-subtle) !important;
-  overflow: hidden;
 
   .arco-select-option {
-    transition: var(--transition-fast);
     padding: 8px 12px !important;
+    transition: var(--transition-fast);
 
     &-active,
     &:hover {
-      background: var(--primary-50) !important;
       color: var(--primary-600) !important;
+      background: var(--primary-50) !important;
     }
 
     &-selected {
@@ -384,10 +382,10 @@ body[arco-theme='dark'] {
 
 // -------- Popconfirm 气泡确认框增强 --------
 .arco-popconfirm {
+  padding: var(--space-4) !important;
+  border: 1px solid var(--border-subtle) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-dropdown) !important;
-  border: 1px solid var(--border-subtle) !important;
-  padding: var(--space-4) !important;
 
   &-body {
     .arco-popconfirm-title {
@@ -398,20 +396,20 @@ body[arco-theme='dark'] {
 
 // -------- Dropdown 下拉菜单增强 --------
 .arco-dropdown-menu {
+  padding: 4px !important;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-dropdown) !important;
-  border: 1px solid var(--border-subtle) !important;
-  overflow: hidden;
-  padding: 4px !important;
 
   .arco-dropdown-menu-item {
+    padding: 8px 12px !important;
     border-radius: var(--radius-xs) !important;
     transition: var(--transition-fast);
-    padding: 8px 12px !important;
 
     &:hover {
-      background: var(--primary-50) !important;
       color: var(--primary-600) !important;
+      background: var(--primary-50) !important;
     }
   }
 }
@@ -423,17 +421,17 @@ body[arco-theme='dark'] {
     transition: var(--transition-fast);
 
     &-active {
+      color: white !important;
       background: var(--gradient-primary) !important;
       border-color: transparent !important;
-      color: white !important;
     }
   }
 }
 
 // -------- RangePicker 日期范围选择器 --------
 .arco-picker {
-  border-radius: var(--radius-sm) !important;
   border-color: var(--border-subtle) !important;
+  border-radius: var(--radius-sm) !important;
 
   &:hover {
     border-color: var(--primary-400) !important;
@@ -441,7 +439,7 @@ body[arco-theme='dark'] {
 
   &-focused {
     border-color: var(--primary-500) !important;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 10%) !important;
   }
 }
 
@@ -457,8 +455,8 @@ body[arco-theme='dark'] {
 
 // -------- Alert 提示 --------
 .arco-alert {
-  border-radius: var(--radius-md) !important;
   border: none !important;
+  border-radius: var(--radius-md) !important;
 }
 
 // ============================================
@@ -474,23 +472,23 @@ body[arco-theme='dark'] {
 // 页面卡片标题栏操作区
 .page-toolbar {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--space-5);
-  flex-wrap: wrap;
-  gap: var(--space-3);
 
   &-left {
     display: flex;
-    align-items: center;
-    gap: var(--space-3);
     flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
   }
 
   &-right {
     display: flex;
-    align-items: center;
     gap: var(--space-3);
+    align-items: center;
   }
 }
 
@@ -499,12 +497,12 @@ body[arco-theme='dark'] {
   display: inline-block;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   margin-right: 6px;
+  border-radius: 50%;
 
   &.active {
     background: var(--success);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 3px rgb(16 185 129 / 20%);
   }
 
   &.inactive {
@@ -513,47 +511,47 @@ body[arco-theme='dark'] {
 
   &.system {
     background: var(--info);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+    box-shadow: 0 0 0 3px rgb(139 92 246 / 20%);
   }
 }
 
 // 统计小卡片
 .stat-card {
   display: flex;
-  align-items: center;
   gap: var(--space-3);
+  align-items: center;
   padding: var(--space-4) var(--space-5);
   background: var(--bg-subtle);
-  border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
-  transition: var(--transition-base);
+  border-radius: var(--radius-md);
   cursor: default;
+  transition: var(--transition-base);
 
   &:hover {
-    border-color: var(--primary-300);
     background: var(--primary-50);
+    border-color: var(--primary-300);
   }
 
   &-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 40px;
+    height: 40px;
     font-size: 20px;
+    border-radius: var(--radius-md);
   }
 
   &-value {
-    font-size: 20px;
-    font-weight: 700;
-    line-height: 1.2;
     color: rgb(var(--gray-9));
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 1.2;
   }
 
   &-label {
-    font-size: 12px;
     color: rgb(var(--gray-5));
+    font-size: 12px;
     line-height: 1.2;
   }
 }
@@ -563,57 +561,59 @@ body[arco-theme='dark'] {
   display: inline-flex;
   align-items: center;
   padding: 2px 10px;
-  border-radius: var(--radius-full);
-  font-size: 12px;
   font-weight: 600;
+  font-size: 12px;
   letter-spacing: 0.02em;
+  border-radius: var(--radius-full);
 
   &.primary {
-    background: linear-gradient(135deg, #2563eb, #7c3aed);
     color: white;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
   }
 
   &.success {
-    background: linear-gradient(135deg, #10b981, #34d399);
     color: white;
+    background: linear-gradient(135deg, #10b981, #34d399);
   }
 
   &.warning {
-    background: linear-gradient(135deg, #f59e0b, #fbbf24);
     color: white;
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
   }
 
   &.danger {
-    background: linear-gradient(135deg, #ef4444, #f87171);
     color: white;
+    background: linear-gradient(135deg, #ef4444, #f87171);
   }
 
   &.info {
-    background: linear-gradient(135deg, #8b5cf6, #a78bfa);
     color: white;
+    background: linear-gradient(135deg, #8b5cf6, #a78bfa);
   }
 }
 
 // 动画
 @keyframes pageFadeIn {
   from {
-    opacity: 0;
     transform: translateY(8px);
+    opacity: 0;
   }
+
   to {
-    opacity: 1;
     transform: translateY(0);
+    opacity: 1;
   }
 }
 
 @keyframes fadeInUp {
   from {
-    opacity: 0;
     transform: translateY(12px);
+    opacity: 0;
   }
+
   to {
-    opacity: 1;
     transform: translateY(0);
+    opacity: 1;
   }
 }
 
@@ -622,6 +622,7 @@ body[arco-theme='dark'] {
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -640,8 +641,8 @@ body[arco-theme='dark'] {
 // 标签页增强
 .arco-tabs-nav-tab {
   .arco-tabs-tab {
-    transition: var(--transition-base);
     border-radius: var(--radius-sm) var(--radius-sm) 0 0 !important;
+    transition: var(--transition-base);
 
     &.arco-tabs-tab-active {
       font-weight: 600;

@@ -816,8 +816,8 @@
   }
 
   .attachment-selector-files {
-    margin-top: 16px;
     max-height: 260px;
+    margin-top: 16px;
     overflow-y: auto;
   }
 
@@ -848,9 +848,9 @@
   }
 
   .attachment-selector-file-preview {
+    flex-shrink: 0;
     width: 44px;
     height: 44px;
-    flex-shrink: 0;
     overflow: hidden;
     background: var(--color-fill-2);
     border: 1px solid var(--color-border-2);
@@ -865,10 +865,10 @@
 
   .attachment-selector-file-icon {
     display: flex;
-    height: 100%;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    height: 100%;
     color: rgb(var(--gray-6));
     font-size: 10px;
     line-height: 1;
@@ -884,8 +884,8 @@
     flex: 1;
     overflow: hidden;
     color: rgb(var(--gray-8));
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .attachment-selector-file-size,
@@ -913,8 +913,8 @@
   .attachment-selector-success,
   .attachment-selector-error {
     display: flex;
-    align-items: center;
     gap: 4px;
+    align-items: center;
     font-size: 12px;
   }
 
@@ -955,8 +955,8 @@
   }
 
   .attachment-selector-footer {
-    justify-content: flex-end;
     gap: 12px;
+    justify-content: flex-end;
     margin-top: 20px;
   }
 </style>

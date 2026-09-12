@@ -383,7 +383,7 @@
   }
 
   .department-name {
-    font-weight: 500;
     color: var(--color-text-1);
+    font-weight: 500;
   }
 </style>

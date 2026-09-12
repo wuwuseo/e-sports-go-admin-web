@@ -212,18 +212,18 @@
 
   .entry-item {
     display: flex;
-    align-items: center;
     gap: 8px;
+    align-items: center;
   }
 
   .manifest-json {
     max-height: 360px;
     padding: 12px;
     overflow: auto;
+    font-size: 12px;
+    line-height: 1.6;
     background: var(--bg-subtle);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-sm);
-    font-size: 12px;
-    line-height: 1.6;
   }
 </style>

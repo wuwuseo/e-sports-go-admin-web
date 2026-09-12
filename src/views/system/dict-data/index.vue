@@ -363,13 +363,13 @@
     :deep(.general-card) {
       .page-header {
         display: flex;
-        align-items: baseline;
         gap: 12px;
+        align-items: baseline;
 
         .page-desc {
-          font-size: 13px;
-          font-weight: 400;
           color: var(--color-text-3);
+          font-weight: 400;
+          font-size: 13px;
         }
       }
     }
@@ -377,20 +377,20 @@
     .dict-block {
       margin-bottom: 28px;
       padding: 16px;
+      background: var(--color-bg-1);
       border: 1px solid var(--color-border-2);
       border-radius: 6px;
-      background: var(--color-bg-1);
 
       .block-header {
-        margin-bottom: 12px;
         display: flex;
-        align-items: center;
         gap: 8px;
+        align-items: center;
+        margin-bottom: 12px;
 
         .block-title-input {
-          font-size: 15px;
-          font-weight: 600;
           max-width: 300px;
+          font-weight: 600;
+          font-size: 15px;
         }
       }
     }

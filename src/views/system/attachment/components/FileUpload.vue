@@ -17,7 +17,7 @@
       <template #upload-button>
         <div class="upload-trigger">
           <div>
-            <icon-upload style="font-size: 28px; color: var(--color-text-3)" />
+            <icon-upload style="color: var(--color-text-3); font-size: 28px" />
           </div>
           <div style="margin-top: 8px; color: var(--color-text-3)">
             {{ $t('system.attachment.upload.drag') }}
@@ -369,8 +369,8 @@
   }
 
   .file-list {
-    margin-top: 16px;
     max-height: 300px;
+    margin-top: 16px;
     overflow-y: auto;
   }
 
@@ -399,29 +399,29 @@
 
   .file-info {
     display: flex;
-    align-items: center;
     gap: 8px;
+    align-items: center;
     font-size: 13px;
   }
 
   .file-name {
     flex: 1;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     color: rgb(var(--gray-8));
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .file-size {
+    flex-shrink: 0;
     color: rgb(var(--gray-5));
     font-size: 12px;
-    flex-shrink: 0;
   }
 
   .file-status {
     display: flex;
-    align-items: center;
     gap: 8px;
+    align-items: center;
     padding-left: 4px;
 
     .arco-progress {
@@ -430,31 +430,31 @@
   }
 
   .chunk-hint {
-    font-size: 11px;
     color: rgb(var(--gray-5));
+    font-size: 11px;
     white-space: nowrap;
   }
 
   .status-success {
+    display: flex;
+    gap: 4px;
+    align-items: center;
     color: rgb(var(--green-6));
     font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
   }
 
   .status-error {
+    display: flex;
+    gap: 4px;
+    align-items: center;
     color: rgb(var(--red-6));
     font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
   }
 
   .modal-footer {
     display: flex;
-    justify-content: flex-end;
     gap: 12px;
+    justify-content: flex-end;
     margin-top: 20px;
   }
 </style>

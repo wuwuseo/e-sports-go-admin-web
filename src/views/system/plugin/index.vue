@@ -639,16 +639,16 @@
 
   .plugin-id {
     margin-top: 4px;
-    font-size: 12px;
     color: var(--primary-600);
+    font-size: 12px;
   }
 
   .plugin-desc {
     margin-top: 4px;
     overflow: hidden;
-    font-size: 12px;
     color: rgb(var(--gray-5));
-    text-overflow: ellipsis;
+    font-size: 12px;
     white-space: nowrap;
+    text-overflow: ellipsis;
   }
 </style>

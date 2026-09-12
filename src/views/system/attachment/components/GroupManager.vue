@@ -70,9 +70,9 @@
 
 <style lang="less" scoped>
   .group-manager {
-    border-right: 1px solid var(--color-border);
-    padding-right: 16px;
     min-height: 400px;
+    padding-right: 16px;
+    border-right: 1px solid var(--color-border);
   }
 
   .group-header {
@@ -97,23 +97,23 @@
       }
 
       &.active {
-        background-color: rgb(var(--primary-1));
         color: rgb(var(--primary-6));
+        background-color: rgb(var(--primary-1));
       }
 
       .group-name {
         flex: 1;
         margin-left: 8px;
         overflow: hidden;
-        text-overflow: ellipsis;
         white-space: nowrap;
+        text-overflow: ellipsis;
       }
 
       .group-actions {
-        opacity: 0;
-        transition: opacity 0.2s;
         display: flex;
         align-items: center;
+        opacity: 0;
+        transition: opacity 0.2s;
       }
     }
   }

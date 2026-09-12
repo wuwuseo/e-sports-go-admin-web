@@ -617,11 +617,11 @@
 
 <style lang="less" scoped>
   .group-panel {
-    background: var(--bg-subtle);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-subtle);
-    overflow: hidden;
     min-height: 400px;
+    overflow: hidden;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
 
     &-header {
       display: flex;
@@ -632,9 +632,9 @@
     }
 
     &-title {
+      color: rgb(var(--gray-8));
       font-weight: 600;
       font-size: 14px;
-      color: rgb(var(--gray-8));
     }
   }
 
@@ -644,50 +644,50 @@
 
   .group-item {
     display: flex;
-    align-items: center;
     gap: 8px;
+    align-items: center;
     padding: 9px 12px;
+    color: rgb(var(--gray-7));
+    font-size: 13px;
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: var(--transition-fast);
-    font-size: 13px;
-    color: rgb(var(--gray-7));
 
     &:hover {
       background: var(--bg-card-hover);
     }
 
     &.active {
-      background: var(--primary-50);
       color: var(--primary-600);
       font-weight: 500;
+      background: var(--primary-50);
     }
 
     &-icon {
+      flex-shrink: 0;
       color: var(--primary-400);
       font-size: 16px;
-      flex-shrink: 0;
     }
 
     &-name {
       flex: 1;
       overflow: hidden;
-      text-overflow: ellipsis;
       white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     &-count {
       margin-left: auto;
-      font-size: 11px;
-      color: rgb(var(--gray-5));
-      background: rgb(var(--gray-2));
       padding: 0 6px;
+      color: rgb(var(--gray-5));
+      font-size: 11px;
+      background: rgb(var(--gray-2));
       border-radius: 10px;
     }
 
     &-more {
-      opacity: 0;
       margin-left: auto;
+      opacity: 0;
     }
 
     &:hover &-more {
@@ -696,27 +696,30 @@
   }
 
   .file-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
+    width: 28px;
+    height: 28px;
     font-size: 16px;
-    flex-shrink: 0;
+    border-radius: 6px;
 
     &.icon-image {
       color: #2563eb;
       background: #dbeafe;
     }
+
     &.icon-pdf {
       color: #dc2626;
       background: #fef2f2;
     }
+
     &.icon-archive {
       color: #d97706;
       background: #fef3c7;
     }
+
     &.icon-default {
       color: #64748b;
       background: #f1f5f9;
@@ -725,8 +728,8 @@
 
   .attachment-name-cell {
     display: flex;
-    align-items: center;
     gap: 8px;
+    align-items: center;
     min-width: 0;
   }
 
@@ -738,8 +741,8 @@
     display: block;
     overflow: hidden;
     color: rgb(var(--gray-8));
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .attachment-badges {
@@ -752,7 +755,7 @@
   body[arco-theme='dark'] & {
     .group-item {
       &.active {
-        background: rgba(37, 99, 235, 0.15);
+        background: rgb(37 99 235 / 15%);
       }
 
       &:hover {

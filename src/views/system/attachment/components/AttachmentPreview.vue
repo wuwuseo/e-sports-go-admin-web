@@ -16,7 +16,7 @@
         />
       </div>
       <div v-else class="preview-file">
-        <icon-file style="font-size: 64px; color: var(--color-text-3)" />
+        <icon-file style="color: var(--color-text-3); font-size: 64px" />
         <p style="margin-top: 12px">{{ attachment.original_name }}</p>
         <a-button
           type="primary"
@@ -158,8 +158,8 @@
     }
 
     .preview-file {
-      text-align: center;
       padding: 24px 0;
+      text-align: center;
     }
   }
 </style>

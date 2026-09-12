@@ -8,8 +8,8 @@
             <div
               class="stat-card-icon"
               style="
-                background: linear-gradient(135deg, #dbeafe, #eff6ff);
                 color: #2563eb;
+                background: linear-gradient(135deg, #dbeafe, #eff6ff);
               "
             >
               <icon-user-group />
@@ -27,8 +27,8 @@
             <div
               class="stat-card-icon"
               style="
-                background: linear-gradient(135deg, #d1fae5, #ecfdf5);
                 color: #10b981;
+                background: linear-gradient(135deg, #d1fae5, #ecfdf5);
               "
             >
               <icon-check-circle />
@@ -46,8 +46,8 @@
             <div
               class="stat-card-icon"
               style="
-                background: linear-gradient(135deg, #fef3c7, #fffbeb);
                 color: #f59e0b;
+                background: linear-gradient(135deg, #fef3c7, #fffbeb);
               "
             >
               <icon-stop />
@@ -65,8 +65,8 @@
             <div
               class="stat-card-icon"
               style="
-                background: linear-gradient(135deg, #e0e7ff, #eef2ff);
                 color: #6366f1;
+                background: linear-gradient(135deg, #e0e7ff, #eef2ff);
               "
             >
               <icon-lock />
@@ -116,7 +116,7 @@
             :width="120"
           >
             <template #cell="{ record }">
-              <div style="display: flex; align-items: center; gap: 8px">
+              <div style="display: flex; gap: 8px; align-items: center">
                 <span
                   class="status-dot"
                   :class="
@@ -153,7 +153,7 @@
               <span
                 v-else
                 class="gradient-badge"
-                style="background: #f1f5f9; color: #64748b"
+                style="color: #64748b; background: #f1f5f9"
                 >Custom</span
               >
             </template>

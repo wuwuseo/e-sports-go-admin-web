@@ -435,10 +435,10 @@
     .preview-text,
     .preview-html {
       padding: 12px;
-      background: var(--color-fill-2);
-      border-radius: 4px;
       line-height: 1.7;
       word-break: break-word;
+      background: var(--color-fill-2);
+      border-radius: 4px;
     }
   }
 </style>

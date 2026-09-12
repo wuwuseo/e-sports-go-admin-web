@@ -53,8 +53,8 @@
               style="
                 width: 32px;
                 height: 32px;
-                background: linear-gradient(135deg, #dbeafe, #eff6ff);
                 color: #2563eb;
+                background: linear-gradient(135deg, #dbeafe, #eff6ff);
               "
             >
               <icon-clock-circle />
@@ -76,8 +76,8 @@
               style="
                 width: 32px;
                 height: 32px;
-                background: linear-gradient(135deg, #d1fae5, #ecfdf5);
                 color: #10b981;
+                background: linear-gradient(135deg, #d1fae5, #ecfdf5);
               "
             >
               <icon-check-circle />
@@ -99,8 +99,8 @@
               style="
                 width: 32px;
                 height: 32px;
-                background: linear-gradient(135deg, #fef3c7, #fffbeb);
                 color: #f59e0b;
+                background: linear-gradient(135deg, #fef3c7, #fffbeb);
               "
             >
               <icon-stop />
@@ -122,8 +122,8 @@
               style="
                 width: 32px;
                 height: 32px;
-                background: linear-gradient(135deg, #e0e7ff, #eef2ff);
                 color: #6366f1;
+                background: linear-gradient(135deg, #e0e7ff, #eef2ff);
               "
             >
               <icon-history />
@@ -157,7 +157,7 @@
             :width="140"
           >
             <template #cell="{ record }">
-              <div style="display: flex; align-items: center; gap: 8px">
+              <div style="display: flex; gap: 8px; align-items: center">
                 <icon-code :style="{ color: typeColorMap[record.type] }" />
                 <strong>{{ record.name }}</strong>
               </div>
@@ -171,11 +171,11 @@
             <template #cell="{ record }">
               <code
                 style="
-                  background: var(--bg-subtle);
                   padding: 2px 8px;
-                  border-radius: 4px;
-                  font-size: 12px;
                   color: var(--primary-600);
+                  font-size: 12px;
+                  background: var(--bg-subtle);
+                  border-radius: 4px;
                 "
                 >{{ record.expression }}</code
               >

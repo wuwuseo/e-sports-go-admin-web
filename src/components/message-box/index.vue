@@ -96,6 +96,7 @@
 
   :deep(.arco-tabs-content) {
     padding-top: 0;
+
     .arco-result-subtitle {
       color: rgb(var(--gray-6));
     }

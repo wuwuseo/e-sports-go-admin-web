@@ -9,7 +9,7 @@
     <a-checkbox-group v-model="selectedRoleIds">
       <a-space direction="vertical" fill>
         <a-checkbox v-for="role in allRoles" :key="role.id" :value="role.id">
-          <div style="display: flex; align-items: center; gap: 8px">
+          <div style="display: flex; gap: 8px; align-items: center">
             <span>{{ role.display_name }}</span>
             <a-tag v-if="role.is_system" size="small">System</a-tag>
           </div>

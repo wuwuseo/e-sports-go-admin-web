@@ -131,8 +131,8 @@
     }
 
     .time-text {
-      font-size: 12px;
       color: rgb(var(--gray-6));
+      font-size: 12px;
     }
 
     .arco-empty {

@@ -175,16 +175,16 @@
     display: flex;
     flex: 1;
     min-height: 500px;
+    overflow: hidden;
     border: 1px solid var(--color-border);
     border-radius: 4px;
-    overflow: hidden;
   }
 
   .log-file-list {
     width: 200px;
-    border-right: 1px solid var(--color-border);
     overflow-y: auto;
     background-color: var(--color-bg-1);
+    border-right: 1px solid var(--color-border);
   }
 
   .log-empty,
@@ -200,31 +200,31 @@
 
   .log-file-item {
     display: flex !important;
-    align-items: center;
     gap: 8px;
-    padding: 8px 12px !important;
-    line-height: 1.4 !important;
+    align-items: center;
     height: auto !important;
     min-height: 40px;
+    padding: 8px 12px !important;
+    line-height: 1.4 !important;
   }
 
   .log-file-item-name {
     flex: 1;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 13px;
     color: var(--color-text-1);
+    font-size: 13px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .log-file-item-size {
     flex-shrink: 0;
-    font-size: 11px;
-    color: var(--color-text-3);
-    background: var(--color-fill-2);
     padding: 0 6px;
-    border-radius: 3px;
+    color: var(--color-text-3);
+    font-size: 11px;
     line-height: 18px;
+    background: var(--color-fill-2);
+    border-radius: 3px;
   }
 
   .log-content {
@@ -234,14 +234,14 @@
   }
 
   .log-pre {
+    min-height: 100%;
     margin: 0;
     padding: 16px;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 13px;
-    line-height: 1.6;
     color: #d4d4d4;
+    font-size: 13px;
+    font-family: 'Courier New', Courier, monospace;
+    line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-all;
-    min-height: 100%;
   }
 </style>

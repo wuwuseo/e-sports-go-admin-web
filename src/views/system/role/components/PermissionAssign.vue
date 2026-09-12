@@ -580,12 +580,12 @@
 
   .role-header-card {
     display: flex;
-    align-items: center;
     gap: 16px;
+    align-items: center;
     padding: 16px;
     background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-    border-radius: 8px;
     border: 1px solid var(--color-border-2);
+    border-radius: 8px;
   }
 
   .role-icon-wrapper {
@@ -594,10 +594,10 @@
     justify-content: center;
     width: 48px;
     height: 48px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
     color: #2563eb;
     font-size: 24px;
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    border-radius: 8px;
   }
 
   .role-info {
@@ -606,15 +606,15 @@
 
   .role-name-row {
     display: flex;
-    align-items: center;
     gap: 8px;
+    align-items: center;
     margin-bottom: 8px;
   }
 
   .role-name-text {
+    color: var(--color-text-1);
     font-weight: 600;
     font-size: 16px;
-    color: var(--color-text-1);
   }
 
   .role-stats {
@@ -624,17 +624,17 @@
 
   .stat-item {
     display: flex;
-    align-items: center;
     gap: 4px;
-    font-size: 13px;
+    align-items: center;
     color: var(--color-text-2);
+    font-size: 13px;
   }
 
   .toolbar-section {
-    background: var(--color-bg-2);
-    border-radius: 8px;
     padding: 12px 16px;
+    background: var(--color-bg-2);
     border: 1px solid var(--color-border-2);
+    border-radius: 8px;
   }
 
   .search-filter-row {
@@ -646,56 +646,56 @@
 
   .type-option {
     display: flex;
-    align-items: center;
     gap: 6px;
+    align-items: center;
   }
 
   .batch-actions-row {
     display: flex;
-    align-items: center;
     flex-wrap: wrap;
     gap: 8px;
+    align-items: center;
   }
 
   .checked-count-badge {
     display: flex;
-    align-items: center;
     gap: 6px;
-    font-size: 13px;
+    align-items: center;
     color: var(--color-text-2);
+    font-size: 13px;
   }
 
   .permission-tree-wrapper {
-    border: 1px solid var(--color-border-2);
-    border-radius: 8px;
     padding: 12px;
     background: var(--color-bg-1);
+    border: 1px solid var(--color-border-2);
+    border-radius: 8px;
   }
 
   .tree-node-title {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
     flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    width: 100%;
   }
 
   .leaf-node {
     display: flex;
-    align-items: center;
-    gap: 6px;
     flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
   }
 
   .method-badge {
     display: inline-block;
     padding: 1px 6px;
-    font-size: 11px;
-    font-weight: 600;
-    border-radius: 4px;
-    background: #3b82f6;
     color: white;
+    font-weight: 600;
+    font-size: 11px;
     text-transform: uppercase;
+    background: #3b82f6;
+    border-radius: 4px;
   }
 
   .name-text {
@@ -705,11 +705,11 @@
 
   .path-text,
   .code-text {
-    font-size: 12px;
+    padding: 2px 6px;
     color: var(--color-text-3);
+    font-size: 12px;
     font-family: monospace;
     background: var(--color-bg-3);
-    padding: 2px 6px;
     border-radius: 4px;
   }
 
@@ -721,8 +721,8 @@
 
   .folder-node {
     display: flex;
-    align-items: center;
     gap: 6px;
+    align-items: center;
   }
 
   .folder-icon {
@@ -731,16 +731,16 @@
   }
 
   .folder-count {
-    font-size: 12px;
-    color: var(--color-text-3);
     margin-left: 4px;
+    color: var(--color-text-3);
+    font-size: 12px;
   }
 
   .type-dot {
+    flex-shrink: 0;
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    flex-shrink: 0;
 
     &.api {
       background: #3b82f6;
@@ -756,10 +756,10 @@
   }
 
   .summary-section {
-    background: var(--color-bg-2);
-    border-radius: 8px;
     padding: 0 16px;
+    background: var(--color-bg-2);
     border: 1px solid var(--color-border-2);
+    border-radius: 8px;
   }
 
   .type-summary {
@@ -770,18 +770,18 @@
 
   .summary-item {
     display: flex;
-    align-items: center;
     gap: 6px;
+    align-items: center;
   }
 
   .summary-label {
-    font-size: 13px;
     color: var(--color-text-2);
+    font-size: 13px;
   }
 
   .summary-value {
-    font-size: 13px;
-    font-weight: 600;
     color: var(--color-text-1);
+    font-weight: 600;
+    font-size: 13px;
   }
 </style>

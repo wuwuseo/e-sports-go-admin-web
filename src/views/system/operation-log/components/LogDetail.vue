@@ -107,14 +107,14 @@
 
 <style lang="less" scoped>
   .request-body {
+    max-height: 300px;
     margin: 0;
     padding: 8px;
-    background-color: var(--color-fill-2);
-    border-radius: 4px;
-    font-size: 13px;
-    max-height: 300px;
     overflow: auto;
+    font-size: 13px;
     white-space: pre-wrap;
     word-break: break-all;
+    background-color: var(--color-fill-2);
+    border-radius: 4px;
   }
 </style>
