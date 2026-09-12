@@ -635,6 +635,58 @@ export interface LoginLogQuery extends PaginationQuery {
   end_time?: string;
 }
 
+// ===== 任务队列相关 =====
+export type QueueTaskState =
+  | 'pending'
+  | 'active'
+  | 'scheduled'
+  | 'retry'
+  | 'archived'
+  | 'completed';
+
+export interface QueueTaskResponse {
+  id: string;
+  queue: string;
+  name: string;
+  payload: string;
+  state: QueueTaskState;
+  max_retry: number;
+  attempt: number;
+  last_error: string;
+  last_failed_at: string | null;
+  next_process_at: string | null;
+  completed_at: string | null;
+  timeout_seconds: number;
+  is_orphaned: boolean;
+}
+
+export interface QueueStatsResponse {
+  queue: string;
+  size: number;
+  pending: number;
+  active: number;
+  scheduled: number;
+  retry: number;
+  archived: number;
+  completed: number;
+  memory_usage: number;
+  processed: number;
+  failed: number;
+}
+
+export interface QueueTaskQuery extends PaginationQuery {
+  state: QueueTaskState;
+  queue?: string;
+}
+
+export interface EnqueueQueueTaskRequest {
+  name: string;
+  payload: string;
+  queue?: string;
+  delay_seconds?: number;
+  max_retry?: number;
+}
+
 // ===== 数据字典相关 =====
 export interface DictDataResponse {
   id: number;

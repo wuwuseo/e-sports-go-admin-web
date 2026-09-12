@@ -89,6 +89,16 @@ const SYSTEM: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'queue-job',
+      name: 'SystemQueueJob',
+      component: () => import('@/views/system/queue-job/index.vue'),
+      meta: {
+        locale: 'menu.system.queueJob',
+        requiresAuth: true,
+        permissionCode: ['/system/queue-job', 'queuejob'],
+      },
+    },
+    {
       path: 'operation-log',
       name: 'SystemOperationLog',
       component: () => import('@/views/system/operation-log/index.vue'),
