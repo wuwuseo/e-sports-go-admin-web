@@ -16,6 +16,7 @@
 <script lang="ts" setup>
   import { PropType } from 'vue';
   import { useAppStore } from '@/store';
+  import fetchServerMenuRoutes from '@/router/routes/server-menu';
   import FormWrapper from './form-wrapper.vue';
 
   interface OptionsProps {
@@ -48,7 +49,10 @@
       document.body.style.filter = value ? 'invert(80%)' : 'none';
     }
     if (key === 'menuFromServer' && value) {
-      await appStore.fetchServerMenuConfig();
+      const menuRoutes = await fetchServerMenuRoutes();
+      if (menuRoutes) {
+        appStore.setServerMenu(menuRoutes);
+      }
     }
     if (key === 'topMenu') {
       appStore.updateSettings({
