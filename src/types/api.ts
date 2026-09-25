@@ -1091,3 +1091,45 @@ export interface CaptchaSettings {
   providers: Record<string, CaptchaProviderSettingsResponse>;
   scenes: Partial<Record<CaptchaScene, CaptchaSceneSettings>>;
 }
+
+// ===== 幻灯片相关 =====
+export interface SlideResponse {
+  id: number;
+  title: string;
+  image: string;
+  link?: string;
+  group_code: string;
+  sort: number;
+  status: number;
+  remark?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SlideQuery {
+  page?: number;
+  page_size?: number;
+  keyword?: string;
+  group_code?: string;
+  status?: number;
+}
+
+export interface CreateSlideRequest {
+  title: string;
+  image: string;
+  link?: string;
+  group_code: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+}
+
+export interface UpdateSlideRequest {
+  title?: string;
+  image?: string;
+  link?: string;
+  group_code?: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+}
