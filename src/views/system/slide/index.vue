@@ -284,6 +284,7 @@
 
   const handlePageSizeChange = (size: number) => {
     pageSize.value = size;
+    pagination.pageSize = pageSize.value;
     currentPage.value = 1;
     fetchData();
   };
