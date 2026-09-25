@@ -99,6 +99,16 @@ const SYSTEM: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'slide',
+      name: 'SystemSlide',
+      component: () => import('@/views/system/slide/index.vue'),
+      meta: {
+        locale: 'menu.system.slide',
+        requiresAuth: true,
+        permissionCode: ['/system/slide', 'system:slide', 'slide'],
+      },
+    },
+    {
       path: 'operation-log',
       name: 'SystemOperationLog',
       component: () => import('@/views/system/operation-log/index.vue'),

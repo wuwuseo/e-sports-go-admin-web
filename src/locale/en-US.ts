@@ -10,6 +10,7 @@ import localeOperationLog from '@/views/system/operation-log/locale/en-US';
 import localeLoginLog from '@/views/system/login-log/locale/en-US';
 import localeSystemCronJob from '@/views/system/cron-job/locale/en-US';
 import localeSystemQueueJob from '@/views/system/queue-job/locale/en-US';
+import localeSystemSlide from '@/views/system/slide/locale/en-US';
 import localeDictData from '@/views/system/dict-data/locale/en-US';
 import localeConfig from '@/views/system/config/locale/en-US';
 import localeSystemPlugin from '@/views/system/plugin/locale/en-US';
@@ -50,6 +51,7 @@ export default {
   ...localeLoginLog,
   ...localeSystemCronJob,
   ...localeSystemQueueJob,
+  ...localeSystemSlide,
   ...localeDictData,
   ...localeConfig,
   ...localeSystemPlugin,
