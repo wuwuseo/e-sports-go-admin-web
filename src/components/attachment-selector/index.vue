@@ -158,6 +158,7 @@
             @press-enter="handleSearch"
           />
           <a-select
+            v-if="accept !== 'image/*'"
             v-model="filterMimeType"
             :placeholder="$t('system.attachment.filter.mimeType')"
             allow-clear
@@ -308,6 +309,7 @@
       multiple?: boolean;
       groupId?: number;
       accept?: string;
+      defaultDirectory?: string;
       disabled?: boolean;
       triggerText?: string;
       pageSize?: number;
@@ -317,6 +319,7 @@
       multiple: false,
       groupId: undefined,
       accept: '',
+      defaultDirectory: '',
       disabled: false,
       triggerText: '',
       pageSize: 10,
@@ -343,7 +346,7 @@
   const isUploading = ref(false);
   const chunkThreshold = ref(10 * 1024 * 1024);
   const chunkSize = ref(5 * 1024 * 1024);
-  const uploadDirectory = ref('');
+  const uploadDirectory = ref(props.defaultDirectory);
 
   const attachments = ref<AttachmentResponse[]>([]);
   const attachmentPreviewUrls = reactive<Record<number, string>>({});
@@ -388,7 +391,7 @@
     arcoFileList.value = [];
     uploadItems.value = [];
     isUploading.value = false;
-    uploadDirectory.value = '';
+    uploadDirectory.value = props.defaultDirectory;
   };
 
   const close = () => {
@@ -585,7 +588,10 @@
         page_size: browserPagination.pageSize,
         group_id: props.groupId,
         keyword: searchKeyword.value || undefined,
-        mime_type: filterMimeType.value || undefined,
+        mime_type:
+          props.accept === 'image/*'
+            ? 'image/'
+            : filterMimeType.value || undefined,
       });
       attachments.value = res.data.data.data;
       browserPagination.total = res.data.data.total;

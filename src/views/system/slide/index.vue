@@ -136,6 +136,13 @@
             </template>
           </a-table-column>
           <a-table-column
+            :title="$t('system.slide.remark')"
+            data-index="remark"
+            :width="180"
+            :ellipsis="true"
+            :tooltip="true"
+          />
+          <a-table-column
             :title="$t('system.slide.operations')"
             :width="140"
             fixed="right"

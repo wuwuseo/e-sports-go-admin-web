@@ -9,6 +9,9 @@ export default {
   'system.slide.image': 'Image',
   'system.slide.image.placeholder': 'Enter image URL or pick from attachments',
   'system.slide.image.required': 'Image is required',
+  'system.slide.image.invalidType': 'Select an image attachment',
+  'system.slide.image.resolveFailed':
+    'Could not get the image URL. Please select it again',
   'system.slide.link': 'Link',
   'system.slide.link.placeholder': 'Enter target URL (optional)',
   'system.slide.sort': 'Sort',

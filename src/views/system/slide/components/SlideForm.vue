@@ -44,6 +44,7 @@
             v-model="form.image"
             :max-length="500"
             :placeholder="$t('system.slide.image.placeholder')"
+            @input="handleImageInput"
           />
           <div v-if="form.image" class="slide-image-preview">
             <img :src="form.image" :alt="form.title" />
@@ -51,6 +52,7 @@
           <AttachmentSelector
             :model-value="selectedAttachment"
             accept="image/*"
+            default-directory="public/slides"
             @select="handleImageSelect"
           />
         </div>
@@ -115,6 +117,8 @@
   const groupLoading = ref(false);
   const groupOptions = ref<DictDataResponse[]>([]);
   const selectedAttachment = ref<AttachmentResponse | null>(null);
+  let pendingImageSelection: Promise<void> | null = null;
+  let imageSelectionVersion = 0;
 
   const isEdit = computed(() => !!props.record);
 
@@ -134,6 +138,23 @@
     image: [{ required: true, message: t('system.slide.image.required') }],
   };
 
+  const toSlideImagePath = (value: string) => {
+    try {
+      const parsed = new URL(value);
+      if (
+        ['http:', 'https:'].includes(parsed.protocol) &&
+        parsed.pathname.startsWith('/uploads/') &&
+        !parsed.search &&
+        !parsed.hash
+      ) {
+        return parsed.pathname;
+      }
+    } catch {
+      // 已经是相对路径时直接使用
+    }
+    return value;
+  };
+
   const loadGroupOptions = async () => {
     groupLoading.value = true;
     try {
@@ -146,17 +167,47 @@
     }
   };
 
-  const handleImageSelect = async (
+  const handleImageInput = () => {
+    imageSelectionVersion += 1;
+    pendingImageSelection = null;
+    selectedAttachment.value = null;
+  };
+
+  const handleImageSelect = (
     attachment: AttachmentResponse | AttachmentResponse[]
   ) => {
     const next = Array.isArray(attachment) ? attachment[0] : attachment;
     if (!next) return;
+    if (!next.mime_type.startsWith('image/')) {
+      Message.error(t('system.slide.image.invalidType'));
+      return;
+    }
+    imageSelectionVersion += 1;
+    const version = imageSelectionVersion;
     selectedAttachment.value = next;
-    // 统一上传约定:幻灯片图片存访问 URL 字符串(公开目录为永久直链)
-    form.image = await resolveAttachmentAccessUrl(next.id);
+    form.image = '';
+    // 本地公开附件保存为根相对路径，避免把当前域名写入幻灯片记录。
+    const task = resolveAttachmentAccessUrl(next.id)
+      .then((url) => {
+        if (version === imageSelectionVersion) {
+          form.image = toSlideImagePath(url);
+        }
+      })
+      .catch(() => {
+        if (version === imageSelectionVersion) {
+          selectedAttachment.value = null;
+          Message.error(t('system.slide.image.resolveFailed'));
+        }
+      })
+      .finally(() => {
+        if (pendingImageSelection === task) pendingImageSelection = null;
+      });
+    pendingImageSelection = task;
   };
 
   const resetForm = () => {
+    imageSelectionVersion += 1;
+    pendingImageSelection = null;
     form.title = '';
     form.group_code = '';
     form.image = '';
@@ -169,9 +220,11 @@
   };
 
   const fillForm = (record: SlideResponse) => {
+    imageSelectionVersion += 1;
+    pendingImageSelection = null;
     form.title = record.title;
     form.group_code = record.group_code;
-    form.image = record.image;
+    form.image = toSlideImagePath(record.image);
     form.link = record.link || '';
     form.sort = record.sort;
     form.status = record.status;
@@ -197,6 +250,9 @@
   };
 
   const handleOk = async () => {
+    const imageSelection = pendingImageSelection;
+    if (imageSelection) await imageSelection;
+    if (pendingImageSelection) return false;
     const errors = await formRef.value?.validate();
     if (errors) {
       return false;
@@ -206,7 +262,7 @@
         await updateSlide(props.record.id, {
           title: form.title,
           group_code: form.group_code,
-          image: form.image,
+          image: toSlideImagePath(form.image),
           link: form.link,
           sort: form.sort,
           status: form.status,
@@ -217,7 +273,7 @@
         await createSlide({
           title: form.title,
           group_code: form.group_code,
-          image: form.image,
+          image: toSlideImagePath(form.image),
           link: form.link,
           sort: form.sort,
           status: form.status,

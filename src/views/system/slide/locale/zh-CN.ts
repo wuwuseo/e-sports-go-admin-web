@@ -9,6 +9,8 @@ export default {
   'system.slide.image': '图片',
   'system.slide.image.placeholder': '请输入图片URL或从附件库选择',
   'system.slide.image.required': '图片不能为空',
+  'system.slide.image.invalidType': '请选择图片附件',
+  'system.slide.image.resolveFailed': '获取图片访问地址失败，请重新选择',
   'system.slide.link': '跳转链接',
   'system.slide.link.placeholder': '请输入点击跳转地址(可选)',
   'system.slide.sort': '排序',
