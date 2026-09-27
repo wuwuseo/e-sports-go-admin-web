@@ -1,6 +1,175 @@
 <template>
   <div class="container page-container">
     <a-card class="general-card" :title="$t('menu.system.queueJob')">
+      <a-alert v-if="capabilities" style="margin-bottom: 16px">
+        {{ $t('system.queueJob.backend') }}: {{ capabilities.driver }}
+      </a-alert>
+      <a-table
+        :data="overviewData"
+        :pagination="false"
+        row-key="queue"
+        style="margin-bottom: 20px"
+      >
+        <template #columns>
+          <a-table-column
+            :title="$t('system.queueJob.table.queue')"
+            data-index="queue"
+          />
+          <a-table-column
+            :title="$t('system.queueJob.overview.source')"
+            data-index="source"
+          />
+          <a-table-column
+            v-if="
+              capabilities?.driver !== 'kafka' &&
+              capabilities?.driver !== 'amqp10'
+            "
+            :title="$t('system.queueJob.overview.ready')"
+          >
+            <template #cell="{ record }">{{
+              countText(record.ready)
+            }}</template>
+          </a-table-column>
+          <a-table-column
+            v-if="
+              capabilities?.driver !== 'kafka' &&
+              capabilities?.driver !== 'amqp10'
+            "
+            :title="$t('system.queueJob.overview.active')"
+          >
+            <template #cell="{ record }">{{
+              countText(record.active)
+            }}</template>
+          </a-table-column>
+          <a-table-column
+            v-if="
+              ['rabbitmq', 'nsq', 'amqp10'].includes(capabilities?.driver || '')
+            "
+            :title="$t('system.queueJob.overview.consumers')"
+          >
+            <template #cell="{ record }">{{
+              countText(record.consumers)
+            }}</template>
+          </a-table-column>
+          <a-table-column
+            v-if="capabilities?.driver === 'kafka'"
+            :title="$t('system.queueJob.overview.lag')"
+          >
+            <template #cell="{ record }">{{ countText(record.lag) }}</template>
+          </a-table-column>
+          <a-table-column
+            v-if="capabilities?.driver === 'kafka'"
+            :title="$t('system.queueJob.overview.partitions')"
+          >
+            <template #cell="{ record }">{{
+              countText(record.partitions)
+            }}</template>
+          </a-table-column>
+          <a-table-column
+            v-if="capabilities?.driver === 'kafka'"
+            :title="$t('system.queueJob.overview.consumerOffset')"
+          >
+            <template #cell="{ record }">{{
+              countText(record.consumer_offset)
+            }}</template>
+          </a-table-column>
+          <a-table-column
+            v-if="capabilities?.driver === 'kafka'"
+            :title="$t('system.queueJob.overview.endOffset')"
+          >
+            <template #cell="{ record }">{{
+              countText(record.end_offset)
+            }}</template>
+          </a-table-column>
+          <a-table-column
+            v-if="capabilities?.driver === 'kafka'"
+            :title="$t('system.queueJob.overview.partitionDetails')"
+          >
+            <template #cell="{ record }">
+              <a-tooltip :content="partitionText(record.partition_offsets)">
+                <span>{{ partitionText(record.partition_offsets) }}</span>
+              </a-tooltip>
+            </template>
+          </a-table-column>
+          <a-table-column
+            v-if="capabilities?.queue_pause"
+            :title="$t('system.queueJob.overview.paused')"
+          >
+            <template #cell="{ record }">{{
+              record.paused === null
+                ? '—'
+                : record.paused
+                ? $t('system.queueJob.overview.yes')
+                : $t('system.queueJob.overview.no')
+            }}</template>
+          </a-table-column>
+          <a-table-column
+            v-if="['rabbitmq', 'amqp10'].includes(capabilities?.driver || '')"
+            :title="$t('system.queueJob.overview.connected')"
+          >
+            <template #cell="{ record }">{{
+              record.connected === null
+                ? '—'
+                : record.connected
+                ? $t('system.queueJob.overview.yes')
+                : $t('system.queueJob.overview.no')
+            }}</template>
+          </a-table-column>
+          <a-table-column :title="$t('system.queueJob.overview.health')">
+            <template #cell="{ record }">
+              <a-tag :color="record.healthy ? 'green' : 'red'">{{
+                record.error ||
+                (record.healthy
+                  ? $t('system.queueJob.overview.healthy')
+                  : $t('system.queueJob.overview.unhealthy'))
+              }}</a-tag>
+            </template>
+          </a-table-column>
+          <a-table-column
+            v-if="capabilities?.queue_pause"
+            :title="$t('system.queueJob.operations')"
+          >
+            <template #cell="{ record }">
+              <a-space>
+                <a-button
+                  size="small"
+                  @click="setQueuePause(record.queue, true)"
+                  >{{ $t('system.queueJob.ops.pause') }}</a-button
+                >
+                <a-button
+                  size="small"
+                  @click="setQueuePause(record.queue, false)"
+                  >{{ $t('system.queueJob.ops.resume') }}</a-button
+                >
+              </a-space>
+            </template>
+          </a-table-column>
+        </template>
+      </a-table>
+      <a-alert
+        v-if="capabilities && !capabilities.task_list"
+        style="margin-bottom: 16px"
+      >
+        {{ $t('system.queueJob.noTaskList') }}
+      </a-alert>
+      <div v-if="capabilities?.raw_message_get" style="margin-bottom: 16px">
+        <a-space>
+          <a-input-number
+            v-model="rawSequence"
+            :min="1"
+            :precision="0"
+            :placeholder="$t('system.queueJob.raw.sequence')"
+          />
+          <a-button @click="lookupRawMessage">{{
+            $t('system.queueJob.raw.lookup')
+          }}</a-button>
+        </a-space>
+        <pre
+          v-if="rawPayload"
+          style="white-space: pre-wrap; overflow-wrap: anywhere"
+          >{{ rawPayload }}</pre
+        >
+      </div>
       <!-- 工具栏 -->
       <div class="page-toolbar">
         <div class="page-toolbar-left">
@@ -29,6 +198,7 @@
 
       <!-- 状态切换（列表接口要求必传 state） -->
       <a-tabs
+        v-if="capabilities?.task_list"
         v-model:active-key="activeState"
         size="medium"
         @change="handleFilterChange"
@@ -41,7 +211,11 @@
       </a-tabs>
 
       <!-- 统计卡片 -->
-      <a-row :gutter="12" style="margin-bottom: 20px">
+      <a-row
+        v-if="capabilities?.task_stats"
+        :gutter="12"
+        style="margin-bottom: 20px"
+      >
         <a-col v-for="card in statCards" :key="card.key" :span="6">
           <div class="stat-card" style="padding: 10px 16px">
             <div
@@ -67,6 +241,7 @@
 
       <!-- 任务表 -->
       <a-table
+        v-if="capabilities?.task_list"
         :data="tableData"
         :loading="loading"
         :pagination="pagination"
@@ -187,7 +362,7 @@
                   </a-button>
                 </a-popconfirm>
                 <a-popconfirm
-                  v-if="record.state === 'active'"
+                  v-if="capabilities?.task_cancel && record.state === 'active'"
                   :content="$t('system.queueJob.cancelConfirm')"
                   @ok="handleCancel(record)"
                 >
@@ -197,7 +372,7 @@
                   </a-button>
                 </a-popconfirm>
                 <a-popconfirm
-                  v-if="record.state !== 'active'"
+                  v-if="capabilities?.task_delete && record.state !== 'active'"
                   :content="$t('system.queueJob.deleteConfirm')"
                   @ok="handleDelete(record)"
                 >
@@ -220,6 +395,7 @@
     <EnqueueTaskForm
       v-model:visible="enqueueVisible"
       :queue-options="queueOptions"
+      :capabilities="capabilities"
       @success="refreshAll"
     />
   </div>
@@ -250,6 +426,9 @@
     QueueStatsResponse,
     QueueTaskResponse,
     QueueTaskState,
+    QueueCapabilities,
+    QueueOverview,
+    QueuePartitionOffset,
   } from '@/types/api';
   import { formatDateTime } from '@/utils';
   import {
@@ -258,6 +437,11 @@
     retryQueueTask,
     cancelQueueTask,
     deleteQueueTask,
+    getQueueCapabilities,
+    getQueueOverview,
+    pauseQueue,
+    resumeQueue,
+    getQueueRawMessage,
   } from '@/api/queue-job';
   import QueueTaskDetail from './components/QueueTaskDetail.vue';
   import EnqueueTaskForm from './components/EnqueueTaskForm.vue';
@@ -287,6 +471,23 @@
   const loading = ref(false);
   const tableData = ref<QueueTaskResponse[]>([]);
   const statsData = ref<QueueStatsResponse[]>([]);
+  const capabilities = ref<QueueCapabilities | null>(null);
+  const overviewData = ref<QueueOverview[]>([]);
+  const rawSequence = ref<number>();
+  const rawPayload = ref('');
+  const countText = (value: number | null) =>
+    value === null || value === undefined ? '—' : String(value);
+  const partitionText = (items: QueuePartitionOffset[] | null) =>
+    items?.length
+      ? items
+          .map(
+            (item) =>
+              `${item.partition}: ${countText(item.committed)}/${countText(
+                item.end
+              )} (${t('system.queueJob.overview.lag')} ${countText(item.lag)})`
+          )
+          .join('; ')
+      : '—';
   const detailVisible = ref(false);
   const enqueueVisible = ref(false);
   const currentTask = ref<QueueTaskResponse | undefined>(undefined);
@@ -321,7 +522,7 @@
   const stateCount = (state: QueueTaskState) => aggregated.value[state] ?? 0;
 
   const queueOptions = computed(() => {
-    const names = statsData.value.map((s) => s.queue);
+    const names = overviewData.value.map((s) => s.queue);
     return names.length ? names : ['default'];
   });
 
@@ -393,6 +594,7 @@
   ]);
 
   const canRetry = (record: QueueTaskResponse) =>
+    !!capabilities.value?.task_retry &&
     ['scheduled', 'retry', 'archived'].includes(record.state);
 
   const fetchStats = async () => {
@@ -423,9 +625,55 @@
     }
   };
 
-  const refreshAll = () => {
-    fetchStats();
-    fetchData();
+  const refreshAll = async () => {
+    if (!capabilities.value) {
+      try {
+        const { data } = await getQueueCapabilities();
+        capabilities.value = data.data;
+      } catch {
+        return;
+      }
+    }
+    try {
+      const { data } = await getQueueOverview();
+      overviewData.value = data.data || [];
+    } catch {
+      overviewData.value = [];
+    }
+    if (capabilities.value?.task_stats) fetchStats();
+    if (capabilities.value?.task_list) fetchData();
+  };
+
+  const setQueuePause = async (queue: string, pause: boolean) => {
+    try {
+      if (pause) await pauseQueue(queue);
+      else await resumeQueue(queue);
+      Message.success(
+        t(
+          pause
+            ? 'system.queueJob.pauseSuccess'
+            : 'system.queueJob.resumeSuccess'
+        )
+      );
+      refreshAll();
+    } catch {
+      // error handled by interceptor
+    }
+  };
+
+  const lookupRawMessage = async () => {
+    if (!rawSequence.value || rawSequence.value < 1) return;
+    try {
+      const { data } = await getQueueRawMessage(
+        queueFilter.value,
+        rawSequence.value
+      );
+      rawPayload.value = new TextDecoder().decode(
+        Uint8Array.from(atob(data.data.payload), (char) => char.charCodeAt(0))
+      );
+    } catch {
+      rawPayload.value = '';
+    }
   };
 
   const handleFilterChange = () => {

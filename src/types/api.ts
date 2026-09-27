@@ -636,6 +636,53 @@ export interface LoginLogQuery extends PaginationQuery {
 }
 
 // ===== 任务队列相关 =====
+export interface QueueCapabilities {
+  driver: string;
+  task_list: boolean;
+  task_get: boolean;
+  task_stats: boolean;
+  task_retry: boolean;
+  task_delete: boolean;
+  task_cancel: boolean;
+  delay: boolean;
+  unique: boolean;
+  max_retry: boolean;
+  retention: boolean;
+  strict_priority: boolean;
+  queue_pause: boolean;
+  raw_message_get: boolean;
+}
+
+export interface QueuePartitionOffset {
+  partition: number;
+  committed: number | null;
+  end: number | null;
+  lag: number | null;
+}
+
+export interface QueueOverview {
+  queue: string;
+  source: string;
+  ready: number | null;
+  active: number | null;
+  consumers: number | null;
+  lag: number | null;
+  partitions: number | null;
+  consumer_offset: number | null;
+  end_offset: number | null;
+  paused: boolean | null;
+  connected: boolean | null;
+  partition_offsets: QueuePartitionOffset[] | null;
+  healthy: boolean;
+  error?: string;
+}
+
+export interface QueueRawMessage {
+  queue: string;
+  sequence: number;
+  payload: string;
+}
+
 export type QueueTaskState =
   | 'pending'
   | 'active'

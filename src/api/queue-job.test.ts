@@ -10,6 +10,11 @@ import {
   retryQueueTask,
   cancelQueueTask,
   deleteQueueTask,
+  getQueueCapabilities,
+  getQueueOverview,
+  pauseQueue,
+  resumeQueue,
+  getQueueRawMessage,
 } from './queue-job';
 
 vi.mock('axios', () => ({
@@ -91,6 +96,35 @@ describe('queue job api contract', () => {
     );
     expect(axios.delete).toHaveBeenCalledWith(
       '/api/v1/admin/auth/queue-jobs/default/task-1'
+    );
+  });
+
+  it('原生能力与队列操作使用同一管理 API', () => {
+    getQueueCapabilities();
+    getQueueOverview();
+    pauseQueue('high priority');
+    resumeQueue('high priority');
+    getQueueRawMessage('default', 7);
+
+    expect(axios.get).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/admin/auth/queue-jobs/capabilities'
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/admin/auth/queue-jobs/overview'
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/admin/auth/queue-jobs/default/messages/7'
+    );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/admin/auth/queue-jobs/high%20priority/pause'
+    );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/admin/auth/queue-jobs/high%20priority/resume'
     );
   });
 });

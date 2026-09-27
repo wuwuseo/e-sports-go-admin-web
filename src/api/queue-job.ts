@@ -6,7 +6,42 @@ import type {
   EnqueueQueueTaskRequest,
   ApiResponse,
   PaginatedResponse,
+  QueueCapabilities,
+  QueueOverview,
+  QueueRawMessage,
 } from '@/types/api';
+
+export function getQueueCapabilities() {
+  return axios.get<ApiResponse<QueueCapabilities>>(
+    '/api/v1/admin/auth/queue-jobs/capabilities'
+  );
+}
+
+export function getQueueOverview() {
+  return axios.get<ApiResponse<QueueOverview[]>>(
+    '/api/v1/admin/auth/queue-jobs/overview'
+  );
+}
+
+export function pauseQueue(queue: string) {
+  return axios.post<ApiResponse<null>>(
+    `/api/v1/admin/auth/queue-jobs/${encodeURIComponent(queue)}/pause`
+  );
+}
+
+export function resumeQueue(queue: string) {
+  return axios.post<ApiResponse<null>>(
+    `/api/v1/admin/auth/queue-jobs/${encodeURIComponent(queue)}/resume`
+  );
+}
+
+export function getQueueRawMessage(queue: string, sequence: number) {
+  return axios.get<ApiResponse<QueueRawMessage>>(
+    `/api/v1/admin/auth/queue-jobs/${encodeURIComponent(
+      queue
+    )}/messages/${sequence}`
+  );
+}
 
 // 获取队列任务列表（state 必传）
 export function getQueueTasks(params: QueueTaskQuery) {

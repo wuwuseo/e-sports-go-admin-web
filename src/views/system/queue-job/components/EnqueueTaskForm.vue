@@ -37,6 +37,7 @@
         </a-select>
       </a-form-item>
       <a-form-item
+        v-if="capabilities?.delay"
         field="delay_seconds"
         :label="$t('system.queueJob.form.delaySeconds')"
       >
@@ -48,6 +49,7 @@
         />
       </a-form-item>
       <a-form-item
+        v-if="capabilities?.max_retry"
         field="max_retry"
         :label="$t('system.queueJob.form.maxRetry')"
       >
@@ -68,10 +70,12 @@
   import { Message } from '@arco-design/web-vue';
   import { useI18n } from 'vue-i18n';
   import { getQueueHandlers, enqueueQueueTask } from '@/api/queue-job';
+  import type { QueueCapabilities } from '@/types/api';
 
   const props = defineProps<{
     visible: boolean;
     queueOptions?: string[];
+    capabilities?: QueueCapabilities | null;
   }>();
 
   const emit = defineEmits<{
@@ -154,8 +158,12 @@
         // 后端 payload 为 JSON 文本字符串，非对象
         payload: formData.value.payload,
         queue: formData.value.queue || undefined,
-        delay_seconds: formData.value.delay_seconds || 0,
-        max_retry: formData.value.max_retry,
+        delay_seconds: props.capabilities?.delay
+          ? formData.value.delay_seconds || 0
+          : undefined,
+        max_retry: props.capabilities?.max_retry
+          ? formData.value.max_retry
+          : undefined,
       });
       Message.success(
         `${t('system.queueJob.enqueueSuccess')}: ${data.data?.task_id || ''}`
