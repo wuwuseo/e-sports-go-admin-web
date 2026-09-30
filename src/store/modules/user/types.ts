@@ -1,4 +1,4 @@
-import type { PermissionResponse } from '@/types/api';
+import type { PermissionResponse, SysPermissionTreeNode } from '@/types/api';
 
 export type RoleType = '' | '*' | 'admin' | 'user';
 export interface UserState {
@@ -20,6 +20,8 @@ export interface UserState {
   role: RoleType;
   // 用户混合权限列表
   permissions: PermissionResponse[];
+  // 保留后端菜单元数据，供源码功能集注册页面路由。
+  permissionTree: SysPermissionTreeNode[];
   // 用户混合权限码列表
   permissionCodes: string[];
   // 权限加载状态

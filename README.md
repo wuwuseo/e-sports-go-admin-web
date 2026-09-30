@@ -279,6 +279,7 @@ web/
 
 - [.trae/rules/project_rules.md](file:///d:/www/admin-web/web/.trae/rules/project_rules.md) — 项目规则
 - [AGENTS.md](file:///d:/www/admin-web/web/AGENTS.md) — Agent 协作约定
+- [docs/source-apps.md](./docs/source-apps.md) — 前端源码功能集接入规范
 
 ### 格式化命令示例
 

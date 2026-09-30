@@ -22,6 +22,13 @@ import localeMessage from '@/views/message/locale/zh-CN';
 
 import localeSettings from './zh-CN/settings';
 
+const appLocales = Object.values(
+  import.meta.glob('../apps/*/locale/zh-CN.ts', { eager: true }) as Record<
+    string,
+    { default: Record<string, string> }
+  >
+).reduce((messages, module) => ({ ...messages, ...module.default }), {});
+
 export default {
   'menu.dashboard': '仪表盘',
   'menu.system.admin': '管理员管理',
@@ -60,4 +67,5 @@ export default {
   ...localeSystemDepartment,
   ...localeSystemCaptcha,
   ...localeMessage,
+  ...appLocales,
 };

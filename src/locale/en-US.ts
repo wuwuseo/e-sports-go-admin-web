@@ -22,6 +22,13 @@ import localeMessage from '@/views/message/locale/en-US';
 
 import localeSettings from './en-US/settings';
 
+const appLocales = Object.values(
+  import.meta.glob('../apps/*/locale/en-US.ts', { eager: true }) as Record<
+    string,
+    { default: Record<string, string> }
+  >
+).reduce((messages, module) => ({ ...messages, ...module.default }), {});
+
 export default {
   'menu.dashboard': 'Dashboard',
   'menu.system.admin': 'Administrators',
@@ -60,4 +67,5 @@ export default {
   ...localeSystemDepartment,
   ...localeSystemCaptcha,
   ...localeMessage,
+  ...appLocales,
 };

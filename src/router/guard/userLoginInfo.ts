@@ -1,13 +1,28 @@
 import type { Router, LocationQueryRaw } from 'vue-router';
 import NProgress from 'nprogress';
 
-import { useUserStore } from '@/store';
+import { useAppStore, useUserStore } from '@/store';
 import { isLogin, isAdminLogin } from '@/utils/auth';
+import { syncSourceAppRoutes } from '@/router/source-apps';
 
 export default function setupUserLoginInfoGuard(router: Router) {
   router.beforeEach(async (to, _from, next) => {
     NProgress.start();
     const userStore = useUserStore();
+    const appStore = useAppStore();
+    const finishNavigation = () => {
+      const { menus, changed } = syncSourceAppRoutes(
+        router,
+        userStore.permissionTree
+      );
+      appStore.setSourceAppMenus(menus);
+      // 首次直达功能集路径时，重新匹配刚注册的页面路由。
+      if (changed && router.resolve(to.fullPath).name !== to.name) {
+        next({ path: to.fullPath, replace: true });
+        return;
+      }
+      next();
+    };
 
     const redirectToLogin = () => {
       userStore.logoutCallBack();
@@ -46,7 +61,7 @@ export default function setupUserLoginInfoGuard(router: Router) {
         if (needsReload) {
           await userStore.loadPermissions();
         }
-        next();
+        finishNavigation();
         return;
       }
 
@@ -63,7 +78,7 @@ export default function setupUserLoginInfoGuard(router: Router) {
           return;
         }
 
-        next();
+        finishNavigation();
       } catch {
         redirectToLogin();
       }

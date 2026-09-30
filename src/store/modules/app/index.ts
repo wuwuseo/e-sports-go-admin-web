@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { RouteRecordNormalized } from 'vue-router';
+import type { RouteRecordNormalized, RouteRecordRaw } from 'vue-router';
 import defaultSettings from '@/config/settings.json';
 import { AppState } from './types';
 
@@ -43,6 +43,12 @@ const useAppStore = defineStore('app', {
     },
     setServerMenu(routes: RouteRecordNormalized[]) {
       this.serverMenu = routes;
+    },
+    setSourceAppMenus(routes: RouteRecordRaw[]) {
+      this.sourceAppMenus = routes;
+    },
+    clearSourceAppMenus() {
+      this.sourceAppMenus = [];
     },
     clearServerMenu() {
       this.serverMenu = [];

@@ -23,6 +23,10 @@ import {
 } from '@/utils/auth';
 import { removeRouteListener } from '@/utils/route-listener';
 import PermissionTransformer from '@/utils/permission-transformer';
+import {
+  clearSourceAppRoutes,
+  refreshSourceAppRoutes,
+} from '@/router/source-apps';
 import type { RoleType } from './types';
 import { UserState } from './types';
 import useAppStore from '../app';
@@ -46,6 +50,7 @@ const useUserStore = defineStore('user', {
     certification: undefined,
     role: '',
     permissions: [],
+    permissionTree: [],
     permissionCodes: [],
     permissionsLoading: false,
     isAdmin: false,
@@ -166,6 +171,7 @@ const useUserStore = defineStore('user', {
       this.permissionsLoading = true;
       try {
         const { data } = await getUserPermissions({ domain: 'default' });
+        this.permissionTree = data.data;
         const permissions = PermissionTransformer.normalizePermissions(
           data.data
         );
@@ -183,6 +189,7 @@ const useUserStore = defineStore('user', {
           this.permissions
         );
       } catch {
+        this.permissionTree = [];
         this.permissions = [];
         this.permissionCodes = [];
       } finally {
@@ -193,10 +200,13 @@ const useUserStore = defineStore('user', {
     // 刷新用户权限
     async refreshPermissions() {
       await this.loadPermissions();
+      const result = refreshSourceAppRoutes(this.permissionTree);
+      if (result) useAppStore().setSourceAppMenus(result.menus);
     },
 
     // 清除用户权限
     clearPermissions() {
+      this.permissionTree = [];
       this.permissions = [];
       this.permissionCodes = [];
       this.permissionsLoading = false;
@@ -239,6 +249,8 @@ const useUserStore = defineStore('user', {
       setAdminLogin(false);
       removeRouteListener();
       appStore.clearServerMenu();
+      appStore.clearSourceAppMenus();
+      clearSourceAppRoutes();
       // 登出时断开 SSE 长连接，避免无效鉴权请求
       // 使用动态 import 避免循环依赖
       import('@/services/sse.service').then((mod) => {

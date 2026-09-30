@@ -1,5 +1,5 @@
 import { computed } from 'vue';
-import { RouteRecordRaw, RouteRecordNormalized } from 'vue-router';
+import { RouteRecordRaw } from 'vue-router';
 import usePermission from '@/hooks/permission';
 import { useAppStore, useUserStore } from '@/store';
 import appClientMenus from '@/router/app-menus';
@@ -10,16 +10,16 @@ export default function useMenuTree() {
   const appStore = useAppStore();
   const userStore = useUserStore();
   const appRoute = computed(() => {
-    if (appStore.menuFromServer) {
-      return appStore.appAsyncMenus;
-    }
-    return appClientMenus;
+    const baseMenus = appStore.menuFromServer
+      ? appStore.appAsyncMenus
+      : appClientMenus;
+    return [...baseMenus, ...appStore.sourceAppMenus];
   });
 
   const menuTree = computed(() => {
-    const copyRouter = cloneDeep(appRoute.value) as RouteRecordNormalized[];
-    copyRouter.sort((a: RouteRecordNormalized, b: RouteRecordNormalized) => {
-      return (a.meta.order || 0) - (b.meta.order || 0);
+    const copyRouter = cloneDeep(appRoute.value) as RouteRecordRaw[];
+    copyRouter.sort((a: RouteRecordRaw, b: RouteRecordRaw) => {
+      return (a.meta?.order || 0) - (b.meta?.order || 0);
     });
 
     function canAccessMenu(route: RouteRecordRaw): boolean {
