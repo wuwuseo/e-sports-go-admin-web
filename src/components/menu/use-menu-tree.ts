@@ -56,7 +56,9 @@ export default function useMenuTree() {
       const collector: any = _routes.map((element) => {
         const selfAccessible = canAccessMenu(element);
 
-        if (element.meta?.hideChildrenInMenu || !element.children) {
+        // 源码功能集的菜单节点可能携带空 children 数组（单页应用或末级菜单），
+        // 需与没有 children 的叶子节点同样处理，否则会被下面的层级判断丢弃。
+        if (element.meta?.hideChildrenInMenu || !element.children?.length) {
           if (!selfAccessible) {
             return null;
           }
