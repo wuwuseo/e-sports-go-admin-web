@@ -10,7 +10,6 @@ export interface CmsContent {
   kind: CmsKind;
   format: CmsFormat;
   content: string;
-  image: string;
   category_id: number;
   status: number;
   created_at: string;

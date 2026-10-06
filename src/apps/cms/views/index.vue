@@ -172,7 +172,7 @@
             </a-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="内容格式">
+        <a-form-item v-if="!isEditingContent" label="内容格式">
           <a-radio-group v-model="contentForm.format" type="button">
             <a-radio value="markdown">Markdown</a-radio>
             <a-radio value="html">富文本</a-radio>
@@ -191,43 +191,10 @@
           />
         </a-form-item>
         <a-form-item v-if="contentForm.format === 'html'" label="内容" required>
-          <div class="cms-rich-wrap">
-            <a-space class="cms-rich-toolbar">
-              <a-button
-                size="small"
-                @mousedown.prevent
-                @click="formatRich('bold')"
-                ><b>B</b></a-button
-              >
-              <a-button
-                size="small"
-                @mousedown.prevent
-                @click="formatRich('italic')"
-                ><i>I</i></a-button
-              >
-              <a-button
-                size="small"
-                @mousedown.prevent
-                @click="formatRich('insertUnorderedList')"
-                >列表</a-button
-              >
-              <a-button
-                size="small"
-                @mousedown.prevent
-                @click="formatRich('formatBlock', 'h2')"
-                >标题</a-button
-              >
-            </a-space>
-            <div
-              ref="richEditor"
-              class="cms-rich-editor"
-              contenteditable="true"
-              role="textbox"
-              aria-label="富文本内容"
-              @input="syncRich"
-              @paste="pastePlainText"
-            />
-          </div>
+          <RichTextEditor
+            v-model="contentForm.content"
+            image-directory="public/cms"
+          />
         </a-form-item>
         <a-form-item
           v-if="contentForm.format === 'image'"
@@ -235,21 +202,43 @@
           required
         >
           <div class="cms-image-field">
-            <a-input
-              v-model="contentForm.image"
-              placeholder="图片 URL 或选择公开图片附件"
-            />
-            <AttachmentSelector
-              accept="image/*"
-              default-directory="public/cms"
-              @select="selectImage"
-            />
-            <img
-              v-if="contentForm.image"
-              :src="contentForm.image"
-              :alt="contentForm.title"
-              class="cms-image-preview"
-            />
+            <div v-if="contentImages.length" class="cms-image-list">
+              <div
+                v-for="(src, index) in contentImages"
+                :key="`${src}-${index}`"
+                class="cms-image-item"
+              >
+                <img
+                  :src="src"
+                  :alt="contentForm.title"
+                  class="cms-image-thumb"
+                />
+                <a-button
+                  size="mini"
+                  status="danger"
+                  @click="removeContentImage(index)"
+                >
+                  移除
+                </a-button>
+              </div>
+            </div>
+            <div class="cms-image-actions">
+              <AttachmentSelector
+                accept="image/*"
+                multiple
+                default-directory="public/cms"
+                @select="addContentImages"
+              >
+                <template #trigger="{ open }">
+                  <a-button @mousedown.prevent @click="open">
+                    添加图片
+                  </a-button>
+                </template>
+              </AttachmentSelector>
+              <span class="cms-image-hint">
+                可多选、可重复添加，数量不限；当前 {{ contentImages.length }} 张
+              </span>
+            </div>
           </div>
         </a-form-item>
         <a-form-item label="状态">
@@ -283,10 +272,11 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+  import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import type { AttachmentResponse } from '@/types/api';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
+  import RichTextEditor from '@/components/rich-text-editor/index.vue';
   import { getAttachmentAccessInfo } from '@/services/attachment-access.service';
   import usePermission from '@/hooks/permission';
   import { formatDateTime } from '@/utils';
@@ -333,13 +323,11 @@
   const categoryVisible = ref(false);
   const editingContentId = ref<number | null>(null);
   const editingCategoryId = ref<number | null>(null);
-  const richEditor = ref<HTMLDivElement | null>(null);
   const contentForm = reactive<CmsContentInput>({
     title: '',
     kind: 'article',
     format: 'markdown',
     content: '',
-    image: '',
     category_id: 0,
     status: 0,
   });
@@ -400,6 +388,13 @@
     loadContents();
   };
 
+  // 纯图片格式：content 是逗号分隔的图片地址列表，数量不限。
+  const parseImageSrcs = (content: string): string[] =>
+    content
+      .split(',')
+      .map((src) => src.trim())
+      .filter(Boolean);
+
   const openContent = async (record?: CmsContent) => {
     editingContentId.value = record?.id || null;
     const item = record ? (await getContent(record.id)).data.data : null;
@@ -410,7 +405,6 @@
         kind: activeTab.value as CmsKind,
         format: 'markdown',
         content: '',
-        image: '',
         category_id: 0,
         status: 0,
       }
@@ -418,49 +412,54 @@
     contentVisible.value = true;
   };
 
-  watch([contentVisible, () => contentForm.format], async () => {
-    if (contentVisible.value && contentForm.format === 'html') {
-      await nextTick();
-      if (richEditor.value) richEditor.value.innerHTML = contentForm.content;
-    }
-  });
+  const contentImages = computed(() => parseImageSrcs(contentForm.content));
 
-  const syncRich = () => {
-    contentForm.content = richEditor.value?.innerHTML || '';
-  };
-  const formatRich = (command: string, value?: string) => {
-    richEditor.value?.focus();
-    document.execCommand(command, false, value);
-    syncRich();
-  };
-  const pastePlainText = (event: ClipboardEvent) => {
-    event.preventDefault();
-    document.execCommand(
-      'insertText',
-      false,
-      event.clipboardData?.getData('text/plain') || ''
-    );
-    syncRich();
+  // 格式决定 content 的解释方式，编辑时改动会让既有内容失去意义，故禁用。
+  const isEditingContent = computed(() => Boolean(editingContentId.value));
+
+  const setContentImages = (srcs: string[]) => {
+    contentForm.content = srcs.join(',');
   };
 
-  const selectImage = async (
+  const removeContentImage = (index: number) => {
+    const next = [...contentImages.value];
+    next.splice(index, 1);
+    setContentImages(next);
+  };
+
+  const resolvePublicImageUrl = async (item: AttachmentResponse) => {
+    const access = await getAttachmentAccessInfo(item.id);
+    if (!access.public) return null;
+    const parsed = new URL(access.url, window.location.origin);
+    return parsed.pathname.startsWith('/uploads/')
+      ? parsed.pathname
+      : access.url;
+  };
+
+  const addContentImages = async (
     selection: AttachmentResponse | AttachmentResponse[]
   ) => {
-    const item = Array.isArray(selection) ? selection[0] : selection;
-    if (!item?.mime_type.startsWith('image/')) return;
-    try {
-      const access = await getAttachmentAccessInfo(item.id);
-      if (!access.public) {
-        Message.error('请选择公开图片附件');
-        return;
-      }
-      const parsed = new URL(access.url, window.location.origin);
-      contentForm.image = parsed.pathname.startsWith('/uploads/')
-        ? parsed.pathname
-        : access.url;
-    } catch {
-      Message.error('无法获取图片访问地址');
-    }
+    const items = (Array.isArray(selection) ? selection : [selection]).filter(
+      (item) => item?.mime_type?.startsWith('image/')
+    );
+    const resolved = await Promise.all(
+      items.map(async (item) => {
+        try {
+          const src = await resolvePublicImageUrl(item);
+          if (!src) {
+            Message.error(`「${item.original_name}」不是公开图片，已跳过`);
+            return '';
+          }
+          return src;
+        } catch {
+          Message.error(`无法获取「${item.original_name}」的访问地址`);
+          return '';
+        }
+      })
+    );
+    const added = resolved.filter(Boolean);
+    if (added.length === 0) return;
+    setContentImages([...contentImages.value, ...added]);
   };
 
   const saveContent = async () => {
@@ -468,14 +467,13 @@
       Message.warning('请输入标题');
       return false;
     }
+    const isImageFormat = contentForm.format === 'image';
     if (
-      contentForm.format === 'image'
-        ? !contentForm.image.trim()
+      isImageFormat
+        ? contentImages.value.length === 0
         : !contentForm.content.trim()
     ) {
-      Message.warning(
-        contentForm.format === 'image' ? '请选择图片' : '请输入内容'
-      );
+      Message.warning(isImageFormat ? '请至少选择一张图片' : '请输入内容');
       return false;
     }
     saving.value = true;
@@ -549,37 +547,44 @@
     margin-bottom: 16px;
   }
 
-  .cms-rich-wrap,
-  .cms-image-field {
-    width: 100%;
-  }
-
-  .cms-rich-toolbar {
-    margin-bottom: 8px;
-  }
-
-  .cms-rich-editor {
-    min-height: 260px;
-    padding: 12px;
-    overflow: auto;
-    border: 1px solid var(--color-border-2);
-    border-radius: 4px;
-    outline: none;
-  }
-
-  .cms-rich-editor:focus {
-    border-color: rgb(var(--primary-6));
-  }
-
   .cms-image-field {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    width: 100%;
   }
 
-  .cms-image-preview {
-    max-width: 320px;
-    max-height: 240px;
-    object-fit: contain;
+  .cms-image-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .cms-image-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .cms-image-thumb {
+    width: 132px;
+    height: 96px;
+    object-fit: cover;
+    background-color: var(--color-fill-2);
+    border: 1px solid var(--color-border-2);
+    border-radius: 4px;
+  }
+
+  .cms-image-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .cms-image-hint {
+    color: var(--color-text-3);
+    font-size: 12px;
   }
 </style>

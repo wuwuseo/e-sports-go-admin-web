@@ -12,6 +12,7 @@ import {
 import Chart from './chart/index.vue';
 import Breadcrumb from './breadcrumb/index.vue';
 import AttachmentSelector from './attachment-selector/index.vue';
+import RichTextEditor from './rich-text-editor/index.vue';
 
 // Manually introduce ECharts modules to reduce packing size
 
@@ -33,5 +34,6 @@ export default {
     Vue.component('Chart', Chart);
     Vue.component('Breadcrumb', Breadcrumb);
     Vue.component('AttachmentSelector', AttachmentSelector);
+    Vue.component('RichTextEditor', RichTextEditor);
   },
 };
