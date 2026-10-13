@@ -152,6 +152,32 @@
           <a-table-column data-index="created_at" title="时间" />
         </template>
       </a-table>
+
+      <a-divider>批次分摊明细（§4.3）</a-divider>
+      <a-table
+        :data="allocations"
+        :loading="allocationsLoading"
+        row-key="id"
+        :pagination="{ pageSize: 10 }"
+      >
+        <template #columns>
+          <a-table-column title="消费来源">
+            <template #cell="{ record }">
+              {{ record.consume_source_type }} / {{ record.consume_source_id }}
+            </template>
+          </a-table-column>
+          <a-table-column title="动用批次">
+            <template #cell="{ record }">
+              {{ record.batch_source_type }} / {{ record.batch_source_id }}
+            </template>
+          </a-table-column>
+          <a-table-column title="分摊金额">
+            <template #cell="{ record }">{{
+              money(record.amount_cents)
+            }}</template>
+          </a-table-column>
+        </template>
+      </a-table>
     </a-drawer>
   </div>
 </template>
@@ -162,12 +188,18 @@
   import usePermission from '@/hooks/permission';
   import {
     adjustWallet,
+    listLedgerAllocations,
     listWalletTransactions,
     listWallets,
     rechargeWallet,
     rechargeWalletByCampaign,
   } from '../../api';
-  import type { WalletAccount, WalletAccountType, WalletTx } from '../../api';
+  import type {
+    LedgerAllocation,
+    WalletAccount,
+    WalletAccountType,
+    WalletTx,
+  } from '../../api';
 
   const { hasButtonPermission } = usePermission();
   const canManage = computed(() =>
@@ -191,6 +223,9 @@
   const txVisible = ref(false);
   const txLoading = ref(false);
   const transactions = ref<WalletTx[]>([]);
+  // 批次分摊明细（§4.3）：每笔消费动用了哪些充值 / 开卡批次。
+  const allocations = ref<LedgerAllocation[]>([]);
+  const allocationsLoading = ref(false);
   const txTarget = ref<WalletAccount | null>(null);
 
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
@@ -318,6 +353,7 @@
     txTarget.value = record;
     txVisible.value = true;
     txLoading.value = true;
+    allocationsLoading.value = true;
     try {
       transactions.value =
         (await listWalletTransactions(activeTab.value, record.owner_id)).data
@@ -326,6 +362,15 @@
       Message.error('无法获取流水');
     } finally {
       txLoading.value = false;
+    }
+    try {
+      allocations.value =
+        (await listLedgerAllocations(activeTab.value, String(record.owner_id)))
+          .data.data || [];
+    } catch {
+      allocations.value = [];
+    } finally {
+      allocationsLoading.value = false;
     }
   }
 

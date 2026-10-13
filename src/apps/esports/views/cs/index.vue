@@ -241,6 +241,13 @@
           <a-form-item label="手机号">
             <a-input v-model="profileForm.phone" :max-length="32" />
           </a-form-item>
+          <a-form-item label="生日（MM-DD）">
+            <a-input
+              v-model="profileForm.birthday"
+              placeholder="如 03-15，用于生日礼遇待办"
+              :max-length="5"
+            />
+          </a-form-item>
           <a-form-item label="消费偏好">
             <a-input v-model="profileForm.preference" :max-length="255" />
           </a-form-item>
@@ -521,6 +528,7 @@
   const followSaving = ref(false);
   const profileForm = reactive({
     phone: '',
+    birthday: '',
     preference: '',
     tags: [] as string[],
     followStatus: 'new' as CustomerFollowStatus,
@@ -545,6 +553,7 @@
       const detail = (await getEsportsCustomerProfile(customer.id)).data.data;
       profile.value = detail;
       profileForm.phone = detail.customer.phone;
+      profileForm.birthday = detail.customer.birthday || '';
       profileForm.preference = detail.customer.consumption_preference;
       profileForm.tags = detail.customer.tags || [];
       profileForm.followStatus = detail.customer.follow_status;
@@ -560,6 +569,7 @@
     try {
       await updateEsportsCustomerProfile(profileTarget.value.id, {
         phone: profileForm.phone,
+        birthday: profileForm.birthday,
         consumption_preference: profileForm.preference,
         tags: profileForm.tags,
         follow_status: profileForm.followStatus,

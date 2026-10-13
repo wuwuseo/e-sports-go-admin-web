@@ -55,6 +55,8 @@ export interface EsportsCustomer {
   age_status: 'unknown' | 'adult' | 'minor';
   // §8.3 客户档案扩展：手机号、消费偏好、标签、建档来源、跟进状态与最近联系时间。
   phone: string;
+  // 生日（月-日，如 03-15），用于生日礼遇待办（§10.4）；空表示未填。
+  birthday: string;
   consumption_preference: string;
   tags: string[] | null;
   source: CustomerSource;
@@ -308,6 +310,24 @@ export const depositOrder = (id: number) =>
 
 export const restoreOrder = (id: number) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/restore`);
+
+// 批次分摊明细（§4.3 / §11.3）：每笔消费动用了哪些批次。
+export interface LedgerAllocation {
+  id: number;
+  account_type: string;
+  account_id: string;
+  consume_source_type: string;
+  consume_source_id: string;
+  batch_source_type: string;
+  batch_source_id: string;
+  amount_cents: number;
+  created_at: string;
+}
+
+export const listLedgerAllocations = (accountType: string, accountId: string) =>
+  axios.get<ApiResponse<LedgerAllocation[]>>(`${base}/ledger-allocations`, {
+    params: { account_type: accountType, account_id: accountId },
+  });
 
 export const listWallets = (accountType: WalletAccountType, keyword = '') =>
   axios.get<ApiResponse<WalletAccount[]>>(`${base}/wallets`, {
@@ -2180,6 +2200,8 @@ export interface CustomerProfileSummary {
 
 export interface CustomerProfileInput {
   phone: string;
+  // 生日（月-日，如 03-15）；空表示清除。
+  birthday: string;
   consumption_preference: string;
   tags: string[];
   follow_status?: CustomerFollowStatus;

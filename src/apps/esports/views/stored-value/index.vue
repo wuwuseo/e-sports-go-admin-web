@@ -195,6 +195,9 @@
             :min="0"
             :disabled="createForm.packageId > 0"
           />
+          <a-typography-text type="secondary"
+            >选套餐时由套餐决定；留空（0）则按客户会员等级的赠送比例自动计算（§10.4）。</a-typography-text
+          >
         </a-form-item>
         <a-form-item label="适用商品 SKU ID（留空为全场通用）">
           <a-input-tag
