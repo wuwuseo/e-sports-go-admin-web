@@ -161,6 +161,14 @@
         <a-form-item label="必需席位" required>
           <a-input-number v-model="skuForm.required_seats" :min="1" />
         </a-form-item>
+        <a-form-item label="所需技能等级">
+          <a-select v-model="skuForm.required_level">
+            <a-option value="novice">新手（无门槛）</a-option>
+            <a-option value="skilled">熟练</a-option>
+            <a-option value="senior">资深</a-option>
+            <a-option value="mentor">导师</a-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="名额总量（-1 不限量）" required>
           <a-input-number v-model="skuForm.quota_total" :min="-1" />
         </a-form-item>
@@ -258,6 +266,7 @@
     service_units: 1,
     service_unit_name: '小时',
     required_seats: 1,
+    required_level: 'novice',
     quota_total: -1,
     sort_order: 0,
     status: 'draft',
@@ -322,6 +331,7 @@
     service_units: skuForm.service_units,
     service_unit_name: skuForm.service_unit_name,
     required_seats: skuForm.required_seats,
+    required_level: skuForm.required_level,
     quota_total: skuForm.quota_total,
     sort_order: skuForm.sort_order,
     status: skuForm.status,
@@ -358,6 +368,7 @@
         service_units: record.service_units,
         service_unit_name: record.service_unit_name,
         required_seats: record.required_seats,
+        required_level: record.required_level,
         quota_total: record.quota_total,
         sort_order: record.sort_order,
         status,

@@ -13,6 +13,8 @@ export interface EsportsProductCategory {
 
 export type CategoryInput = Omit<EsportsProductCategory, 'id' | 'version'>;
 
+export type PlayerLevel = 'novice' | 'skilled' | 'senior' | 'mentor';
+
 export interface EsportsSku {
   id: number;
   code: string;
@@ -24,6 +26,8 @@ export interface EsportsSku {
   service_units: number;
   service_unit_name: string;
   required_seats: number;
+  // 所需技能等级（§5.5）：陪玩等级不得低于该值。
+  required_level: PlayerLevel;
   quota_total: number;
   quota_reserved: number;
   quota_sold: number;
@@ -92,6 +96,8 @@ export interface EsportsOrder {
   addon_cents: number;
   addon_units: number;
   required_seats: number;
+  // 所需技能等级快照（§5.5）。
+  required_level: PlayerLevel;
   quote_version: number;
   version: number;
   fulfillment_status: string;
@@ -403,6 +409,8 @@ export interface EsportsPlayer {
   // 接单上限（§5.5 / §6.4）：0 = 不限。
   daily_limit: number;
   concurrent_limit: number;
+  // 接单游戏分区（§5.5 / §6.4）：空表示不限。
+  games: string[];
   version: number;
 }
 
@@ -421,6 +429,8 @@ export interface PlayerUpdateInput {
   // 接单上限（§5.5 / §6.4）：0 = 不限。
   daily_limit: number;
   concurrent_limit: number;
+  // 接单游戏分区（§5.5 / §6.4）：空表示不限。
+  games: string[];
 }
 
 export interface PlayerDashboard {
@@ -1675,7 +1685,6 @@ export type AssessmentDimension =
   | 'communication'
   | 'compliance'
   | 'stability';
-export type PlayerLevel = 'novice' | 'skilled' | 'senior' | 'mentor';
 export type AssessmentStatus = 'pending' | 'scheduled' | 'passed' | 'failed';
 export type AssessmentAppealStatus =
   | 'none'
@@ -2329,6 +2338,8 @@ export interface EsportsStoredValueCard {
   valid_until: string;
   status: StoredValueStatus;
   opened_by_admin_id: number | null;
+  // 开卡所选套餐（§4.4）：可选，手动开卡为空。
+  package_id: number | null;
   refund_quote: Record<string, unknown> | null;
   refund_requested_by_admin_id: number | null;
   refund_requested_at: string | null;
@@ -2349,6 +2360,8 @@ export interface StoredValueCardInput {
   source?: StoredValueSource;
   payment_channel: StoredValuePaymentChannel;
   payment_ref?: string;
+  // 选套餐后本金 / 赠送由套餐决定，principal_cents / bonus_cents 可省略（§4.4）。
+  package_id?: number;
   principal_cents: number;
   bonus_cents?: number;
   applicable_scope?: number[];
@@ -2357,6 +2370,27 @@ export interface StoredValueCardInput {
   validity_days?: number;
   note?: string;
   idempotency_key: string;
+}
+
+export interface EsportsStoredValuePackage {
+  id: number;
+  code: string;
+  name: string;
+  principal_cents: number;
+  bonus_cents: number;
+  status: 'on_sale' | 'off_sale';
+  sort_order: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoredValuePackageInput {
+  code: string;
+  name: string;
+  principal_cents: number;
+  bonus_cents: number;
+  sort_order?: number;
 }
 
 export interface StoredValueCardDetail {
@@ -2368,6 +2402,38 @@ export interface StoredValueRefundQuote {
   quote: Record<string, unknown>;
   refundable_cents: number;
 }
+
+export const getEsportsStoredValuePackages = (all = false) =>
+  axios.get<ApiResponse<EsportsStoredValuePackage[]>>(
+    `${base}/stored-value-packages`,
+    { params: all ? { all: '1' } : {} }
+  );
+
+export const createEsportsStoredValuePackage = (
+  input: StoredValuePackageInput
+) =>
+  axios.post<ApiResponse<EsportsStoredValuePackage>>(
+    `${base}/stored-value-packages`,
+    input
+  );
+
+export const updateEsportsStoredValuePackage = (
+  id: number,
+  input: StoredValuePackageInput & { version: number }
+) =>
+  axios.put<ApiResponse<EsportsStoredValuePackage>>(
+    `${base}/stored-value-packages/${id}`,
+    input
+  );
+
+export const setEsportsStoredValuePackageStatus = (
+  id: number,
+  status: 'on_sale' | 'off_sale'
+) =>
+  axios.post<ApiResponse<EsportsStoredValuePackage>>(
+    `${base}/stored-value-packages/${id}/status`,
+    { status }
+  );
 
 export const getEsportsStoredValueCards = (
   params: {

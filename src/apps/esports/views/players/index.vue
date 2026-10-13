@@ -91,6 +91,17 @@
             >0 表示不限；同时可履约席位数上限（§5.5）。</a-typography-text
           >
         </a-form-item>
+        <a-form-item label="接单游戏分区">
+          <a-input-tag
+            v-model="editForm.games"
+            placeholder="输入游戏分区后回车（留空为不限）"
+            :max-tag-count="10"
+          />
+          <a-typography-text type="secondary"
+            >留空表示不限；填了则只接这些游戏分区的订单（§5.5 /
+            §6.4）。</a-typography-text
+          >
+        </a-form-item>
       </a-form>
     </a-modal>
   </div>
@@ -126,12 +137,14 @@
     presence: PlayerPresence;
     dailyLimit: number;
     concurrentLimit: number;
+    games: string[];
   }>({
     displayName: '',
     qualification: 'pending',
     presence: 'offline',
     dailyLimit: 0,
     concurrentLimit: 0,
+    games: [],
   });
 
   async function load() {
@@ -176,6 +189,7 @@
     editForm.presence = player.presence;
     editForm.dailyLimit = player.daily_limit;
     editForm.concurrentLimit = player.concurrent_limit;
+    editForm.games = player.games || [];
     editVisible.value = true;
   }
 
@@ -193,6 +207,7 @@
         presence: editForm.presence,
         daily_limit: editForm.dailyLimit,
         concurrent_limit: editForm.concurrentLimit,
+        games: editForm.games,
       });
       editVisible.value = false;
       Message.success('已更新陪玩档案');

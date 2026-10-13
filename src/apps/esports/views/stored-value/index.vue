@@ -29,6 +29,9 @@
         <a-button v-if="canManage" type="primary" @click="openCreate"
           >开卡</a-button
         >
+        <a-button v-if="canManage" @click="openPackageCreate"
+          >新建套餐</a-button
+        >
       </a-space>
 
       <a-table
@@ -85,6 +88,47 @@
       </a-table>
     </a-card>
 
+    <a-card class="general-card" title="储值卡套餐" style="margin-top: 16px">
+      <a-table
+        :data="packages"
+        :loading="packagesLoading"
+        row-key="id"
+        :pagination="false"
+      >
+        <template #columns>
+          <a-table-column data-index="code" title="编码" />
+          <a-table-column data-index="name" title="套餐名" />
+          <a-table-column title="本金">
+            <template #cell="{ record }">{{
+              moneyText(record.principal_cents)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="赠送">
+            <template #cell="{ record }">{{
+              moneyText(record.bonus_cents)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="状态">
+            <template #cell="{ record }">
+              <a-tag :color="record.status === 'on_sale' ? 'green' : 'gray'">{{
+                record.status === 'on_sale' ? '在售' : '已下架'
+              }}</a-tag>
+            </template>
+          </a-table-column>
+          <a-table-column title="操作" :width="140">
+            <template #cell="{ record }">
+              <a-button type="text" @click="openPackageEdit(record)"
+                >编辑</a-button
+              >
+              <a-button type="text" @click="togglePackageStatus(record)">{{
+                record.status === 'on_sale' ? '下架' : '上架'
+              }}</a-button>
+            </template>
+          </a-table-column>
+        </template>
+      </a-table>
+    </a-card>
+
     <a-modal
       v-model:visible="createVisible"
       title="开卡"
@@ -119,14 +163,38 @@
         >
           <a-input v-model="createForm.paymentRef" :max-length="128" />
         </a-form-item>
+        <a-form-item label="套餐（可选）">
+          <a-select
+            v-model="createForm.packageId"
+            allow-clear
+            placeholder="选择套餐自动带出本金 / 赠送"
+            @change="onPackageChange"
+          >
+            <a-option
+              v-for="pkg in packages.filter((p) => p.status === 'on_sale')"
+              :key="pkg.id"
+              :value="pkg.id"
+              >{{ pkg.name }}（{{ moneyText(pkg.principal_cents) }} 送
+              {{ moneyText(pkg.bonus_cents) }}）</a-option
+            >
+          </a-select>
+        </a-form-item>
         <a-form-item label="开卡本金（分）" required>
-          <a-input-number v-model="createForm.principalCents" :min="1" />
+          <a-input-number
+            v-model="createForm.principalCents"
+            :min="1"
+            :disabled="createForm.packageId > 0"
+          />
         </a-form-item>
         <a-form-item
           v-if="createForm.paymentChannel !== 'customer_balance'"
           label="赠送权益（分）"
         >
-          <a-input-number v-model="createForm.bonusCents" :min="0" />
+          <a-input-number
+            v-model="createForm.bonusCents"
+            :min="0"
+            :disabled="createForm.packageId > 0"
+          />
         </a-form-item>
         <a-form-item label="适用商品 SKU ID（留空为全场通用）">
           <a-input-tag
@@ -153,6 +221,36 @@
               : '外部收款开卡须填写支付凭证号，便于财务核验。'
           }}
         </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="packageVisible"
+      :title="packageEditingId ? '编辑套餐' : '新建套餐'"
+      :ok-loading="packageSaving"
+      @ok="submitPackage"
+      @cancel="packageVisible = false"
+    >
+      <a-form :model="packageForm">
+        <a-form-item label="套餐编码" required>
+          <a-input
+            v-model="packageForm.code"
+            :max-length="64"
+            :disabled="Boolean(packageEditingId)"
+          />
+        </a-form-item>
+        <a-form-item label="套餐名" required>
+          <a-input v-model="packageForm.name" :max-length="120" />
+        </a-form-item>
+        <a-form-item label="本金（分）" required>
+          <a-input-number v-model="packageForm.principalCents" :min="1" />
+        </a-form-item>
+        <a-form-item label="赠送（分）">
+          <a-input-number v-model="packageForm.bonusCents" :min="0" />
+        </a-form-item>
+        <a-form-item label="排序">
+          <a-input-number v-model="packageForm.sortOrder" :min="0" />
+        </a-form-item>
       </a-form>
     </a-modal>
 
@@ -275,14 +373,19 @@
   import usePermission from '@/hooks/permission';
   import {
     createEsportsStoredValueCard,
+    createEsportsStoredValuePackage,
     decideEsportsStoredValueCardRefund,
     getEsportsStoredValueCard,
     getEsportsStoredValueCardRefundQuote,
     getEsportsStoredValueCards,
+    getEsportsStoredValuePackages,
     requestEsportsStoredValueCardRefund,
+    setEsportsStoredValuePackageStatus,
+    updateEsportsStoredValuePackage,
   } from '../../api';
   import type {
     EsportsStoredValueCard,
+    EsportsStoredValuePackage,
     StoredValueCardDetail,
     StoredValuePaymentChannel,
     StoredValueStatus,
@@ -380,6 +483,107 @@
     }
   }
 
+  // ── 套餐管理（§4.4） ──
+  const packages = ref<EsportsStoredValuePackage[]>([]);
+  const packagesLoading = ref(false);
+  const packageVisible = ref(false);
+  const packageSaving = ref(false);
+  const packageEditingId = ref(0);
+  const packageForm = reactive({
+    code: '',
+    name: '',
+    principalCents: 0,
+    bonusCents: 0,
+    sortOrder: 0,
+    version: 1,
+  });
+
+  async function loadPackages() {
+    packagesLoading.value = true;
+    try {
+      packages.value =
+        (await getEsportsStoredValuePackages(true)).data.data || [];
+    } catch {
+      Message.error('加载套餐失败');
+    } finally {
+      packagesLoading.value = false;
+    }
+  }
+
+  function openPackageCreate() {
+    packageEditingId.value = 0;
+    packageForm.code = '';
+    packageForm.name = '';
+    packageForm.principalCents = 0;
+    packageForm.bonusCents = 0;
+    packageForm.sortOrder = 0;
+    packageForm.version = 1;
+    packageVisible.value = true;
+  }
+
+  function openPackageEdit(pkg: EsportsStoredValuePackage) {
+    packageEditingId.value = pkg.id;
+    packageForm.code = pkg.code;
+    packageForm.name = pkg.name;
+    packageForm.principalCents = pkg.principal_cents;
+    packageForm.bonusCents = pkg.bonus_cents;
+    packageForm.sortOrder = pkg.sort_order;
+    packageForm.version = pkg.version;
+    packageVisible.value = true;
+  }
+
+  async function submitPackage() {
+    if (
+      !packageForm.code.trim() ||
+      !packageForm.name.trim() ||
+      packageForm.principalCents <= 0
+    ) {
+      Message.warning('请填写套餐编码、名称与本金');
+      return;
+    }
+    packageSaving.value = true;
+    try {
+      if (packageEditingId.value) {
+        await updateEsportsStoredValuePackage(packageEditingId.value, {
+          code: packageForm.code,
+          name: packageForm.name.trim(),
+          principal_cents: packageForm.principalCents,
+          bonus_cents: packageForm.bonusCents,
+          sort_order: packageForm.sortOrder,
+          version: packageForm.version,
+        });
+      } else {
+        await createEsportsStoredValuePackage({
+          code: packageForm.code.trim(),
+          name: packageForm.name.trim(),
+          principal_cents: packageForm.principalCents,
+          bonus_cents: packageForm.bonusCents,
+          sort_order: packageForm.sortOrder,
+        });
+      }
+      packageVisible.value = false;
+      Message.success('已保存套餐');
+      await loadPackages();
+    } catch (err) {
+      Message.error(errorText(err, '保存套餐失败'));
+    } finally {
+      packageSaving.value = false;
+    }
+  }
+
+  async function togglePackageStatus(pkg: EsportsStoredValuePackage) {
+    try {
+      await setEsportsStoredValuePackageStatus(
+        pkg.id,
+        pkg.status === 'on_sale' ? 'off_sale' : 'on_sale'
+      );
+      Message.success('已更新套餐状态');
+      await loadPackages();
+    } catch (err) {
+      Message.error(errorText(err, '更新套餐状态失败'));
+    }
+  }
+
   // ── 开卡 ──
   const createVisible = ref(false);
   const creating = ref(false);
@@ -388,6 +592,7 @@
     source: 'staff' as 'staff' | 'self',
     paymentChannel: 'merchant_qr' as StoredValuePaymentChannel,
     paymentRef: '',
+    packageId: 0,
     principalCents: 0,
     bonusCents: 0,
     applicableScope: [] as string[],
@@ -401,6 +606,7 @@
     createForm.source = 'staff';
     createForm.paymentChannel = 'merchant_qr';
     createForm.paymentRef = '';
+    createForm.packageId = 0;
     createForm.principalCents = 0;
     createForm.bonusCents = 0;
     createForm.applicableScope = [];
@@ -408,6 +614,17 @@
     createForm.note = '';
     createForm.contractConfirmed = false;
     createVisible.value = true;
+  }
+
+  // 选套餐：本金 / 赠送自动带出（§4.4），选套餐后本金 / 赠送不可手动改。
+  function onPackageChange(pkgId: unknown) {
+    const id = typeof pkgId === 'number' ? pkgId : 0;
+    createForm.packageId = id;
+    const pkg = packages.value.find((p) => p.id === id);
+    if (pkg) {
+      createForm.principalCents = pkg.principal_cents;
+      createForm.bonusCents = pkg.bonus_cents;
+    }
   }
 
   async function submitCreate() {
@@ -426,6 +643,7 @@
         source: createForm.source,
         payment_channel: createForm.paymentChannel,
         payment_ref: createForm.paymentRef,
+        package_id: createForm.packageId || undefined,
         principal_cents: createForm.principalCents,
         bonus_cents:
           createForm.paymentChannel === 'customer_balance'
@@ -513,7 +731,10 @@
     }
   }
 
-  onMounted(loadCards);
+  onMounted(() => {
+    loadCards();
+    loadPackages();
+  });
 </script>
 
 <style scoped>
