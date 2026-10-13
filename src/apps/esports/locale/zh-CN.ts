@@ -1,0 +1,18 @@
+export default {
+  'menu.app.esports.product.menu': '商品',
+  'menu.app.esports.order.menu': '订单',
+  'menu.app.esports.report.menu': '报单',
+  'menu.app.esports.wallet.menu': '钱包',
+  'menu.app.esports.dispatch.menu': '排单',
+  'menu.app.esports.player.menu': '陪玩',
+  'menu.app.esports.aftersale.menu': '售后',
+  'menu.app.esports.settlement.menu': '结算',
+  'menu.app.esports.campaign.menu': '充值活动',
+  'menu.app.esports.member.menu': '会员等级',
+  'menu.app.esports.gift.menu': '礼物',
+  'menu.app.esports.assessment.menu': '考核',
+  'menu.app.esports.stats.menu': '报表',
+  'menu.app.esports.page.menu': '页面装修',
+  'menu.app.esports.cs.menu': '客服工作台',
+  'menu.app.esports.stored_value.menu': '储值卡',
+};

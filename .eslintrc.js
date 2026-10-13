@@ -37,6 +37,8 @@ module.exports = {
   },
   rules: {
     'prettier/prettier': 1,
+    // vue 3.5 用 exports 声明 types，旧版 eslint-import-resolver-typescript 无法解析，忽略该模块。
+    'import/no-unresolved': ['error', { ignore: ['^vue$'] }],
     // Vue: Recommended rules to be closed or modify
     'vue/require-default-prop': 0,
     'vue/singleline-html-element-content-newline': 0,

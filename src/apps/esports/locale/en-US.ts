@@ -1,0 +1,18 @@
+export default {
+  'menu.app.esports.product.menu': 'Products',
+  'menu.app.esports.order.menu': 'Orders',
+  'menu.app.esports.report.menu': 'Order entry',
+  'menu.app.esports.wallet.menu': 'Wallets',
+  'menu.app.esports.dispatch.menu': 'Dispatch',
+  'menu.app.esports.player.menu': 'Players',
+  'menu.app.esports.aftersale.menu': 'After-sales',
+  'menu.app.esports.settlement.menu': 'Settlements',
+  'menu.app.esports.campaign.menu': 'Recharge Campaigns',
+  'menu.app.esports.member.menu': 'Membership Levels',
+  'menu.app.esports.gift.menu': 'Gifts',
+  'menu.app.esports.assessment.menu': 'Assessments',
+  'menu.app.esports.stats.menu': 'Reports',
+  'menu.app.esports.page.menu': 'Page Builder',
+  'menu.app.esports.cs.menu': 'CS Workbench',
+  'menu.app.esports.stored_value.menu': 'Stored Value Cards',
+};

@@ -102,5 +102,11 @@
     "bin-wrapper": "npm:bin-wrapper-china",
     "rollup": "^2.56.3",
     "gifsicle": "5.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "stylelint-config-recommended": "9.0.0",
+      "stylelint-config-html": "1.1.0"
+    }
   }
 }
