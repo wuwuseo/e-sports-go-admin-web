@@ -132,6 +132,11 @@
         <a-descriptions-item label="订单号">{{
           detail.order_no
         }}</a-descriptions-item>
+        <a-descriptions-item
+          v-if="detailApproval && detailApproval.approval"
+          label="结单审批"
+          >{{ approvalProgressLabel }}</a-descriptions-item
+        >
         <a-descriptions-item label="客户 / 商品"
           >{{ detail.customer_id }} / {{ detail.sku_id }}</a-descriptions-item
         >
@@ -447,6 +452,7 @@
     createOrderAddon,
     depositOrder,
     getOrder,
+    getOrderCloseApproval,
     getOrderCloseForm,
     listOrderAddons,
     listOrders,
@@ -462,6 +468,7 @@
     EsportsCloseFormField,
     EsportsOrder,
     EsportsOrderAddon,
+    OrderCloseApprovalView,
     OrderCloseFormView,
   } from '../../api';
 
@@ -476,6 +483,18 @@
   const orders = ref<EsportsOrder[]>([]);
   const detail = ref<EsportsOrder | null>(null);
   const detailVisible = ref(false);
+  // 结单审批进度（§3.4）：详情抽屉展示当前待审批节点。
+  const detailApproval = ref<OrderCloseApprovalView | null>(null);
+  const approvalProgressLabel = computed(() => {
+    const view = detailApproval.value;
+    if (!view || !view.approval) return '—';
+    if (view.current_node) {
+      return `待「${view.current_node.name}」审批（第 ${
+        view.current_node.seq
+      } / ${(view.approval.steps || []).length} 节点）`;
+    }
+    return view.approval.status === 'approved' ? '已全部通过' : '已驳回';
+  });
   const opsVisible = ref(false);
   const opsAction = ref<OpsAction>('reprice');
   const opsTarget = ref<EsportsOrder | null>(null);
@@ -735,6 +754,13 @@
   async function showDetail(id: number) {
     try {
       detail.value = (await getOrder(id)).data.data || null;
+      detailApproval.value = null;
+      try {
+        detailApproval.value =
+          (await getOrderCloseApproval(id)).data.data || null;
+      } catch {
+        detailApproval.value = null;
+      }
       detailVisible.value = true;
     } catch {
       Message.error('无法获取订单详情');

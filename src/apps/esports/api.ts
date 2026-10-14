@@ -2863,3 +2863,109 @@ export const rollbackCloseSubmitRule = (id: number) =>
   axios.post<ApiResponse<EsportsCloseSubmitRule>>(
     `${base}/close-submit-rules/${id}/rollback`
   );
+
+// ── 结单审批流（§3.4）：节点串行编排、审批角色与超时策略 ──
+
+export type CloseApprovalRole = 'admin' | 'super_admin';
+export type CloseApprovalStepStatus = 'pending' | 'approved' | 'rejected';
+
+export interface CloseApprovalNode {
+  seq: number;
+  name: string;
+  role: CloseApprovalRole;
+  timeout_hours: number;
+  auto_pass_on_timeout: boolean;
+  involves_funds: boolean;
+}
+
+export interface EsportsCloseApprovalFlow {
+  id: number;
+  code: string;
+  name: string;
+  scope: CloseFormScope;
+  scope_key: string;
+  min_cents: number;
+  nodes: CloseApprovalNode[] | null;
+  status: CloseFormStatus;
+  version: number;
+  created_by_admin_id: number | null;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CloseApprovalFlowInput {
+  code: string;
+  name: string;
+  scope: CloseFormScope;
+  scope_key: string;
+  min_cents: number;
+  nodes: CloseApprovalNode[];
+  note?: string;
+}
+
+export const listCloseApprovalFlows = () =>
+  axios.get<ApiResponse<EsportsCloseApprovalFlow[]>>(
+    `${base}/close-approval-flows`
+  );
+
+export const createCloseApprovalFlow = (input: CloseApprovalFlowInput) =>
+  axios.post<ApiResponse<EsportsCloseApprovalFlow>>(
+    `${base}/close-approval-flows`,
+    input
+  );
+
+export const updateCloseApprovalFlow = (
+  id: number,
+  expectedVersion: number,
+  input: CloseApprovalFlowInput
+) =>
+  axios.put<ApiResponse<EsportsCloseApprovalFlow>>(
+    `${base}/close-approval-flows/${id}`,
+    { expected_version: expectedVersion, ...input }
+  );
+
+export const activateCloseApprovalFlow = (id: number) =>
+  axios.post<ApiResponse<EsportsCloseApprovalFlow>>(
+    `${base}/close-approval-flows/${id}/activate`
+  );
+
+export const rollbackCloseApprovalFlow = (id: number) =>
+  axios.post<ApiResponse<EsportsCloseApprovalFlow>>(
+    `${base}/close-approval-flows/${id}/rollback`
+  );
+
+export interface CloseApprovalStep {
+  seq: number;
+  name: string;
+  role: CloseApprovalRole;
+  status: CloseApprovalStepStatus;
+  admin_id: number;
+  at: string | null;
+  reason: string;
+  auto_passed: boolean;
+}
+
+export interface EsportsCloseApproval {
+  id: number;
+  order_id: number;
+  flow_id: number;
+  flow_code: string;
+  flow_version: number;
+  current_seq: number;
+  status: CloseApprovalStepStatus;
+  steps: CloseApprovalStep[] | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderCloseApprovalView {
+  approval: EsportsCloseApproval | null;
+  current_node: CloseApprovalStep | null;
+}
+
+export const getOrderCloseApproval = (orderId: number) =>
+  axios.get<ApiResponse<OrderCloseApprovalView>>(
+    `${base}/orders/${orderId}/close-approval`
+  );

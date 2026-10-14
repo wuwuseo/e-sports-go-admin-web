@@ -218,6 +218,79 @@
             </template>
           </a-table>
         </a-tab-pane>
+
+        <!-- 审批流 -->
+        <a-tab-pane key="approval" title="审批流">
+          <a-space class="toolbar">
+            <a-button
+              v-if="canManage"
+              type="primary"
+              @click="openApprovalCreate"
+              >新建审批流</a-button
+            >
+            <a-button :loading="approvalLoading" @click="loadApprovalFlows"
+              >刷新</a-button
+            >
+          </a-space>
+          <a-typography-text type="secondary" class="tip">
+            节点串行审批：订单应付达「触发金额」时进入待复核，逐个节点审批，末节点通过才真正结单；
+            节点可配审批角色（任一管理员 / 超级管理员）与超时策略，涉及资金 /
+            争议的节点禁止超时自动通过。
+            未配置审批流时回落结单规则的金额复核阈值（等价内置单节点「管理员复核」）。
+          </a-typography-text>
+          <a-table
+            :data="approvalFlows"
+            :loading="approvalLoading"
+            row-key="id"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column data-index="code" title="流程编号" />
+              <a-table-column data-index="name" title="名称" />
+              <a-table-column title="适用范围">
+                <template #cell="{ record }">{{
+                  submitScopeLabel(record)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="触发金额">
+                <template #cell="{ record }">{{
+                  record.min_cents > 0
+                    ? amountText(record.min_cents)
+                    : '所有结单'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="节点">
+                <template #cell="{ record }">{{
+                  approvalNodesLabel(record)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="版本 / 状态">
+                <template #cell="{ record }"
+                  >v{{ record.version }} /
+                  {{ templateStatusLabel(record.status) }}</template
+                >
+              </a-table-column>
+              <a-table-column title="操作" :width="140">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="canManage && record.status === 'draft'"
+                    type="text"
+                    status="success"
+                    @click="doActivateApprovalFlow(record)"
+                    >生效</a-button
+                  >
+                  <a-button
+                    v-else-if="canManage && record.status === 'history'"
+                    type="text"
+                    @click="doRollbackApprovalFlow(record)"
+                    >回滚</a-button
+                  >
+                  <span v-else>—</span>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+        </a-tab-pane>
       </a-tabs>
     </a-card>
 
@@ -423,6 +496,100 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-modal
+      v-model:visible="approvalVisible"
+      title="新建结单审批流（§3.4）"
+      width="640px"
+      @ok="submitApprovalFlow"
+      @cancel="approvalVisible = false"
+    >
+      <a-form :model="approvalForm">
+        <a-form-item label="流程编号" required>
+          <a-input v-model="approvalForm.code" :max-length="48" />
+        </a-form-item>
+        <a-form-item label="名称" required>
+          <a-input v-model="approvalForm.name" :max-length="64" />
+        </a-form-item>
+        <a-form-item label="适用范围" required>
+          <a-select v-model="approvalForm.scope">
+            <a-option value="global">全局</a-option>
+            <a-option value="game">按游戏分区</a-option>
+            <a-option value="sku">按 SKU</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item
+          v-if="approvalForm.scope !== 'global'"
+          label="范围键"
+          required
+        >
+          <a-input
+            v-model="approvalForm.scopeKey"
+            :max-length="64"
+            placeholder="游戏分区名或 SKU 编号"
+          />
+        </a-form-item>
+        <a-form-item label="触发金额（元，0 = 所有结单）">
+          <a-input-number v-model="approvalForm.minYuan" :min="0" />
+        </a-form-item>
+        <a-form-item label="审批节点（串行）" required>
+          <a-space direction="vertical" fill>
+            <a-card
+              v-for="(node, index) in approvalForm.nodes"
+              :key="index"
+              size="small"
+            >
+              <a-space direction="vertical" fill>
+                <a-space>
+                  <span>第 {{ index + 1 }} 节点</span>
+                  <a-button size="mini" @click="moveNode(index, -1)"
+                    >上移</a-button
+                  >
+                  <a-button size="mini" @click="moveNode(index, 1)"
+                    >下移</a-button
+                  >
+                  <a-button
+                    size="mini"
+                    status="danger"
+                    @click="removeNode(index)"
+                    >删除</a-button
+                  >
+                </a-space>
+                <a-input
+                  v-model="node.name"
+                  :max-length="64"
+                  placeholder="节点名称（如 客服主管复核）"
+                />
+                <a-select v-model="node.role">
+                  <a-option value="admin">任一管理员（不得自审）</a-option>
+                  <a-option value="super_admin">超级管理员</a-option>
+                </a-select>
+                <a-input-number
+                  v-model="node.timeoutHours"
+                  :min="0"
+                  :max="720"
+                  placeholder="超时小时（0 = 不限）"
+                />
+                <a-space>
+                  <a-checkbox v-model="node.involvesFunds"
+                    >资金 / 争议节点</a-checkbox
+                  >
+                  <a-checkbox
+                    v-model="node.autoPassOnTimeout"
+                    :disabled="node.involvesFunds"
+                    >超时自动通过</a-checkbox
+                  >
+                </a-space>
+              </a-space>
+            </a-card>
+            <a-button @click="addNode">添加节点</a-button>
+          </a-space>
+        </a-form-item>
+        <a-form-item label="备注">
+          <a-input v-model="approvalForm.note" :max-length="255" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -431,25 +598,31 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import {
+    activateCloseApprovalFlow,
     activateCloseFormTemplate,
     activateCloseSubmitRule,
+    createCloseApprovalFlow,
     createCloseFormField,
     createCloseFormTemplate,
     createCloseSubmitRule,
+    listCloseApprovalFlows,
     listCloseFormFields,
     listCloseFormTemplates,
     listCloseSubmitRules,
+    rollbackCloseApprovalFlow,
     rollbackCloseFormTemplate,
     rollbackCloseSubmitRule,
     setCloseFormFieldStatus,
     updateCloseFormField,
   } from '../../api';
   import type {
+    CloseApprovalRole,
     CloseFormFieldType,
     CloseFormScope,
     CloseFormStatus,
     CloseSubmitMode,
     CloseSubmitOnMissing,
+    EsportsCloseApprovalFlow,
     EsportsCloseFormField,
     EsportsCloseFormTemplate,
     EsportsCloseSubmitRule,
@@ -489,10 +662,30 @@
     submitModeLabels[value] || value;
   const submitOnMissingLabel = (value: CloseSubmitOnMissing) =>
     submitOnMissingLabels[value] || value;
-  const submitScopeLabel = (item: EsportsCloseSubmitRule) =>
+  const submitScopeLabel = (item: {
+    scope: CloseFormScope;
+    scope_key: string;
+  }) =>
     item.scope === 'global'
       ? '全局'
       : `${item.scope === 'game' ? '游戏分区' : 'SKU'}：${item.scope_key}`;
+  const approvalRoleLabels: Record<CloseApprovalRole, string> = {
+    admin: '任一管理员',
+    super_admin: '超级管理员',
+  };
+  const approvalRoleLabel = (value: CloseApprovalRole) =>
+    approvalRoleLabels[value] || value;
+  const amountText = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  // 节点链展示：序号.名称（角色）。
+  const approvalNodesLabel = (item: EsportsCloseApprovalFlow) =>
+    (item.nodes || [])
+      .map(
+        (node) =>
+          `${node.seq}.${node.name}（${approvalRoleLabel(node.role)}${
+            node.involves_funds ? '，资金' : ''
+          }）`
+      )
+      .join(' → ') || '—';
   const templateScopeLabel = (item: EsportsCloseFormTemplate) =>
     item.scope === 'global'
       ? '全局'
@@ -842,10 +1035,148 @@
     }
   }
 
+  // ── 审批流（§3.4） ──
+  const approvalFlows = ref<EsportsCloseApprovalFlow[]>([]);
+  const approvalLoading = ref(false);
+  const approvalVisible = ref(false);
+  const approvalForm = reactive<{
+    code: string;
+    name: string;
+    scope: CloseFormScope;
+    scopeKey: string;
+    minYuan: number;
+    nodes: {
+      name: string;
+      role: CloseApprovalRole;
+      timeoutHours: number;
+      autoPassOnTimeout: boolean;
+      involvesFunds: boolean;
+    }[];
+    note: string;
+  }>({
+    code: '',
+    name: '',
+    scope: 'global',
+    scopeKey: '',
+    minYuan: 0,
+    nodes: [],
+    note: '',
+  });
+
+  function emptyNode() {
+    return {
+      name: '',
+      role: 'admin' as CloseApprovalRole,
+      timeoutHours: 0,
+      autoPassOnTimeout: false,
+      involvesFunds: false,
+    };
+  }
+
+  function addNode() {
+    approvalForm.nodes.push(emptyNode());
+  }
+
+  function removeNode(index: number) {
+    approvalForm.nodes.splice(index, 1);
+  }
+
+  function moveNode(index: number, delta: number) {
+    const target = index + delta;
+    if (target < 0 || target >= approvalForm.nodes.length) return;
+    const [item] = approvalForm.nodes.splice(index, 1);
+    approvalForm.nodes.splice(target, 0, item);
+  }
+
+  async function loadApprovalFlows() {
+    approvalLoading.value = true;
+    try {
+      approvalFlows.value = (await listCloseApprovalFlows()).data.data || [];
+    } catch {
+      Message.error('加载审批流失败，请稍后重试');
+    } finally {
+      approvalLoading.value = false;
+    }
+  }
+
+  function openApprovalCreate() {
+    approvalForm.code = '';
+    approvalForm.name = '';
+    approvalForm.scope = 'global';
+    approvalForm.scopeKey = '';
+    approvalForm.minYuan = 0;
+    approvalForm.nodes = [emptyNode()];
+    approvalForm.note = '';
+    approvalVisible.value = true;
+  }
+
+  async function submitApprovalFlow() {
+    if (!approvalForm.code.trim() || !approvalForm.name.trim()) {
+      Message.warning('请填写流程编号与名称');
+      return;
+    }
+    if (approvalForm.scope !== 'global' && !approvalForm.scopeKey.trim()) {
+      Message.warning('请填写范围键');
+      return;
+    }
+    if (approvalForm.nodes.length === 0) {
+      Message.warning('请至少添加一个审批节点');
+      return;
+    }
+    if (approvalForm.nodes.some((node) => !node.name.trim())) {
+      Message.warning('请填写每个节点的名称');
+      return;
+    }
+    try {
+      await createCloseApprovalFlow({
+        code: approvalForm.code.trim(),
+        name: approvalForm.name.trim(),
+        scope: approvalForm.scope,
+        scope_key: approvalForm.scopeKey.trim(),
+        min_cents: Math.round(approvalForm.minYuan * 100),
+        nodes: approvalForm.nodes.map((node, index) => ({
+          seq: index + 1,
+          name: node.name.trim(),
+          role: node.role,
+          timeout_hours: node.timeoutHours,
+          auto_pass_on_timeout: node.autoPassOnTimeout,
+          involves_funds: node.involvesFunds,
+        })),
+        note: approvalForm.note.trim(),
+      });
+      approvalVisible.value = false;
+      Message.success('已创建草稿审批流，需“生效”后才会作用于结单');
+      await loadApprovalFlows();
+    } catch (err) {
+      Message.error(errorText(err, '创建失败：资金节点不能自动通过或参数非法'));
+    }
+  }
+
+  async function doActivateApprovalFlow(record: EsportsCloseApprovalFlow) {
+    try {
+      await activateCloseApprovalFlow(record.id);
+      Message.success('已生效');
+      await loadApprovalFlows();
+    } catch (err) {
+      Message.error(errorText(err, '生效失败：仅草稿可生效'));
+    }
+  }
+
+  async function doRollbackApprovalFlow(record: EsportsCloseApprovalFlow) {
+    try {
+      await rollbackCloseApprovalFlow(record.id);
+      Message.success('已回滚并生效新版本');
+      await loadApprovalFlows();
+    } catch (err) {
+      Message.error(errorText(err, '回滚失败，请刷新后重试'));
+    }
+  }
+
   onMounted(() => {
     loadFields();
     loadTemplates();
     loadSubmitRules();
+    loadApprovalFlows();
   });
 </script>
 
