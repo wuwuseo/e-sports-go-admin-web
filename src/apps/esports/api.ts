@@ -597,6 +597,13 @@ export interface EsportsAfterSale {
   makeup_seat_index: number | null;
   makeup_units: number;
   makeup_company_pay_cents: number;
+  // 阶段时间戳与限时（§13.5）：当前阶段时限小时数与截止时间，超时时前端高亮。
+  accepted_at: string | null;
+  planned_at: string | null;
+  approved_at: string | null;
+  sla_limit_hours: number;
+  sla_deadline: string | null;
+  sla_overdue: boolean;
   // 待客户确认节点（§13.3）：确认渠道区分自助确认与客服代确认。
   customer_confirmed_at: string | null;
   customer_confirm_channel: 'none' | 'self_service' | 'admin_proxy';

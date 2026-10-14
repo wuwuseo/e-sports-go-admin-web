@@ -60,6 +60,14 @@
             }}</template>
           </a-table-column>
           <a-table-column data-index="handler_admin_id" title="处理人" />
+          <a-table-column title="阶段时限">
+            <template #cell="{ record }">
+              <a-typography-text
+                :type="record.sla_overdue ? 'danger' : undefined"
+                >{{ slaLabel(record) }}</a-typography-text
+              >
+            </template>
+          </a-table-column>
           <a-table-column data-index="created_at" title="创建时间" />
           <a-table-column title="操作" :width="260">
             <template #cell="{ record }">
@@ -514,6 +522,16 @@
   const faultLabel = (value: string) => faultMap[value] || value;
   const planLabel = (value: string) => planMap[value] || value;
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  // §13.5 限时：展示当前阶段剩余时间，已超时显示超时时长（列表加载时计算一次）。
+  const slaLabel = (record: EsportsAfterSale) => {
+    if (!record.sla_deadline) return '—';
+    const minutes = Math.round(
+      (new Date(record.sla_deadline).getTime() - Date.now()) / 60000
+    );
+    return record.sla_overdue
+      ? `已超时 ${Math.abs(minutes)} 分钟`
+      : `${minutes} 分钟后到期`;
+  };
   const canWithdraw = (record: EsportsAfterSale) =>
     !['completed', 'rejected', 'withdrawn'].includes(record.status);
   // 透出后端返回的中文错误信息，取不到时回退默认文案。
