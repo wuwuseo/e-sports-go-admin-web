@@ -289,13 +289,35 @@
             />
           </a-form-item>
         </template>
-        <a-form-item v-else label="赔付金额（元）">
-          <a-input-number
-            v-model="planForm.refundYuan"
-            :min="0"
-            :precision="2"
-          />
-        </a-form-item>
+        <template v-else>
+          <a-form-item label="赔付金额（元）">
+            <a-input-number
+              v-model="planForm.refundYuan"
+              :min="0"
+              :precision="2"
+            />
+          </a-form-item>
+          <template v-if="planForm.faultParty === 'player'">
+            <a-form-item label="向陪玩追偿（元，0 = 不追偿）">
+              <a-input-number
+                v-model="planForm.recoveryYuan"
+                :min="0"
+                :precision="2"
+              />
+              <a-typography-text type="secondary">
+                售后执行会生成待审批的陪玩追偿单（§13.4），审批通过后从陪玩猫粮扣回；
+                与「退款冲回分成」相互独立，且不得超过赔付金额。
+              </a-typography-text>
+            </a-form-item>
+            <a-form-item
+              v-if="planForm.recoveryYuan > 0"
+              label="追偿陪玩 ID"
+              required
+            >
+              <a-input-number v-model="planForm.recoveryPlayerId" :min="1" />
+            </a-form-item>
+          </template>
+        </template>
         <a-form-item label="处理说明">
           <a-textarea v-model="planForm.resolution" :max-length="255" />
         </a-form-item>
@@ -574,6 +596,9 @@
     makeupSeatIndex: number;
     makeupUnits: number;
     makeupCompanyPayYuan: number;
+    // 追偿（§13.4）：责任方为陪玩时可填向陪玩追偿的陪玩与金额。
+    recoveryPlayerId: number;
+    recoveryYuan: number;
   }>({
     faultParty: 'undetermined',
     planAction: 'refund_original',
@@ -584,6 +609,8 @@
     makeupSeatIndex: 1,
     makeupUnits: 0,
     makeupCompanyPayYuan: 0,
+    recoveryPlayerId: 0,
+    recoveryYuan: 0,
   });
 
   const rejectVisible = ref(false);
@@ -681,6 +708,8 @@
     planForm.makeupSeatIndex = 1;
     planForm.makeupUnits = 0;
     planForm.makeupCompanyPayYuan = 0;
+    planForm.recoveryPlayerId = 0;
+    planForm.recoveryYuan = 0;
     planVisible.value = true;
   }
 
@@ -704,6 +733,10 @@
         payload.makeup_company_pay_cents = Math.round(
           planForm.makeupCompanyPayYuan * 100
         );
+      } else if (planForm.recoveryYuan > 0) {
+        // 追偿（§13.4）：赔付由陪玩承担时另建待审批的追偿明细。
+        payload.recovery_cents = Math.round(planForm.recoveryYuan * 100);
+        payload.recovery_player_id = planForm.recoveryPlayerId;
       }
       await planAfterSale(record.id, payload);
       planVisible.value = false;

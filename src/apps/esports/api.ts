@@ -604,6 +604,9 @@ export interface EsportsAfterSale {
   sla_limit_hours: number;
   sla_deadline: string | null;
   sla_overdue: boolean;
+  // 追偿（§13.4）：赔付由陪玩承担时执行售后另建待审批的追偿明细。
+  recovery_player_id: number | null;
+  recovery_cents: number;
   // 待客户确认节点（§13.3）：确认渠道区分自助确认与客服代确认。
   customer_confirmed_at: string | null;
   customer_confirm_channel: 'none' | 'self_service' | 'admin_proxy';
@@ -645,7 +648,63 @@ export interface AfterSalePlanInput {
   makeup_seat_index?: number;
   makeup_units?: number;
   makeup_company_pay_cents?: number;
+  // 追偿（§13.4）：赔付由陪玩承担时填承接陪玩与追偿金额（不得超过赔付额）。
+  recovery_player_id?: number;
+  recovery_cents?: number;
 }
+
+// ── 陪玩追偿明细（§13.4）：售后赔付由陪玩承担时另建的扣回单 ──
+
+export type PlayerRecoveryStatus =
+  | 'pending'
+  | 'approved'
+  | 'recovered'
+  | 'rejected';
+
+export interface EsportsPlayerRecovery {
+  id: number;
+  recovery_no: string;
+  player_id: number;
+  after_sale_id: number;
+  order_id: number;
+  amount_cents: number;
+  reason: string;
+  status: PlayerRecoveryStatus;
+  requested_by_admin_id: number | null;
+  approved_by_admin_id: number | null;
+  approved_at: string | null;
+  recovered_at: string | null;
+  wallet_tx_id: number | null;
+  reject_reason: string;
+  note: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const listPlayerRecoveries = (params?: {
+  player_id?: number;
+  status?: string;
+}) =>
+  axios.get<ApiResponse<EsportsPlayerRecovery[]>>(`${base}/player-recoveries`, {
+    params,
+  });
+
+export const approvePlayerRecovery = (id: number) =>
+  axios.post<ApiResponse<EsportsPlayerRecovery>>(
+    `${base}/player-recoveries/${id}/approve`
+  );
+
+export const rejectPlayerRecovery = (id: number, reason: string) =>
+  axios.post<ApiResponse<EsportsPlayerRecovery>>(
+    `${base}/player-recoveries/${id}/reject`,
+    { reason }
+  );
+
+export const executePlayerRecovery = (id: number) =>
+  axios.post<ApiResponse<EsportsPlayerRecovery>>(
+    `${base}/player-recoveries/${id}/execute`
+  );
 
 export interface CloseOrderInput {
   note: string;

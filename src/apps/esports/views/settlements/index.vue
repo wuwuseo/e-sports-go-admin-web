@@ -600,6 +600,91 @@
             </template>
           </a-table>
         </a-tab-pane>
+
+        <!-- 陪玩追偿（§13.4） -->
+        <a-tab-pane key="recoveries" title="陪玩追偿">
+          <a-space class="toolbar">
+            <a-input-number
+              v-model="recoveryFilters.playerId"
+              placeholder="陪玩 ID"
+              :min="1"
+            />
+            <a-select
+              v-model="recoveryFilters.status"
+              placeholder="状态"
+              allow-clear
+              style="width: 140px"
+            >
+              <a-option value="pending">待审批</a-option>
+              <a-option value="approved">待扣回</a-option>
+              <a-option value="recovered">已扣回</a-option>
+              <a-option value="rejected">已驳回</a-option>
+            </a-select>
+            <a-button :loading="recoveriesLoading" @click="loadRecoveries"
+              >查询</a-button
+            >
+          </a-space>
+          <a-typography-text type="secondary" class="tip">
+            客户赔付由陪玩承担时，售后执行会生成待审批的追偿单；由非申请人审批通过后从陪玩猫粮扣回（余额不足可待结算后再执行）。
+            扣回与「退款冲回分成」相互独立。
+          </a-typography-text>
+          <a-table
+            :data="recoveries"
+            :loading="recoveriesLoading"
+            row-key="id"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column data-index="recovery_no" title="追偿单号" />
+              <a-table-column data-index="player_id" title="陪玩 ID" />
+              <a-table-column title="金额">
+                <template #cell="{ record }">{{
+                  money(record.amount_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="来源">
+                <template #cell="{ record }">{{
+                  record.after_sale_id > 0
+                    ? `售后 #${record.after_sale_id}`
+                    : '手工'
+                }}</template>
+              </a-table-column>
+              <a-table-column data-index="reason" title="追偿原因" />
+              <a-table-column title="状态">
+                <template #cell="{ record }">{{
+                  recoveryStatusLabel(record.status)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="操作" :width="200">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="canOperate && record.status === 'pending'"
+                    type="text"
+                    status="success"
+                    @click="doApproveRecovery(record)"
+                    >审批</a-button
+                  >
+                  <a-button
+                    v-if="canOperate && record.status === 'pending'"
+                    type="text"
+                    status="danger"
+                    @click="openRecoveryReject(record)"
+                    >驳回</a-button
+                  >
+                  <a-button
+                    v-if="canOperate && record.status === 'approved'"
+                    type="text"
+                    status="success"
+                    @click="doExecuteRecovery(record)"
+                    >执行扣回</a-button
+                  >
+                  <span v-if="record.status === 'recovered'">已扣回</span>
+                  <span v-else-if="record.status === 'rejected'">已驳回</span>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+        </a-tab-pane>
       </a-tabs>
     </a-card>
 
@@ -973,6 +1058,23 @@
         </a-typography-text>
       </a-form>
     </a-modal>
+
+    <a-modal
+      v-model:visible="recoveryRejectVisible"
+      title="驳回陪玩追偿"
+      @ok="submitRecoveryReject"
+      @cancel="recoveryRejectVisible = false"
+    >
+      <a-form :model="recoveryRejectForm">
+        <a-form-item label="驳回原因" required>
+          <a-textarea
+            v-model="recoveryRejectForm.reason"
+            :max-length="255"
+            placeholder="如：责任判定有误，实际为平台责任"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -999,8 +1101,12 @@
     listSettlements,
     listWithdrawals,
     lockSettlement,
+    approvePlayerRecovery,
+    executePlayerRecovery,
+    listPlayerRecoveries,
     paySettlement,
     payWithdrawal,
+    rejectPlayerRecovery,
     reviewWithdrawal,
     rollbackCloseRule,
     rollbackCommissionRule,
@@ -1015,6 +1121,7 @@
     CommissionScope,
     CommissionUnitBasis,
     EsportsCloseRule,
+    EsportsPlayerRecovery,
     Settlement,
     CsCommissionEntry,
     CsCommissionPeriod,
@@ -1818,6 +1925,85 @@
     }
   }
 
+  // ── 陪玩追偿（§13.4） ──
+  const recoveries = ref<EsportsPlayerRecovery[]>([]);
+  const recoveriesLoading = ref(false);
+  const recoveryFilters = reactive<{ playerId?: number; status?: string }>({
+    playerId: undefined,
+    status: undefined,
+  });
+  const recoveryRejectVisible = ref(false);
+  const recoveryRejectTarget = ref<EsportsPlayerRecovery | null>(null);
+  const recoveryRejectForm = reactive({ reason: '' });
+  const recoveryStatusMap: Record<string, string> = {
+    pending: '待审批',
+    approved: '待扣回',
+    recovered: '已扣回',
+    rejected: '已驳回',
+  };
+  const recoveryStatusLabel = (value: string) =>
+    recoveryStatusMap[value] || value;
+
+  async function loadRecoveries() {
+    recoveriesLoading.value = true;
+    try {
+      recoveries.value =
+        (
+          await listPlayerRecoveries({
+            player_id: recoveryFilters.playerId || undefined,
+            status: recoveryFilters.status || undefined,
+          })
+        ).data.data || [];
+    } catch {
+      Message.error('加载陪玩追偿失败，请稍后重试');
+    } finally {
+      recoveriesLoading.value = false;
+    }
+  }
+
+  async function doApproveRecovery(record: EsportsPlayerRecovery) {
+    try {
+      await approvePlayerRecovery(record.id);
+      Message.success('已审批通过，待执行扣回');
+      await loadRecoveries();
+    } catch (err) {
+      Message.error(errorText(err, '审批失败：不得自审或状态已变化'));
+    }
+  }
+
+  function openRecoveryReject(record: EsportsPlayerRecovery) {
+    recoveryRejectTarget.value = record;
+    recoveryRejectForm.reason = '';
+    recoveryRejectVisible.value = true;
+  }
+
+  async function submitRecoveryReject() {
+    const target = recoveryRejectTarget.value;
+    if (!target) return;
+    if (!recoveryRejectForm.reason.trim()) {
+      Message.warning('请填写驳回原因');
+      return;
+    }
+    try {
+      await rejectPlayerRecovery(target.id, recoveryRejectForm.reason.trim());
+      recoveryRejectVisible.value = false;
+      Message.success('已驳回');
+      await loadRecoveries();
+    } catch (err) {
+      Message.error(errorText(err, '驳回失败：不得自审或状态已变化'));
+    }
+  }
+
+  async function doExecuteRecovery(record: EsportsPlayerRecovery) {
+    try {
+      await executePlayerRecovery(record.id);
+      Message.success('已从陪玩猫粮扣回');
+      await loadRecoveries();
+    } catch (err) {
+      Message.error(errorText(err, '执行失败：猫粮余额不足或状态已变化'));
+    }
+  }
+
   // 切换页签时按需加载对应数据（定义在各 load* 之后，避免 no-use-before-define）。
   const onTabChange = (key: string | number) => {
     if (key === 'rules') loadRules();
@@ -1825,6 +2011,7 @@
     else if (key === 'cs_rules') loadCsRules();
     else if (key === 'cs_entries') loadCsEntries();
     else if (key === 'withdrawals') loadWithdrawals();
+    else if (key === 'recoveries') loadRecoveries();
     else loadSettlements();
   };
 
