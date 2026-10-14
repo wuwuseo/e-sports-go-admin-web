@@ -907,6 +907,8 @@
         </a-form-item>
         <a-typography-text type="secondary">
           客服提成结算不写猫粮钱包：锁定后由财务打款，并在结算单上登记外部打款凭证。
+          也可由 `esports_generate_cs_settlements`
+          任务按上一完整周期自动生成草稿结算单（幂等：同客服同周期已生成则跳过）。
         </a-typography-text>
       </a-form>
     </a-modal>

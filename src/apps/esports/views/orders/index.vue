@@ -266,6 +266,39 @@
             />
           </a-form-item>
         </template>
+        <template
+          v-if="
+            opsAction === 'close' &&
+            closeFormSubmitRule &&
+            closeFormSubmitRule.allow_substitute &&
+            substituteRows.length > 0
+          "
+        >
+          <a-divider>代提交未上报陪玩（§3.4）</a-divider>
+          <a-typography-text type="secondary">
+            提交规则要求 {{ closeFormSubmitRule.required }} 名成员上报；第
+            {{ substituteRows.map((row) => row.seatIndex).join('、') }}
+            席尚未上报，可代填服务量或服务凭证后结单。
+          </a-typography-text>
+          <a-form-item
+            v-for="row in substituteRows"
+            :key="row.seatIndex"
+            :label="`第 ${row.seatIndex} 席（陪玩 ${row.playerId}）`"
+          >
+            <a-space>
+              <a-input-number
+                v-model="row.units"
+                :min="0"
+                placeholder="上报服务量"
+              />
+              <a-input
+                v-model="row.evidence"
+                placeholder="服务凭证引用"
+                :max-length="255"
+              />
+            </a-space>
+          </a-form-item>
+        </template>
       </a-form>
     </a-modal>
 
@@ -352,7 +385,12 @@
               money(record.commission_cents)
             }}</template>
           </a-table-column>
-          <a-table-column title="操作" :width="90">
+          <a-table-column title="收款">
+            <template #cell="{ record }">{{
+              addonPaymentLabel(record)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="操作" :width="130">
             <template #cell="{ record }">
               <a-button
                 v-if="record.status === 'pending'"
@@ -360,6 +398,16 @@
                 status="danger"
                 @click="withdrawAddon(record)"
                 >撤回</a-button
+              >
+              <a-button
+                v-else-if="
+                  record.status === 'confirmed' &&
+                  record.payment_status === 'unpaid'
+                "
+                type="text"
+                status="success"
+                @click="collectAddon(record)"
+                >余额收款</a-button
               >
               <span v-else>—</span>
             </template>
@@ -403,6 +451,7 @@
     listOrderAddons,
     listOrders,
     payEsportsOrderByStoredValueCard,
+    payOrderAddonByBalance,
     payOrderWithBalance,
     rejectCloseReview,
     repriceOrder,
@@ -494,6 +543,13 @@
     value === undefined ||
     value === '' ||
     (Array.isArray(value) && value.length === 0);
+  const closeFormSubmitRule = computed(
+    () => closeForm.value?.submit_rule || null
+  );
+  // 客服代提交行（§3.4）：仅在生效提交规则允许代提交且存在未上报成员时渲染。
+  const substituteRows = ref<
+    { seatIndex: number; playerId: number; units: number; evidence: string }[]
+  >([]);
 
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
   // 透出后端返回的中文错误信息（如结单条件缺失），取不到时回退默认文案。
@@ -594,6 +650,24 @@
     }
   }
 
+  // 加钟收款（§3.3）：确认后的追加金额由客服按客户余额收单。
+  const addonPaymentLabel = (record: EsportsOrderAddon) => {
+    if (record.status !== 'confirmed') return '—';
+    return record.payment_status === 'paid'
+      ? `已收 ${money(record.paid_cents)}`
+      : '待收款';
+  };
+
+  async function collectAddon(record: EsportsOrderAddon) {
+    try {
+      await payOrderAddonByBalance(record.id);
+      Message.success('已完成加钟收款');
+      await loadAddons();
+    } catch (err) {
+      Message.error(errorText(err, '收款失败：加钟未确认或客户余额不足'));
+    }
+  }
+
   // ── 结单复核（§3.4）──
   const closeReviewVisible = ref(false);
   const closeReviewTarget = ref<EsportsOrder | null>(null);
@@ -676,12 +750,20 @@
     opsForm.reason = '';
     closeForm.value = null;
     closeFormValues.value = {};
+    substituteRows.value = [];
     opsVisible.value = true;
     if (action === 'close') {
       try {
-        closeForm.value = (await getOrderCloseForm(order.id)).data.data || null;
+        const view = (await getOrderCloseForm(order.id)).data.data || null;
+        closeForm.value = view;
+        substituteRows.value = (view?.unsubmitted || []).map((item) => ({
+          seatIndex: item.seat_index,
+          playerId: item.player_id,
+          units: 0,
+          evidence: '',
+        }));
       } catch {
-        Message.error('加载结单表单失败，可重试或直接结单');
+        Message.error('加载结单配置失败，可重试或直接结单');
       }
     }
   }
@@ -728,10 +810,18 @@
           reason: opsForm.reason.trim(),
         });
       } else if (opsAction.value === 'close') {
+        const substitutes = substituteRows.value
+          .filter((row) => row.units > 0 || row.evidence.trim() !== '')
+          .map((row) => ({
+            seat_index: row.seatIndex,
+            reported_units: row.units,
+            evidence_ref: row.evidence.trim(),
+          }));
         await closeOrder(
           order.id,
           opsForm.reason.trim(),
-          closeFormValues.value
+          closeFormValues.value,
+          substitutes
         );
       } else {
         await cancelOrder(order.id, opsForm.reason.trim());

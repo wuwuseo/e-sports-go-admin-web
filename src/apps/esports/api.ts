@@ -597,6 +597,12 @@ export interface EsportsAfterSale {
   makeup_seat_index: number | null;
   makeup_units: number;
   makeup_company_pay_cents: number;
+  // 待客户确认节点（§13.3）：确认渠道区分自助确认与客服代确认。
+  customer_confirmed_at: string | null;
+  customer_confirm_channel: 'none' | 'self_service' | 'admin_proxy';
+  customer_confirmed_by_admin_id: number | null;
+  customer_declined_at: string | null;
+  customer_decline_reason: string;
   customer_id: number | null;
   player_id: number | null;
   handler_admin_id: number | null;
@@ -638,15 +644,45 @@ export interface CloseOrderInput {
   note: string;
 }
 
+// 结单提交规则（§3.4）与订单结单配置视图共用的类型：因 closeOrder / OrderCloseFormView 引用而提前声明。
+export type CloseSubmitMode = 'single' | 'multi' | 'custom';
+export type CloseSubmitOnMissing = 'block' | 'remind' | 'auto_accept';
+
+export interface CloseSubstituteReport {
+  seat_index: number;
+  reported_units: number;
+  evidence_ref: string;
+}
+
+export interface OrderCloseSubmitSummary {
+  id: number;
+  code: string;
+  name: string;
+  version: number;
+  mode: CloseSubmitMode;
+  min_submit_ratio_bp: number;
+  allow_substitute: boolean;
+  on_missing: CloseSubmitOnMissing;
+  required: number;
+}
+
+export interface UnsubmittedMember {
+  seat_index: number;
+  player_id: number;
+}
+
 // formValues 为结单表单模板驱动的字段值（key = 字段库 key）；订单无适用模板时可不传。
+// substituteReports 为客服代未上报成员补填的服务段上报；仅生效提交规则允许代提交时有效。
 export const closeOrder = (
   id: number,
   note: string,
-  formValues?: Record<string, unknown>
+  formValues?: Record<string, unknown>,
+  substituteReports?: CloseSubstituteReport[]
 ) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/close`, {
     note,
     form_values: formValues || {},
+    substitute_reports: substituteReports || [],
   });
 
 // 结单复核（§3.4）：金额达复核阈值的订单进入待复核，由非负责客服的管理员通过 / 驳回。
@@ -683,6 +719,12 @@ export const planAfterSale = (id: number, input: AfterSalePlanInput) =>
 export const approveAfterSale = (id: number) =>
   axios.post<ApiResponse<EsportsAfterSale>>(
     `${base}/after-sales/${id}/approve`
+  );
+
+// 待客户确认（§13.3）：客服代客户确认方案（客户线下已同意），方案随后进入待审批。
+export const confirmAfterSalePlan = (id: number) =>
+  axios.post<ApiResponse<EsportsAfterSale>>(
+    `${base}/after-sales/${id}/confirm`
   );
 
 export const rejectAfterSale = (id: number, reason: string) =>
@@ -751,6 +793,7 @@ export const completeFulfillmentMakeup = (id: number, note = '') =>
 // ── 加钟（§3.3 / §6.2 / §12.5）：客服对服务中订单发起，陪玩确认后累加并生成加钟分成 ──
 
 export type AddonStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled';
+export type AddonPaymentStatus = 'unpaid' | 'paid';
 
 export interface EsportsOrderAddon {
   id: number;
@@ -764,6 +807,12 @@ export interface EsportsOrderAddon {
   rule_no: string;
   rule_version: number;
   commission_cents: number;
+  // 加钟收款（§3.3）：确认后的追加金额由客服收单，首版仅客户余额核销。
+  payment_status: AddonPaymentStatus;
+  paid_cents: number;
+  paid_at: string | null;
+  paid_by_admin_id: number | null;
+  payment_ref: string;
   confirmed_player_id: number | null;
   confirmed_at: string | null;
   reject_reason: string;
@@ -793,6 +842,12 @@ export const createOrderAddon = (orderId: number, input: OrderAddonInput) =>
 export const cancelOrderAddon = (id: number) =>
   axios.post<ApiResponse<EsportsOrderAddon>>(
     `${base}/order-addons/${id}/cancel`
+  );
+
+// 加钟收款（§3.3）：对已确认且未收款的加钟单用客户余额核销追加金额。
+export const payOrderAddonByBalance = (id: number) =>
+  axios.post<ApiResponse<EsportsOrderAddon>>(
+    `${base}/order-addons/${id}/pay-by-balance`
   );
 
 // ── 分成与结算 ──
@@ -2725,14 +2780,79 @@ export interface EsportsCloseFormSnapshot {
   created_at: string;
 }
 
-// 订单结单表单视图：适用模板、模板字段定义与最近一次快照（供结单弹窗渲染）。
+// 订单结单配置视图：适用模板与字段、最近一次快照、提交规则摘要与未上报成员（供结单弹窗渲染）。
 export interface OrderCloseFormView {
   template: EsportsCloseFormTemplate | null;
   fields: EsportsCloseFormField[];
   latest_snapshot: EsportsCloseFormSnapshot | null;
+  submit_rule: OrderCloseSubmitSummary | null;
+  unsubmitted: UnsubmittedMember[];
 }
 
 export const getOrderCloseForm = (orderId: number) =>
   axios.get<ApiResponse<OrderCloseFormView>>(
     `${base}/orders/${orderId}/close-form`
+  );
+
+// ── 结单提交规则（§3.4）：单人 / 多人 / 自定义（代提交、提交比例、未提交处理） ──
+
+export interface EsportsCloseSubmitRule {
+  id: number;
+  code: string;
+  name: string;
+  scope: CloseFormScope;
+  scope_key: string;
+  mode: CloseSubmitMode;
+  min_submit_ratio_bp: number;
+  allow_substitute: boolean;
+  on_missing: CloseSubmitOnMissing;
+  status: CloseFormStatus;
+  version: number;
+  created_by_admin_id: number | null;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CloseSubmitRuleInput {
+  code: string;
+  name: string;
+  scope: CloseFormScope;
+  scope_key: string;
+  mode: CloseSubmitMode;
+  min_submit_ratio_bp: number;
+  allow_substitute: boolean;
+  on_missing: CloseSubmitOnMissing;
+  note?: string;
+}
+
+export const listCloseSubmitRules = () =>
+  axios.get<ApiResponse<EsportsCloseSubmitRule[]>>(
+    `${base}/close-submit-rules`
+  );
+
+export const createCloseSubmitRule = (input: CloseSubmitRuleInput) =>
+  axios.post<ApiResponse<EsportsCloseSubmitRule>>(
+    `${base}/close-submit-rules`,
+    input
+  );
+
+export const updateCloseSubmitRule = (
+  id: number,
+  expectedVersion: number,
+  input: CloseSubmitRuleInput
+) =>
+  axios.put<ApiResponse<EsportsCloseSubmitRule>>(
+    `${base}/close-submit-rules/${id}`,
+    { expected_version: expectedVersion, ...input }
+  );
+
+export const activateCloseSubmitRule = (id: number) =>
+  axios.post<ApiResponse<EsportsCloseSubmitRule>>(
+    `${base}/close-submit-rules/${id}/activate`
+  );
+
+export const rollbackCloseSubmitRule = (id: number) =>
+  axios.post<ApiResponse<EsportsCloseSubmitRule>>(
+    `${base}/close-submit-rules/${id}/rollback`
   );

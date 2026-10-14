@@ -142,6 +142,82 @@
             </template>
           </a-table>
         </a-tab-pane>
+
+        <!-- 提交规则 -->
+        <a-tab-pane key="submit" title="提交规则">
+          <a-space class="toolbar">
+            <a-button v-if="canManage" type="primary" @click="openSubmitCreate"
+              >新建提交规则</a-button
+            >
+            <a-button :loading="submitLoading" @click="loadSubmitRules"
+              >刷新</a-button
+            >
+          </a-space>
+          <a-typography-text type="secondary" class="tip">
+            规定结单前「陪玩个人服务段上报」需多少成员完成：单人提交只需 1
+            名成员、多人提交须所有实际服务成员逐人提交、自定义按提交比例向上取整；
+            未达标可禁止结单、放行并催办或视为已提交。按 SKU &gt; 游戏分区 &gt;
+            全局选层，同层取版本最高。
+          </a-typography-text>
+          <a-table
+            :data="submitRules"
+            :loading="submitLoading"
+            row-key="id"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column data-index="code" title="规则编号" />
+              <a-table-column data-index="name" title="名称" />
+              <a-table-column title="适用范围">
+                <template #cell="{ record }">{{
+                  submitScopeLabel(record)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="模式">
+                <template #cell="{ record }">{{
+                  submitModeLabel(record.mode)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="提交比例">
+                <template #cell="{ record }">{{
+                  record.mode === 'custom'
+                    ? `${(record.min_submit_ratio_bp / 100).toFixed(2)}%`
+                    : '—'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="代提交 / 未达标">
+                <template #cell="{ record }"
+                  >{{ record.allow_substitute ? '允许' : '不允许' }} /
+                  {{ submitOnMissingLabel(record.on_missing) }}</template
+                >
+              </a-table-column>
+              <a-table-column title="版本 / 状态">
+                <template #cell="{ record }"
+                  >v{{ record.version }} /
+                  {{ templateStatusLabel(record.status) }}</template
+                >
+              </a-table-column>
+              <a-table-column title="操作" :width="140">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="canManage && record.status === 'draft'"
+                    type="text"
+                    status="success"
+                    @click="doActivateSubmitRule(record)"
+                    >生效</a-button
+                  >
+                  <a-button
+                    v-else-if="canManage && record.status === 'history'"
+                    type="text"
+                    @click="doRollbackSubmitRule(record)"
+                    >回滚</a-button
+                  >
+                  <span v-else>—</span>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+        </a-tab-pane>
       </a-tabs>
     </a-card>
 
@@ -276,6 +352,77 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-modal
+      v-model:visible="submitVisible"
+      title="新建结单提交规则（§3.4）"
+      @ok="submitSubmitRule"
+      @cancel="submitVisible = false"
+    >
+      <a-form :model="submitForm">
+        <a-form-item label="规则编号" required>
+          <a-input v-model="submitForm.code" :max-length="48" />
+        </a-form-item>
+        <a-form-item label="名称" required>
+          <a-input v-model="submitForm.name" :max-length="64" />
+        </a-form-item>
+        <a-form-item label="适用范围" required>
+          <a-select v-model="submitForm.scope">
+            <a-option value="global">全局</a-option>
+            <a-option value="game">按游戏分区</a-option>
+            <a-option value="sku">按 SKU</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item
+          v-if="submitForm.scope !== 'global'"
+          label="范围键"
+          required
+        >
+          <a-input
+            v-model="submitForm.scopeKey"
+            :max-length="64"
+            placeholder="游戏分区名或 SKU 编号"
+          />
+        </a-form-item>
+        <a-form-item label="提交模式" required>
+          <a-select v-model="submitForm.mode">
+            <a-option value="single">单人提交（任一成员）</a-option>
+            <a-option value="multi">多人提交（所有服务成员逐人）</a-option>
+            <a-option value="custom">自定义（按提交比例）</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item
+          v-if="submitForm.mode === 'custom'"
+          label="最低提交比例（%）"
+          required
+        >
+          <a-input-number
+            v-model="submitForm.ratioPercent"
+            :min="0.01"
+            :max="100"
+            :precision="2"
+          />
+        </a-form-item>
+        <a-form-item label="允许客服代提交">
+          <a-space direction="vertical">
+            <a-switch v-model="submitForm.allowSubstitute" />
+            <a-typography-text type="secondary"
+              >开启后客服可在结单时代未上报成员补填服务量与凭证。</a-typography-text
+            >
+          </a-space>
+        </a-form-item>
+        <a-form-item label="未达标处理" required>
+          <a-select v-model="submitForm.onMissing">
+            <a-option value="block">禁止结单</a-option>
+            <a-option value="remind">放行并催办提醒</a-option>
+            <a-option value="auto_accept">视为已提交</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="备注">
+          <a-input v-model="submitForm.note" :max-length="255" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -285,11 +432,15 @@
   import usePermission from '@/hooks/permission';
   import {
     activateCloseFormTemplate,
+    activateCloseSubmitRule,
     createCloseFormField,
     createCloseFormTemplate,
+    createCloseSubmitRule,
     listCloseFormFields,
     listCloseFormTemplates,
+    listCloseSubmitRules,
     rollbackCloseFormTemplate,
+    rollbackCloseSubmitRule,
     setCloseFormFieldStatus,
     updateCloseFormField,
   } from '../../api';
@@ -297,8 +448,11 @@
     CloseFormFieldType,
     CloseFormScope,
     CloseFormStatus,
+    CloseSubmitMode,
+    CloseSubmitOnMissing,
     EsportsCloseFormField,
     EsportsCloseFormTemplate,
+    EsportsCloseSubmitRule,
   } from '../../api';
 
   const fieldTypeLabels: Record<CloseFormFieldType, string> = {
@@ -321,6 +475,24 @@
     fieldTypeLabels[value] || value;
   const templateStatusLabel = (value: CloseFormStatus) =>
     templateStatusLabels[value] || value;
+  const submitModeLabels: Record<CloseSubmitMode, string> = {
+    single: '单人提交',
+    multi: '多人提交',
+    custom: '自定义比例',
+  };
+  const submitOnMissingLabels: Record<CloseSubmitOnMissing, string> = {
+    block: '禁止结单',
+    remind: '放行并催办',
+    auto_accept: '视为已提交',
+  };
+  const submitModeLabel = (value: CloseSubmitMode) =>
+    submitModeLabels[value] || value;
+  const submitOnMissingLabel = (value: CloseSubmitOnMissing) =>
+    submitOnMissingLabels[value] || value;
+  const submitScopeLabel = (item: EsportsCloseSubmitRule) =>
+    item.scope === 'global'
+      ? '全局'
+      : `${item.scope === 'game' ? '游戏分区' : 'SKU'}：${item.scope_key}`;
   const templateScopeLabel = (item: EsportsCloseFormTemplate) =>
     item.scope === 'global'
       ? '全局'
@@ -576,9 +748,104 @@
     }
   }
 
+  // ── 提交规则（§3.4） ──
+  const submitRules = ref<EsportsCloseSubmitRule[]>([]);
+  const submitLoading = ref(false);
+  const submitVisible = ref(false);
+  const submitForm = reactive({
+    code: '',
+    name: '',
+    scope: 'global' as CloseFormScope,
+    scopeKey: '',
+    mode: 'multi' as CloseSubmitMode,
+    ratioPercent: 100,
+    allowSubstitute: false,
+    onMissing: 'block' as CloseSubmitOnMissing,
+    note: '',
+  });
+
+  async function loadSubmitRules() {
+    submitLoading.value = true;
+    try {
+      submitRules.value = (await listCloseSubmitRules()).data.data || [];
+    } catch {
+      Message.error('加载提交规则失败，请稍后重试');
+    } finally {
+      submitLoading.value = false;
+    }
+  }
+
+  function openSubmitCreate() {
+    submitForm.code = '';
+    submitForm.name = '';
+    submitForm.scope = 'global';
+    submitForm.scopeKey = '';
+    submitForm.mode = 'multi';
+    submitForm.ratioPercent = 100;
+    submitForm.allowSubstitute = false;
+    submitForm.onMissing = 'block';
+    submitForm.note = '';
+    submitVisible.value = true;
+  }
+
+  async function submitSubmitRule() {
+    if (!submitForm.code.trim() || !submitForm.name.trim()) {
+      Message.warning('请填写规则编号与名称');
+      return;
+    }
+    if (submitForm.scope !== 'global' && !submitForm.scopeKey.trim()) {
+      Message.warning('请填写范围键');
+      return;
+    }
+    try {
+      await createCloseSubmitRule({
+        code: submitForm.code.trim(),
+        name: submitForm.name.trim(),
+        scope: submitForm.scope,
+        scope_key: submitForm.scopeKey.trim(),
+        mode: submitForm.mode,
+        min_submit_ratio_bp:
+          submitForm.mode === 'custom'
+            ? Math.round(submitForm.ratioPercent * 100)
+            : 0,
+        allow_substitute: submitForm.allowSubstitute,
+        on_missing: submitForm.onMissing,
+        note: submitForm.note.trim(),
+      });
+      submitVisible.value = false;
+      Message.success('已创建草稿规则，需“生效”后才会作用于结单');
+      await loadSubmitRules();
+    } catch (err) {
+      Message.error(
+        errorText(err, '创建失败：自定义模式须填提交比例或参数非法')
+      );
+    }
+  }
+
+  async function doActivateSubmitRule(record: EsportsCloseSubmitRule) {
+    try {
+      await activateCloseSubmitRule(record.id);
+      Message.success('已生效');
+      await loadSubmitRules();
+    } catch (err) {
+      Message.error(errorText(err, '生效失败：仅草稿可生效'));
+    }
+  }
+
+  async function doRollbackSubmitRule(record: EsportsCloseSubmitRule) {
+    try {
+      await rollbackCloseSubmitRule(record.id);
+      Message.success('已回滚并生效新版本');
+      await loadSubmitRules();
+    } catch (err) {
+      Message.error(errorText(err, '回滚失败，请刷新后重试'));
+    }
+  }
+
   onMounted(() => {
     loadFields();
     loadTemplates();
+    loadSubmitRules();
   });
 </script>
 

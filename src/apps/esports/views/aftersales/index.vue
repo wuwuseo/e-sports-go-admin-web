@@ -80,6 +80,13 @@
                   >提交方案</a-button
                 >
                 <a-button
+                  v-if="record.status === 'pending_customer_confirm'"
+                  type="text"
+                  status="success"
+                  @click="confirmPlan(record)"
+                  >代客户确认</a-button
+                >
+                <a-button
                   v-if="record.status === 'pending_approval'"
                   type="text"
                   status="success"
@@ -400,6 +407,7 @@
   import {
     acceptAfterSale,
     approveAfterSale,
+    confirmAfterSalePlan,
     completeFulfillmentMakeup,
     createAfterSale,
     executeAfterSale,
@@ -685,6 +693,17 @@
       await load();
     } catch (err) {
       Message.error(errorText(err, '提交方案失败：参数无效或状态已变化'));
+    }
+  }
+
+  // §13.3 待客户确认：客户线下已同意时由客服代确认，方案随后进入待审批。
+  async function confirmPlan(record: EsportsAfterSale) {
+    try {
+      await confirmAfterSalePlan(record.id);
+      Message.success('已代客户确认，售后进入待审批');
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '确认失败：售后不在待客户确认状态'));
     }
   }
 
