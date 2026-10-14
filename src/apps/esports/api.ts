@@ -41,6 +41,9 @@ export type SkuInput = Omit<EsportsSku, 'id' | 'quota_reserved' | 'quota_sold'>;
 export type SkuUpdateInput = Omit<SkuInput, 'code'>;
 
 export type CustomerSource = 'manual' | 'wecom' | 'self' | 'import';
+
+// 风险标记（§13.7）：normal 正常 / watch 疑似滥用复核（自动，不自动处罚）/ restricted 限制自助下单（人工）。
+export type CustomerRiskStatus = 'normal' | 'watch' | 'restricted';
 export type CustomerFollowStatus =
   | 'new'
   | 'following'
@@ -63,6 +66,10 @@ export interface EsportsCustomer {
   follow_status: CustomerFollowStatus;
   last_contact_at: string | null;
   member_level_code: string;
+  // 风险标记（§13.7）：normal 正常 / watch 疑似滥用复核（自动，不自动处罚）/ restricted 限制自助下单（人工）。
+  risk_status: CustomerRiskStatus;
+  risk_reason: string;
+  risk_marked_at: string | null;
   version: number;
 }
 
@@ -221,6 +228,20 @@ export interface EsportsDispatchBoard {
 }
 
 const base = '/api/v1/esports/admin';
+
+// 客户风控（§13.7）：风险名单与人工标记 / 解除。
+export const listRiskCustomers = () =>
+  axios.get<ApiResponse<EsportsCustomer[]>>(`${base}/risk-customers`);
+
+export const markCustomerRisk = (
+  customerId: number,
+  status: CustomerRiskStatus,
+  reason: string
+) =>
+  axios.post<ApiResponse<EsportsCustomer>>(
+    `${base}/customers/${customerId}/risk`,
+    { status, reason }
+  );
 
 export const listSkus = () =>
   axios.get<ApiResponse<EsportsSku[]>>(`${base}/skus`);

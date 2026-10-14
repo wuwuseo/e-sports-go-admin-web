@@ -16,4 +16,5 @@ export default {
   'menu.app.esports.cs.menu': 'CS Workbench',
   'menu.app.esports.stored_value.menu': 'Stored Value Cards',
   'menu.app.esports.close_form.menu': 'Close Form Builder',
+  'menu.app.esports.risk.menu': 'Risk Customers',
 };

@@ -16,4 +16,5 @@ export default {
   'menu.app.esports.cs.menu': '客服工作台',
   'menu.app.esports.stored_value.menu': '储值卡',
   'menu.app.esports.close_form.menu': '结单表单',
+  'menu.app.esports.risk.menu': '风险客户',
 };
