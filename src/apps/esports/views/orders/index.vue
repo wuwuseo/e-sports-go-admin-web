@@ -202,6 +202,70 @@
         <a-form-item :label="opsAction === 'close' ? '备注' : '原因（必填）'">
           <a-textarea v-model="opsForm.reason" :max-length="255" />
         </a-form-item>
+        <template v-if="opsAction === 'close' && closeFormFields.length > 0">
+          <a-divider>结单表单（§3.4）：{{ closeFormTemplateName }}</a-divider>
+          <a-form-item
+            v-for="item in closeFormFields"
+            :key="item.key"
+            :label="item.label"
+            :required="isCloseFormRequired(item)"
+          >
+            <a-input
+              v-if="
+                item.field_type === 'text' ||
+                item.field_type === 'datetime' ||
+                item.field_type === 'image' ||
+                item.field_type === 'reference'
+              "
+              :model-value="closeFormText(item.key)"
+              :max-length="item.max_length > 0 ? item.max_length : undefined"
+              :placeholder="closeFormPlaceholder(item)"
+              @update:model-value="(value) => setCloseFormText(item.key, value)"
+            />
+            <a-input-number
+              v-else-if="item.field_type === 'number'"
+              :model-value="closeFormNumber(item.key)"
+              @update:model-value="
+                (value) => setCloseFormNumber(item.key, value)
+              "
+            />
+            <a-input
+              v-else-if="item.field_type === 'money'"
+              :model-value="money(opsTarget ? opsTarget.payable_cents : 0)"
+              disabled
+            />
+            <a-select
+              v-else-if="item.field_type === 'select'"
+              :model-value="closeFormText(item.key)"
+              @update:model-value="(value) => setCloseFormText(item.key, value)"
+            >
+              <a-option
+                v-for="option in item.options || []"
+                :key="option"
+                :value="option"
+                >{{ option }}</a-option
+              >
+            </a-select>
+            <a-select
+              v-else-if="item.field_type === 'multiselect'"
+              :model-value="closeFormList(item.key)"
+              multiple
+              @update:model-value="(value) => setCloseFormList(item.key, value)"
+            >
+              <a-option
+                v-for="option in item.options || []"
+                :key="option"
+                :value="option"
+                >{{ option }}</a-option
+              >
+            </a-select>
+            <a-switch
+              v-else-if="item.field_type === 'switch'"
+              :model-value="closeFormBool(item.key)"
+              @update:model-value="(value) => setCloseFormBool(item.key, value)"
+            />
+          </a-form-item>
+        </template>
       </a-form>
     </a-modal>
 
@@ -335,6 +399,7 @@
     createOrderAddon,
     depositOrder,
     getOrder,
+    getOrderCloseForm,
     listOrderAddons,
     listOrders,
     payEsportsOrderByStoredValueCard,
@@ -344,7 +409,12 @@
     rescheduleOrder,
     restoreOrder,
   } from '../../api';
-  import type { EsportsOrder, EsportsOrderAddon } from '../../api';
+  import type {
+    EsportsCloseFormField,
+    EsportsOrder,
+    EsportsOrderAddon,
+    OrderCloseFormView,
+  } from '../../api';
 
   type OpsAction = 'reprice' | 'reschedule' | 'cancel' | 'close';
 
@@ -366,6 +436,64 @@
     startAt: '',
     reason: '',
   });
+
+  // ── 结单表单（§3.4）：按订单适用模板动态渲染，值随结单一起提交 ──
+  const closeForm = ref<OrderCloseFormView | null>(null);
+  const closeFormValues = ref<Record<string, unknown>>({});
+  const closeFormFields = computed<EsportsCloseFormField[]>(
+    () => closeForm.value?.fields || []
+  );
+  const closeFormTemplateName = computed(() => {
+    const template = closeForm.value?.template;
+    return template ? `${template.name} v${template.version}` : '无适用模板';
+  });
+  // 模板绑定可覆盖字段库的必填默认值；金额只读字段由系统填写，不参与必填。
+  const closeFormBindingRequired = (key: string) =>
+    (closeForm.value?.template?.fields || []).some(
+      (binding) => binding.field_key === key && binding.required
+    );
+  const isCloseFormRequired = (item: EsportsCloseFormField) =>
+    item.field_type !== 'money' &&
+    (item.required || closeFormBindingRequired(item.key));
+  const closeFormText = (key: string) => {
+    const value = closeFormValues.value[key];
+    return typeof value === 'string' ? value : '';
+  };
+  const closeFormNumber = (key: string) => {
+    const value = closeFormValues.value[key];
+    return typeof value === 'number' ? value : undefined;
+  };
+  const closeFormBool = (key: string) => closeFormValues.value[key] === true;
+  const closeFormList = (key: string) => {
+    const value = closeFormValues.value[key];
+    return Array.isArray(value) ? value.map((item) => String(item)) : [];
+  };
+  const closeFormPlaceholder = (item: EsportsCloseFormField) => {
+    if (item.field_type === 'datetime')
+      return 'ISO 时间，如 2026-10-14T10:00:00Z';
+    if (item.field_type === 'image') return '附件引用或图片地址';
+    if (item.field_type === 'reference') return '关联对象 ID';
+    return '';
+  };
+  const setCloseFormText = (key: string, value: unknown) => {
+    closeFormValues.value[key] = typeof value === 'string' ? value : '';
+  };
+  const setCloseFormNumber = (key: string, value: unknown) => {
+    closeFormValues.value[key] = typeof value === 'number' ? value : null;
+  };
+  const setCloseFormBool = (key: string, value: unknown) => {
+    closeFormValues.value[key] = value === true;
+  };
+  const setCloseFormList = (key: string, value: unknown) => {
+    closeFormValues.value[key] = Array.isArray(value)
+      ? value.map((item) => String(item))
+      : [];
+  };
+  const isEmptyCloseFormValue = (value: unknown) =>
+    value === null ||
+    value === undefined ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0);
 
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
   // 透出后端返回的中文错误信息（如结单条件缺失），取不到时回退默认文案。
@@ -539,14 +667,23 @@
     }
   }
 
-  function openOps(order: EsportsOrder, action: OpsAction) {
+  async function openOps(order: EsportsOrder, action: OpsAction) {
     opsTarget.value = order;
     opsAction.value = action;
     opsForm.quantity = order.quantity;
     opsForm.manualAdjustYuan = order.manual_adjust_cents / 100;
     opsForm.startAt = '';
     opsForm.reason = '';
+    closeForm.value = null;
+    closeFormValues.value = {};
     opsVisible.value = true;
+    if (action === 'close') {
+      try {
+        closeForm.value = (await getOrderCloseForm(order.id)).data.data || null;
+      } catch {
+        Message.error('加载结单表单失败，可重试或直接结单');
+      }
+    }
   }
 
   async function submitOps() {
@@ -555,6 +692,22 @@
     if (!opsForm.reason.trim()) {
       Message.warning('请填写原因');
       return;
+    }
+    // 结单表单（§3.4）：必填项前端先拦一道，后端仍会事务内原子校验。
+    if (opsAction.value === 'close') {
+      const missing = closeFormFields.value.filter(
+        (item) =>
+          isCloseFormRequired(item) &&
+          isEmptyCloseFormValue(closeFormValues.value[item.key])
+      );
+      if (missing.length > 0) {
+        Message.warning(
+          `请填写结单表单必填项：${missing
+            .map((item) => item.label)
+            .join('、')}`
+        );
+        return;
+      }
     }
     try {
       if (opsAction.value === 'reprice') {
@@ -575,7 +728,11 @@
           reason: opsForm.reason.trim(),
         });
       } else if (opsAction.value === 'close') {
-        await closeOrder(order.id, opsForm.reason.trim());
+        await closeOrder(
+          order.id,
+          opsForm.reason.trim(),
+          closeFormValues.value
+        );
       } else {
         await cancelOrder(order.id, opsForm.reason.trim());
       }

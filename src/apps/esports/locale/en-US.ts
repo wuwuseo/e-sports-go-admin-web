@@ -15,4 +15,5 @@ export default {
   'menu.app.esports.page.menu': 'Page Builder',
   'menu.app.esports.cs.menu': 'CS Workbench',
   'menu.app.esports.stored_value.menu': 'Stored Value Cards',
+  'menu.app.esports.close_form.menu': 'Close Form Builder',
 };

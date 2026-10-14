@@ -638,8 +638,16 @@ export interface CloseOrderInput {
   note: string;
 }
 
-export const closeOrder = (id: number, note: string) =>
-  axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/close`, { note });
+// formValues 为结单表单模板驱动的字段值（key = 字段库 key）；订单无适用模板时可不传。
+export const closeOrder = (
+  id: number,
+  note: string,
+  formValues?: Record<string, unknown>
+) =>
+  axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/close`, {
+    note,
+    form_values: formValues || {},
+  });
 
 // 结单复核（§3.4）：金额达复核阈值的订单进入待复核，由非负责客服的管理员通过 / 驳回。
 export const approveCloseReview = (id: number, note = '') =>
@@ -2570,4 +2578,161 @@ export const activateCloseRule = (id: number) =>
 export const rollbackCloseRule = (id: number) =>
   axios.post<ApiResponse<EsportsCloseRule>>(
     `${base}/close-rules/${id}/rollback`
+  );
+
+// ── 结单表单设计器（§3.4）：字段库与模板 ──
+
+export type CloseFormFieldType =
+  | 'text'
+  | 'number'
+  | 'money'
+  | 'select'
+  | 'multiselect'
+  | 'datetime'
+  | 'image'
+  | 'switch'
+  | 'reference';
+
+export interface EsportsCloseFormField {
+  id: number;
+  key: string;
+  label: string;
+  field_type: CloseFormFieldType;
+  required: boolean;
+  options: string[] | null;
+  max_length: number;
+  enabled: boolean;
+  sort_order: number;
+  note: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CloseFormFieldInput {
+  key: string;
+  label: string;
+  field_type: CloseFormFieldType;
+  required: boolean;
+  options: string[];
+  max_length: number;
+  sort_order: number;
+  note?: string;
+}
+
+export interface CloseFormFieldBinding {
+  field_key: string;
+  required: boolean;
+  sort: number;
+}
+
+export type CloseFormScope = 'global' | 'game' | 'sku';
+export type CloseFormStatus = 'draft' | 'active' | 'history';
+
+export interface EsportsCloseFormTemplate {
+  id: number;
+  code: string;
+  name: string;
+  scope: CloseFormScope;
+  scope_key: string;
+  min_cents: number;
+  max_cents: number;
+  fields: CloseFormFieldBinding[] | null;
+  status: CloseFormStatus;
+  version: number;
+  created_by_admin_id: number | null;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CloseFormTemplateInput {
+  code: string;
+  name: string;
+  scope: CloseFormScope;
+  scope_key: string;
+  min_cents: number;
+  max_cents: number;
+  fields: CloseFormFieldBinding[];
+  note?: string;
+}
+
+export const listCloseFormFields = () =>
+  axios.get<ApiResponse<EsportsCloseFormField[]>>(`${base}/close-form-fields`);
+
+export const createCloseFormField = (input: CloseFormFieldInput) =>
+  axios.post<ApiResponse<EsportsCloseFormField>>(
+    `${base}/close-form-fields`,
+    input
+  );
+
+export const updateCloseFormField = (
+  id: number,
+  expectedVersion: number,
+  input: CloseFormFieldInput
+) =>
+  axios.put<ApiResponse<EsportsCloseFormField>>(
+    `${base}/close-form-fields/${id}`,
+    { expected_version: expectedVersion, ...input }
+  );
+
+export const setCloseFormFieldStatus = (id: number, enabled: boolean) =>
+  axios.post<ApiResponse<EsportsCloseFormField>>(
+    `${base}/close-form-fields/${id}/status`,
+    { enabled }
+  );
+
+export const listCloseFormTemplates = () =>
+  axios.get<ApiResponse<EsportsCloseFormTemplate[]>>(
+    `${base}/close-form-templates`
+  );
+
+export const createCloseFormTemplate = (input: CloseFormTemplateInput) =>
+  axios.post<ApiResponse<EsportsCloseFormTemplate>>(
+    `${base}/close-form-templates`,
+    input
+  );
+
+export const updateCloseFormTemplate = (
+  id: number,
+  expectedVersion: number,
+  input: CloseFormTemplateInput
+) =>
+  axios.put<ApiResponse<EsportsCloseFormTemplate>>(
+    `${base}/close-form-templates/${id}`,
+    { expected_version: expectedVersion, ...input }
+  );
+
+export const activateCloseFormTemplate = (id: number) =>
+  axios.post<ApiResponse<EsportsCloseFormTemplate>>(
+    `${base}/close-form-templates/${id}/activate`
+  );
+
+export const rollbackCloseFormTemplate = (id: number) =>
+  axios.post<ApiResponse<EsportsCloseFormTemplate>>(
+    `${base}/close-form-templates/${id}/rollback`
+  );
+
+export interface EsportsCloseFormSnapshot {
+  id: number;
+  order_id: number;
+  template_id: number;
+  template_code: string;
+  template_version: number;
+  values: Record<string, unknown> | null;
+  note: string;
+  submitted_by_admin_id: number | null;
+  created_at: string;
+}
+
+// 订单结单表单视图：适用模板、模板字段定义与最近一次快照（供结单弹窗渲染）。
+export interface OrderCloseFormView {
+  template: EsportsCloseFormTemplate | null;
+  fields: EsportsCloseFormField[];
+  latest_snapshot: EsportsCloseFormSnapshot | null;
+}
+
+export const getOrderCloseForm = (orderId: number) =>
+  axios.get<ApiResponse<OrderCloseFormView>>(
+    `${base}/orders/${orderId}/close-form`
   );
