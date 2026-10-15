@@ -300,6 +300,16 @@
                   money(record.base_cents)
                 }}</template>
               </a-table-column>
+              <a-table-column title="渠道成本">
+                <template #cell="{ record }">{{
+                  money(record.channel_cost_cents || 0)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="工作室剩余">
+                <template #cell="{ record }">{{
+                  money(record.studio_remainder_cents || 0)
+                }}</template>
+              </a-table-column>
               <a-table-column title="计费">
                 <template #cell="{ record }">{{
                   csEntryCalcText(record)

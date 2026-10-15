@@ -123,6 +123,8 @@ export interface EsportsOrder {
   preferred_player_id: number | null;
   refund_status: string;
   appointment_status: string;
+  // 已知渠道成本（§12.1）：结单计提客服提成时从可分基数扣除。
+  channel_cost_cents: number;
   // 存单：仅订单上的冻结标记，不改变履约状态、不释放名额。
   deposit_status: 'none' | 'frozen';
   deposited_at: string | null;
@@ -225,6 +227,8 @@ export interface EsportsDispatchBoard {
   online_players: number;
   // 会员订单优先（§10.4）：待派单池 / 公共池中属于会员优先等级客户的订单 ID（后端已置顶）。
   member_priority_order_ids: number[];
+  // 公共池脱敏（§5.1 / §8.2）：非超管在公共池只看到脱敏摘要，客户身份与金额被掩码。
+  masked_public_pool_ids: number[];
 }
 
 const base = '/api/v1/esports/admin';
@@ -321,6 +325,11 @@ export const rescheduleOrder = (id: number, input: RescheduleInput) =>
     `${base}/orders/${id}/appointment`,
     input
   );
+
+export const setOrderChannelCost = (id: number, channelCostCents: number) =>
+  axios.put<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/channel-cost`, {
+    channel_cost_cents: channelCostCents,
+  });
 
 export const payOrderWithBalance = (id: number) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/pay-by-balance`);
@@ -424,6 +433,31 @@ export const revokeOrderSeat = (
 
 export const claimOrder = (orderId: number) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${orderId}/claim`);
+
+// 固排成队（§5.3）：主陪玩 + 其固排一次成队。
+export interface TeammateDispatchCandidate {
+  player_id: number;
+  display_name: string;
+  level: string;
+  qualification: string;
+  presence: string;
+}
+
+export const getTeammateCandidates = (orderId: number, mainPlayerId: number) =>
+  axios.get<ApiResponse<TeammateDispatchCandidate[]>>(
+    `${base}/orders/${orderId}/teammate-candidates`,
+    { params: { main_player_id: mainPlayerId } }
+  );
+
+export const teamDispatch = (
+  orderId: number,
+  mainPlayerId: number,
+  teammatePlayerIds: number[]
+) =>
+  axios.post<ApiResponse<EsportsDispatchSeat[]>>(
+    `${base}/orders/${orderId}/team-dispatch`,
+    { main_player_id: mainPlayerId, teammate_player_ids: teammatePlayerIds }
+  );
 
 export const transferOrder = (
   orderId: number,
@@ -1141,6 +1175,9 @@ export interface CsCommissionEntry {
   base_cents: number;
   matched_tier_bp: number;
   amount_cents: number;
+  // 渠道成本与工作室剩余快照（§12.1），仅 service 明细非零。
+  channel_cost_cents: number;
+  studio_remainder_cents: number;
   status: CommissionEntryStatus;
   settlement_id: number | null;
   note: string;

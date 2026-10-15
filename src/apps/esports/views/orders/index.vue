@@ -58,6 +58,17 @@
               </template>
               <a-button
                 v-if="
+                  canOperate &&
+                  record.payment_status === 'paid' &&
+                  record.fulfillment_status !== 'completed' &&
+                  record.fulfillment_status !== 'cancelled'
+                "
+                type="text"
+                @click="openChannelCost(record)"
+                >渠道成本</a-button
+              >
+              <a-button
+                v-if="
                   canOperate && record.fulfillment_status === 'pending_close'
                 "
                 type="text"
@@ -150,6 +161,9 @@
         >
         <a-descriptions-item label="应付金额">{{
           money(detail.payable_cents)
+        }}</a-descriptions-item>
+        <a-descriptions-item label="渠道成本">{{
+          money(detail.channel_cost_cents || 0)
         }}</a-descriptions-item>
         <a-descriptions-item label="报价版本 / 数据版本"
           >{{ detail.quote_version }} /
@@ -328,6 +342,27 @@
     </a-modal>
 
     <a-modal
+      v-model:visible="channelCostVisible"
+      title="登记渠道成本（§12.1）"
+      :ok-loading="channelCostLoading"
+      @ok="submitChannelCost"
+      @cancel="channelCostVisible = false"
+    >
+      <a-form :model="channelCostForm">
+        <a-form-item label="订单号">
+          <a-typography-text>{{ channelCostForm.orderNo }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="渠道成本（元）" required>
+          <a-input-number v-model="channelCostForm.yuan" :min="0" />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          结单计提客服提成时从可分基数扣除，并参与「工作室剩余 = 服务应付 −
+          陪玩分成 − 客服提成 − 渠道成本」反算；结单后不可再改。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <a-modal
       v-model:visible="addonVisible"
       title="订单加钟（§3.3 / §12.5）"
       :footer="false"
@@ -463,6 +498,7 @@
     repriceOrder,
     rescheduleOrder,
     restoreOrder,
+    setOrderChannelCost,
   } from '../../api';
   import type {
     EsportsCloseFormField,
@@ -912,6 +948,37 @@
       await load();
     } catch {
       Message.error('存单失败：仅已付款订单可存单或状态已变化');
+    }
+  }
+
+  // ── 渠道成本（§12.1） ──
+  const channelCostVisible = ref(false);
+  const channelCostLoading = ref(false);
+  const channelCostForm = reactive({ orderId: 0, orderNo: '', yuan: 0 });
+
+  function openChannelCost(order: EsportsOrder) {
+    channelCostForm.orderId = order.id;
+    channelCostForm.orderNo = order.order_no;
+    channelCostForm.yuan = (order.channel_cost_cents || 0) / 100;
+    channelCostVisible.value = true;
+  }
+
+  async function submitChannelCost() {
+    const cents = Math.round(channelCostForm.yuan * 100);
+    if (cents < 0) {
+      Message.warning('渠道成本不能为负');
+      return;
+    }
+    channelCostLoading.value = true;
+    try {
+      await setOrderChannelCost(channelCostForm.orderId, cents);
+      channelCostVisible.value = false;
+      Message.success('已登记渠道成本');
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '登记失败：金额超应付或订单已结单'));
+    } finally {
+      channelCostLoading.value = false;
     }
   }
 

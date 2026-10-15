@@ -23,14 +23,20 @@
         <template #columns>
           <a-table-column data-index="order_no" title="订单号" />
           <a-table-column title="客户 / 商品">
-            <template #cell="{ record }"
-              >{{ record.customer_id }} / {{ record.sku_id }}</template
-            >
+            <template #cell="{ record }">
+              <template v-if="maskedPoolIds.includes(record.id)"
+                >*** / {{ record.sku_id }}</template
+              >
+              <template v-else
+                >{{ record.customer_id }} / {{ record.sku_id }}</template
+              >
+            </template>
           </a-table-column>
           <a-table-column title="应付金额">
-            <template #cell="{ record }">{{
-              money(record.payable_cents)
-            }}</template>
+            <template #cell="{ record }">
+              <template v-if="maskedPoolIds.includes(record.id)">***</template>
+              <template v-else>{{ money(record.payable_cents) }}</template>
+            </template>
           </a-table-column>
           <a-table-column data-index="fulfillment_status" title="履约状态" />
           <a-table-column title="优先通知">
@@ -281,6 +287,15 @@
       width="720px"
       :footer="false"
     >
+      <a-space
+        v-if="canOperate && (seatOrder?.required_seats ?? 0) > 1"
+        class="toolbar"
+      >
+        <a-button type="primary" @click="openTeamDispatch">固排成队</a-button>
+        <a-typography-text type="secondary">
+          勾选主陪玩及其固排，一次占满空席位（按席位序依次邀请）
+        </a-typography-text>
+      </a-space>
       <a-table
         :data="seats"
         :loading="seatsLoading"
@@ -320,6 +335,40 @@
         </template>
       </a-table>
     </a-drawer>
+
+    <a-modal
+      v-model:visible="teamVisible"
+      title="固排成队"
+      :ok-button-props="{ disabled: teamSelected.length === 0 }"
+      @ok="submitTeamDispatch"
+      @cancel="closeTeamDispatch"
+    >
+      <a-form :model="teamForm" layout="vertical">
+        <a-form-item label="主陪玩档案 ID" required>
+          <a-space>
+            <a-input-number v-model="teamForm.mainPlayerId" :min="1" />
+            <a-button type="outline" @click="loadTeamCandidates"
+              >加载固排</a-button
+            >
+          </a-space>
+        </a-form-item>
+        <a-form-item v-if="teamCandidatesLoaded">
+          <a-typography-text v-if="teamCandidates.length === 0" type="secondary"
+            >该主陪玩在本单无可成队的固排（须已建立固排且资格/在线/分区/等级满足）</a-typography-text
+          >
+          <a-checkbox-group v-else v-model="teamSelected">
+            <a-checkbox
+              v-for="c in teamCandidates"
+              :key="c.player_id"
+              :value="c.player_id"
+            >
+              {{ c.display_name }}（{{ levelLabel(c.level) }} ·
+              {{ presenceLabel(c.presence) }}）
+            </a-checkbox>
+          </a-checkbox-group>
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <a-drawer
       v-model:visible="noticesVisible"
@@ -572,6 +621,7 @@
     claimOrder,
     getDispatchBoard,
     getDispatchCandidates,
+    getTeammateCandidates,
     decideSeatTransfer,
     grantDispatchPriority,
     listDispatchPriority,
@@ -583,6 +633,7 @@
     remindOrder,
     revokeDispatchPriority,
     revokeOrderSeat,
+    teamDispatch,
     transferOrder,
   } from '../../api';
   import type {
@@ -595,6 +646,7 @@
     PriorityNoticeItemStatus,
     SeatTransferRequest,
     SeatTransferStatus,
+    TeammateDispatchCandidate,
     EsportsDispatchBoard,
     EsportsDispatchSeat,
     EsportsOrder,
@@ -646,6 +698,10 @@
   // 会员订单优先（§10.4）：后端已把会员订单置顶，这里只做标记展示。
   const memberPriorityIds = computed(
     () => board.value?.member_priority_order_ids ?? []
+  );
+  // 公共池脱敏（§5.1 / §8.2）：非超管在公共池看到的订单已被后端掩码客户身份与金额。
+  const maskedPoolIds = computed(
+    () => board.value?.masked_public_pool_ids ?? []
   );
   const activeBucket = ref<BucketKey>('pending_dispatch');
   const seatsVisible = ref(false);
@@ -968,6 +1024,12 @@
 
   const assignVisible = ref(false);
   const assignForm = reactive({ seatIndex: 1, playerId: 1 });
+  // 固排成队（§5.3）
+  const teamVisible = ref(false);
+  const teamForm = reactive({ mainPlayerId: 1 });
+  const teamCandidates = ref<TeammateDispatchCandidate[]>([]);
+  const teamSelected = ref<number[]>([]);
+  const teamCandidatesLoaded = ref(false);
   const revokeVisible = ref(false);
   const revokeForm = reactive({ reason: '' });
   const transferVisible = ref(false);
@@ -1022,6 +1084,63 @@
   async function reloadSeats() {
     if (seatOrder.value) await openSeats(seatOrder.value);
   }
+
+  function openTeamDispatch() {
+    teamForm.mainPlayerId = 1;
+    teamCandidates.value = [];
+    teamSelected.value = [];
+    teamCandidatesLoaded.value = false;
+    teamVisible.value = true;
+  }
+
+  async function loadTeamCandidates() {
+    const order = seatOrder.value;
+    if (!order) return;
+    if (teamForm.mainPlayerId < 1) {
+      Message.warning('请填写有效的主陪玩档案 ID');
+      return;
+    }
+    try {
+      teamCandidates.value =
+        (await getTeammateCandidates(order.id, teamForm.mainPlayerId)).data
+          .data || [];
+      teamSelected.value = [];
+      teamCandidatesLoaded.value = true;
+    } catch {
+      Message.error('加载固排失败：订单状态已变化或主陪玩无效');
+    }
+  }
+
+  async function submitTeamDispatch() {
+    const order = seatOrder.value;
+    if (!order) return;
+    if (teamForm.mainPlayerId < 1) {
+      Message.warning('请填写有效的主陪玩档案 ID');
+      return;
+    }
+    try {
+      await teamDispatch(order.id, teamForm.mainPlayerId, teamSelected.value);
+      teamVisible.value = false;
+      Message.success('已一次成队并发出邀请');
+      await reloadSeats();
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '成队失败：固排关系、资格或空席位不足'));
+    }
+  }
+
+  function closeTeamDispatch() {
+    teamCandidates.value = [];
+    teamSelected.value = [];
+    teamCandidatesLoaded.value = false;
+  }
+
+  const levelLabel = (level: string) =>
+    ({ novice: '新手', skilled: '熟练', senior: '资深', mentor: '导师' }[
+      level
+    ] || level);
+  const presenceLabel = (presence: string) =>
+    presence === 'online' ? '在线' : '离线';
 
   function openAssign(order: DispatchOrder) {
     activeOrder.value = order;
