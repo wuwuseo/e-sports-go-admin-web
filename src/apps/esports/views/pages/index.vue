@@ -14,6 +14,9 @@
         <a-button :loading="saving" type="primary" @click="saveDraft"
           >保存草稿</a-button
         >
+        <!-- 发布审核（待后端）：后端 page_handlers.go 暂无发布审核接口，
+             后续若新增「发布申请/审核」能力，在此补「发布申请」按钮，
+             并依据版本状态展示审核中 / 已通过 / 已驳回。当前仅透出后端发布校验错误。 -->
         <a-button :loading="publishing" @click="publishNow">发布</a-button>
         <a-date-picker
           v-model="scheduledAt"
@@ -188,13 +191,15 @@
             <a-input-number
               v-model="assetForm.width"
               placeholder="宽"
-              :min="0"
+              :min="1"
+              :max="4096"
               :style="{ width: '100px' }"
             />
             <a-input-number
               v-model="assetForm.height"
               placeholder="高"
-              :min="0"
+              :min="1"
+              :max="4096"
               :style="{ width: '100px' }"
             />
             <a-button type="primary" @click="createAsset">新增素材</a-button>
@@ -444,15 +449,38 @@
   };
 
   const createAsset = async () => {
+    const name = assetForm.name.trim();
+    const url = assetForm.url.trim();
+    if (!name) {
+      Message.warning('请填写素材名称');
+      return;
+    }
+    if (!url) {
+      Message.warning('请填写素材地址');
+      return;
+    }
+    // 前端基础校验（§16 素材）：外部链接仅 https，或站内相对路径（以 / 开头），
+    // 尺寸 1~4096。与后端 savePageAsset 口径一致（https-only 或站内路径）。
+    if (!/^https:\/\//i.test(url) && !url.startsWith('/')) {
+      Message.warning('素材地址仅支持 https 链接或站内相对路径（以 / 开头）');
+      return;
+    }
+    const { width, height } = assetForm;
+    if (width < 1 || width > 4096 || height < 1 || height > 4096) {
+      Message.warning('素材尺寸须在 1~4096 之间');
+      return;
+    }
     try {
       await createEsportsPageAsset({
-        name: assetForm.name,
-        url: assetForm.url,
-        width: assetForm.width,
-        height: assetForm.height,
+        name,
+        url,
+        width,
+        height,
       });
       assetForm.name = '';
       assetForm.url = '';
+      assetForm.width = 0;
+      assetForm.height = 0;
       assets.value = (await getEsportsPageAssets()).data.data;
       Message.success('素材已登记');
     } catch (err) {

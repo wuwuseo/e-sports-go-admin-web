@@ -265,8 +265,9 @@
     wallet: markRaw(IconSafe),
     cat: markRaw(IconGift),
   };
-  const walletIcon = (icon?: string) =>
-    icon ? walletIconMap[icon] || null : null;
+  // 无 icon 字段时回落默认图标（wallet）；后端下发未知 icon 仍只显示文字。
+  const walletIcon = (icon?: string): Component | null =>
+    icon ? walletIconMap[icon] || null : walletIconMap.wallet;
 
   // §11.4 按账户单位倍率换算：cents / unitCents 保留两位，整数运算避免浮点误差。
   const fmtByUnit = (cents: number, unitCents?: number) => {

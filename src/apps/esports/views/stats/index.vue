@@ -31,31 +31,41 @@
           allow-clear
           :style="{ width: '120px' }"
         />
-        <a-select
-          v-if="activeTab !== 'finance'"
-          v-model="channelSource"
-          placeholder="客户渠道来源"
-          allow-clear
-          :style="{ width: '150px' }"
+        <a-tooltip
+          :content="activeTab === 'finance' ? '资金数据不按订单渠道归属' : ''"
+          :disabled="activeTab !== 'finance'"
         >
-          <a-option value="manual">人工建档</a-option>
-          <a-option value="wecom">企业微信</a-option>
-          <a-option value="self">客户自助</a-option>
-          <a-option value="import">批量导入</a-option>
-        </a-select>
-        <a-select
-          v-if="activeTab !== 'finance'"
-          v-model="entryPoint"
-          placeholder="报单入口"
-          allow-clear
-          :style="{ width: '150px' }"
+          <a-select
+            v-model="channelSource"
+            :disabled="activeTab === 'finance'"
+            placeholder="客户渠道来源"
+            allow-clear
+            :style="{ width: '150px' }"
+          >
+            <a-option value="manual">人工建档</a-option>
+            <a-option value="wecom">企业微信</a-option>
+            <a-option value="self">客户自助</a-option>
+            <a-option value="import">批量导入</a-option>
+          </a-select>
+        </a-tooltip>
+        <a-tooltip
+          :content="activeTab === 'finance' ? '资金数据不按订单渠道归属' : ''"
+          :disabled="activeTab !== 'finance'"
         >
-          <a-option value="cs_pc">电脑客服端</a-option>
-          <a-option value="cs_mobile">移动客服端</a-option>
-          <a-option value="wecom_sidebar">企微侧边栏</a-option>
-          <a-option value="customer_self">客户自助</a-option>
-          <a-option value="admin_backfill">后台补录</a-option>
-        </a-select>
+          <a-select
+            v-model="entryPoint"
+            :disabled="activeTab === 'finance'"
+            placeholder="报单入口"
+            allow-clear
+            :style="{ width: '150px' }"
+          >
+            <a-option value="cs_pc">电脑客服端</a-option>
+            <a-option value="cs_mobile">移动客服端</a-option>
+            <a-option value="wecom_sidebar">企微侧边栏</a-option>
+            <a-option value="customer_self">客户自助</a-option>
+            <a-option value="admin_backfill">后台补录</a-option>
+          </a-select>
+        </a-tooltip>
         <a-select
           v-model="appointmentType"
           placeholder="即时/预约"
