@@ -69,6 +69,27 @@
               >
               <a-button
                 v-if="
+                  canOperate &&
+                  record.fulfillment_status !== 'completed' &&
+                  record.fulfillment_status !== 'cancelled'
+                "
+                type="text"
+                @click="openCommissionRule(record)"
+                >手动分成</a-button
+              >
+              <a-button
+                v-if="
+                  canOperate &&
+                  record.appointment_status === 'request' &&
+                  record.fulfillment_status !== 'completed' &&
+                  record.fulfillment_status !== 'cancelled'
+                "
+                type="text"
+                @click="confirmAppointment(record)"
+                >确认档期</a-button
+              >
+              <a-button
+                v-if="
                   canOperate && record.fulfillment_status === 'pending_close'
                 "
                 type="text"
@@ -489,6 +510,39 @@
     </a-modal>
 
     <a-modal
+      v-model:visible="commissionRuleVisible"
+      title="单笔手动指定分成规则（§12.3）"
+      :ok-loading="commissionRuleLoading"
+      @ok="submitCommissionRule"
+      @cancel="commissionRuleVisible = false"
+    >
+      <a-form :model="commissionRuleForm">
+        <a-form-item label="订单号">
+          <a-typography-text>{{
+            commissionRuleForm.orderNo
+          }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="分成规则">
+          <a-select v-model="commissionRuleForm.ruleId">
+            <a-option :value="0">不指定（逐级回落）</a-option>
+            <a-option
+              v-for="rule in activeCommissionRules"
+              :key="rule.id"
+              :value="rule.id"
+            >
+              {{ rule.rule_no }} v{{ rule.version }} ·
+              {{ scopeText(rule.scope, rule.scope_key) }}
+            </a-option>
+          </a-select>
+        </a-form-item>
+        <a-typography-text type="secondary">
+          优先级：单笔手动指定 &gt; 陪玩个体约定 &gt; 陪玩等级 &gt; 游戏 &gt;
+          全局默认。仅成员接单锁定规则前可设，已有成员锁定规则或订单已终态时会被拒绝；选「不指定」即清除。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <a-modal
       v-model:visible="addonVisible"
       title="订单加钟（§3.3 / §12.5）"
       :footer="false"
@@ -631,9 +685,13 @@
     rescheduleOrder,
     restoreOrder,
     setOrderChannelCost,
+    listCommissionRules,
+    setOrderManualCommissionRule,
+    confirmOrderAppointment,
   } from '../../api';
   import type {
     CloseConditionStatus,
+    CommissionRule,
     EsportsCloseFormField,
     EsportsOrder,
     EsportsOrderAddon,
@@ -1305,6 +1363,68 @@
       Message.error(errorText(err, '登记失败：金额超应付或订单已结单'));
     } finally {
       channelCostLoading.value = false;
+    }
+  }
+
+  // ── 单笔手动指定分成规则（§12.3 五级优先级最高一级） ──
+  const commissionRuleVisible = ref(false);
+  const commissionRuleLoading = ref(false);
+  const activeCommissionRules = ref<CommissionRule[]>([]);
+  const commissionRuleForm = reactive({ orderId: 0, orderNo: '', ruleId: 0 });
+
+  const scopeTextMap: Record<string, string> = {
+    global: '全局',
+    game: '按游戏',
+    level: '按陪玩等级',
+    player: '按陪玩',
+  };
+  function scopeText(scope: string, key: string) {
+    if (scope === 'global') return scopeTextMap.global;
+    return `${scopeTextMap[scope] || scope}（${key || '-'}）`;
+  }
+
+  async function openCommissionRule(order: EsportsOrder) {
+    commissionRuleForm.orderId = order.id;
+    commissionRuleForm.orderNo = order.order_no;
+    commissionRuleForm.ruleId = order.manual_commission_rule_id || 0;
+    try {
+      const res = await listCommissionRules();
+      activeCommissionRules.value = (res.data.data || []).filter(
+        (rule) => rule.status === 'active' || rule.status === 'scheduled'
+      );
+    } catch {
+      activeCommissionRules.value = [];
+    }
+    commissionRuleVisible.value = true;
+  }
+
+  async function submitCommissionRule() {
+    commissionRuleLoading.value = true;
+    try {
+      await setOrderManualCommissionRule(
+        commissionRuleForm.orderId,
+        commissionRuleForm.ruleId
+      );
+      commissionRuleVisible.value = false;
+      Message.success('已更新单笔分成规则');
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '设置失败：已有成员锁定规则或订单已终态'));
+    } finally {
+      commissionRuleLoading.value = false;
+    }
+  }
+
+  // ── 预约档期确认（§3.2 / §5.5） ──
+  async function confirmAppointment(order: EsportsOrder) {
+    try {
+      await confirmOrderAppointment(order.id);
+      Message.success('已确认档期');
+      await load();
+    } catch (err) {
+      Message.error(
+        errorText(err, '确认失败：提案已超时、开始时间已过或状态已变化')
+      );
     }
   }
 

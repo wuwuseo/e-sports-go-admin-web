@@ -28,8 +28,12 @@
       >
         <template #columns>
           <a-table-column data-index="after_sale_no" title="售后单号" />
-          <a-table-column title="关联订单">
-            <template #cell="{ record }">#{{ record.source_id }}</template>
+          <a-table-column title="来源单据">
+            <template #cell="{ record }"
+              >{{ sourceTypeLabel(record.source_type) }} #{{
+                record.source_id
+              }}</template
+            >
           </a-table-column>
           <a-table-column title="类型">
             <template #cell="{ record }">{{ kindLabel(record.kind) }}</template>
@@ -131,8 +135,8 @@
         <a-descriptions-item label="售后单号">{{
           detail.after_sale_no
         }}</a-descriptions-item>
-        <a-descriptions-item label="关联订单"
-          >#{{ detail.source_id }}
+        <a-descriptions-item label="来源单据"
+          >{{ sourceTypeLabel(detail.source_type) }} #{{ detail.source_id }}
           <template v-if="detailOrderNo">（{{ detailOrderNo }}）</template>
         </a-descriptions-item>
         <a-descriptions-item label="类型 / 来源"
@@ -187,13 +191,23 @@
       @cancel="createVisible = false"
     >
       <a-form :model="createForm">
-        <a-form-item label="来源订单 ID" required>
+        <a-form-item label="来源类型" required>
+          <a-select v-model="createForm.sourceType">
+            <a-option
+              v-for="option in sourceTypeOptions"
+              :key="option.value"
+              :value="option.value"
+              >{{ option.label }}</a-option
+            >
+          </a-select>
+        </a-form-item>
+        <a-form-item :label="sourceIdLabel" required>
           <a-input-number v-model="createForm.sourceId" :min="1" />
         </a-form-item>
         <a-form-item label="类型" required>
           <a-select v-model="createForm.kind">
             <a-option
-              v-for="option in kindOptions"
+              v-for="option in availableKindOptions"
               :key="option.value"
               :value="option.value"
               >{{ option.label }}</a-option
@@ -456,6 +470,7 @@
     AfterSaleKind,
     AfterSalePlanAction,
     AfterSalePlanInput,
+    AfterSaleSourceType,
     EsportsAfterSale,
     EsportsFulfillmentMakeup,
     MakeupKind,
@@ -516,6 +531,66 @@
   const channelMap: Record<string, string> = Object.fromEntries(
     channelOptions.map((item) => [item.value, item.label])
   );
+  // §13.1 / §13.3 统一售后来源：按来源切换 ID 字段名，并限制可选问题类型。
+  const sourceTypeOptions: { value: AfterSaleSourceType; label: string }[] = [
+    { value: 'order', label: '服务订单' },
+    { value: 'gift', label: '礼物单' },
+    { value: 'stored_value_card', label: '储值卡' },
+    { value: 'recharge', label: '充值流水' },
+    { value: 'assessment', label: '考核记录' },
+  ];
+  const sourceTypeMap: Record<string, string> = Object.fromEntries(
+    sourceTypeOptions.map((item) => [item.value, item.label])
+  );
+  const createVisible = ref(false);
+  const createForm = reactive<{
+    sourceType: AfterSaleSourceType;
+    sourceId: number;
+    kind: AfterSaleKind;
+    channel: AfterSaleChannel;
+    demand: string;
+    expectedPlan: string;
+    evidenceRef: string;
+    contact: string;
+    customerId: number;
+  }>({
+    sourceType: 'order',
+    sourceId: 1,
+    kind: 'refund_request',
+    channel: 'customer',
+    demand: '',
+    expectedPlan: '',
+    evidenceRef: '',
+    contact: '',
+    customerId: 0,
+  });
+  const sourceIdLabel = computed(() => {
+    switch (createForm.sourceType) {
+      case 'gift':
+        return '礼物单 ID';
+      case 'stored_value_card':
+        return '储值卡 ID';
+      case 'recharge':
+        return '充值流水 ID';
+      case 'assessment':
+        return '考核记录 ID';
+      default:
+        return '订单 ID';
+    }
+  });
+  const kindAllowBySource: Record<AfterSaleSourceType, string[]> = {
+    order: [],
+    gift: ['refund_request', 'wrong_item', 'overcharge', 'other'],
+    stored_value_card: ['refund_request', 'overcharge', 'other'],
+    recharge: ['refund_request', 'overcharge', 'other'],
+    assessment: ['player_appeal', 'other'],
+  };
+  const availableKindOptions = computed(() => {
+    const allow = kindAllowBySource[createForm.sourceType];
+    if (!allow || allow.length === 0) return kindOptions;
+    return kindOptions.filter((item) => allow.includes(item.value));
+  });
+  const sourceTypeLabel = (value: string) => sourceTypeMap[value] || value;
   const faultOptions = [
     { value: 'undetermined', label: '待定' },
     { value: 'player', label: '陪玩' },
@@ -560,27 +635,6 @@
     const { response } = err as { response?: { data?: { message?: string } } };
     return response?.data?.message || fallback;
   };
-
-  const createVisible = ref(false);
-  const createForm = reactive<{
-    sourceId: number;
-    kind: AfterSaleKind;
-    channel: AfterSaleChannel;
-    demand: string;
-    expectedPlan: string;
-    evidenceRef: string;
-    contact: string;
-    customerId: number;
-  }>({
-    sourceId: 1,
-    kind: 'refund_request',
-    channel: 'customer',
-    demand: '',
-    expectedPlan: '',
-    evidenceRef: '',
-    contact: '',
-    customerId: 0,
-  });
 
   const planVisible = ref(false);
   const planTarget = ref<EsportsAfterSale | null>(null);
@@ -635,7 +689,8 @@
       const item = (await getAfterSale(id)).data.data || null;
       detail.value = item;
       detailOrderNo.value = '';
-      if (item) {
+      // 只有订单来源才去补订单号；礼物 / 储值卡 / 充值 / 考核来源没有订单上下文。
+      if (item && item.source_type === 'order') {
         try {
           detailOrderNo.value =
             (await getOrder(item.source_id)).data.data?.order_no || '';
@@ -650,6 +705,7 @@
   }
 
   function openCreate() {
+    createForm.sourceType = 'order';
     createForm.sourceId = 1;
     createForm.kind = 'refund_request';
     createForm.channel = 'customer';
@@ -663,11 +719,11 @@
 
   async function submitCreate() {
     if (createForm.sourceId < 1 || !createForm.demand.trim()) {
-      Message.warning('请填写来源订单 ID 与诉求');
+      Message.warning('请填写来源单据 ID 与诉求');
       return;
     }
     const input: AfterSaleInput = {
-      source_type: 'order',
+      source_type: createForm.sourceType,
       source_id: createForm.sourceId,
       kind: createForm.kind,
       channel: createForm.channel,

@@ -188,6 +188,13 @@
         <a-form-item label="必需席位" required>
           <a-input-number v-model="skuForm.required_seats" :min="1" />
         </a-form-item>
+        <a-form-item label="单次服务时长（分钟）">
+          <a-input-number
+            v-model="skuForm.service_duration_minutes"
+            :min="0"
+            :max="1440"
+          />
+        </a-form-item>
         <a-form-item label="所需技能等级">
           <a-select v-model="skuForm.required_level">
             <a-option value="novice">新手（无门槛）</a-option>
@@ -322,6 +329,7 @@
     service_units: 1,
     service_unit_name: '小时',
     required_seats: 1,
+    service_duration_minutes: 60,
     required_level: 'novice',
     close_rule_code: '',
     quota_total: -1,
@@ -400,6 +408,7 @@
     service_units: skuForm.service_units,
     service_unit_name: skuForm.service_unit_name,
     required_seats: skuForm.required_seats,
+    service_duration_minutes: skuForm.service_duration_minutes,
     required_level: skuForm.required_level,
     close_rule_code: skuForm.close_rule_code || '',
     quota_total: skuForm.quota_total,
@@ -441,6 +450,7 @@
         service_units: record.service_units,
         service_unit_name: record.service_unit_name,
         required_seats: record.required_seats,
+        service_duration_minutes: record.service_duration_minutes || 0,
         required_level: record.required_level,
         close_rule_code: record.close_rule_code,
         quota_total: record.quota_total,

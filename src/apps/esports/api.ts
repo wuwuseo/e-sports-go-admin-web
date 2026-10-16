@@ -28,6 +28,8 @@ export interface EsportsSku {
   service_units: number;
   service_unit_name: string;
   required_seats: number;
+  // 单次服务时长（分钟，§5.5）：用于预约时段重叠与容量判定，0 表示未配置。
+  service_duration_minutes: number;
   // 所需技能等级（§5.5）：陪玩等级不得低于该值。
   required_level: PlayerLevel;
   // 结单要求（§15.3）：引用生效结单规则的 code，留空按游戏 / 全局规则回落。
@@ -136,8 +138,17 @@ export interface EsportsOrder {
   preferred_player_id: number | null;
   refund_status: string;
   appointment_status: string;
+  // 预约档期（§3.2 / §5.5）：requested_start_at 为预约开始时间，deadline 为档期确认时限。
+  requested_start_at: string | null;
+  appointment_confirmation_deadline: string | null;
+  // 服务时长快照（分钟，§5.5）：0 表示 SKU 未配置，容量判定回落保守口径。
+  service_duration_minutes: number;
   // 已知渠道成本（§12.1）：结单计提客服提成时从可分基数扣除。
   channel_cost_cents: number;
+  // 单笔手动指定分成规则（§12.3 五级优先级最高一级）：仅未锁定成员规则前可设。
+  manual_commission_rule_id: number | null;
+  manual_commission_rule_set_by_admin_id: number | null;
+  manual_commission_rule_set_at: string | null;
   // 存单：仅订单上的冻结标记，不改变履约状态、不释放名额。
   deposit_status: 'none' | 'frozen';
   deposited_at: string | null;
@@ -399,6 +410,12 @@ export const rescheduleOrder = (id: number, input: RescheduleInput) =>
     input
   );
 
+// 确认预约档期（§3.2 / §5.5）：request → confirmed，含资源核验；未确认档期不允许派单。
+export const confirmOrderAppointment = (id: number) =>
+  axios.post<ApiResponse<EsportsOrder>>(
+    `${base}/orders/${id}/appointment/confirm`
+  );
+
 export const setOrderChannelCost = (id: number, channelCostCents: number) =>
   axios.put<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/channel-cost`, {
     channel_cost_cents: channelCostCents,
@@ -406,6 +423,12 @@ export const setOrderChannelCost = (id: number, channelCostCents: number) =>
 
 export const payOrderWithBalance = (id: number) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/pay-by-balance`);
+
+// 单笔手动指定分成规则（§12.3）：ruleId=0 表示清除，恢复逐级回落。
+export const setOrderManualCommissionRule = (id: number, ruleId: number) =>
+  axios.put<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/commission-rule`, {
+    rule_id: ruleId,
+  });
 
 // 存单：把已付款订单冻结存起来；恢复清除冻结标记。
 export const depositOrder = (id: number) =>
@@ -709,10 +732,18 @@ export type AfterSalePlanAction =
   | 'compensate'
   | 'makeup_service';
 
+// 统一售后来源（§13.1 / §13.3）：订单 / 礼物单 / 储值卡 / 充值流水 / 考核记录。
+export type AfterSaleSourceType =
+  | 'order'
+  | 'gift'
+  | 'stored_value_card'
+  | 'recharge'
+  | 'assessment';
+
 export interface EsportsAfterSale {
   id: number;
   after_sale_no: string;
-  source_type: 'order';
+  source_type: AfterSaleSourceType;
   source_id: number;
   kind: AfterSaleKind;
   channel: AfterSaleChannel;
@@ -759,7 +790,7 @@ export interface EsportsAfterSale {
 }
 
 export interface AfterSaleInput {
-  source_type: 'order';
+  source_type: AfterSaleSourceType;
   source_id: number;
   kind: AfterSaleKind;
   channel: AfterSaleChannel;
@@ -1048,13 +1079,13 @@ export const payOrderAddonByBalance = (id: number) =>
 
 // ── 分成与结算 ──
 
-export type CommissionScope = 'global' | 'game' | 'player';
+export type CommissionScope = 'global' | 'game' | 'level' | 'player';
 export type CommissionCalcMode =
   | 'percent'
   | 'fixed_per_order'
   | 'fixed_per_unit';
 export type CommissionUnitBasis = 'sku_quantity' | 'promised_units';
-export type CommissionRuleStatus = 'draft' | 'active' | 'history';
+export type CommissionRuleStatus = 'draft' | 'scheduled' | 'active' | 'history';
 export type CommissionEntryKind = 'service' | 'reversal';
 export type CommissionEntryStatus = 'pending_settlement' | 'settled' | 'void';
 export type SettlementStatus = 'draft' | 'locked' | 'paid';

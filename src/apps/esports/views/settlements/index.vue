@@ -988,15 +988,31 @@
           <a-select v-model="ruleForm.scope">
             <a-option value="global">全局</a-option>
             <a-option value="game">按游戏</a-option>
+            <a-option value="level">按陪玩等级</a-option>
             <a-option value="player">按陪玩</a-option>
           </a-select>
         </a-form-item>
         <a-form-item
           v-if="ruleForm.scope !== 'global'"
-          :label="ruleForm.scope === 'game' ? '游戏标识' : '陪玩 ID'"
+          :label="
+            ruleForm.scope === 'game'
+              ? '游戏标识'
+              : ruleForm.scope === 'level'
+              ? '陪玩等级'
+              : '陪玩 ID'
+          "
           required
         >
-          <a-input v-model="ruleForm.scopeKey" :max-length="64" />
+          <a-select
+            v-if="ruleForm.scope === 'level'"
+            v-model="ruleForm.scopeKey"
+          >
+            <a-option value="novice">新手</a-option>
+            <a-option value="skilled">熟练</a-option>
+            <a-option value="senior">资深</a-option>
+            <a-option value="mentor">导师</a-option>
+          </a-select>
+          <a-input v-else v-model="ruleForm.scopeKey" :max-length="64" />
         </a-form-item>
         <a-form-item label="计算方式" required>
           <a-select v-model="ruleForm.calcMode">
@@ -1677,13 +1693,21 @@
   const ruleNoFilter = ref('');
   const ruleStatusMap: Record<string, string> = {
     draft: '草稿',
+    scheduled: '待生效',
     active: '生效中',
     history: '历史',
   };
   const scopeMap: Record<string, string> = {
     global: '全局',
     game: '按游戏',
+    level: '按陪玩等级',
     player: '按陪玩',
+  };
+  const playerLevelMap: Record<string, string> = {
+    novice: '新手',
+    skilled: '熟练',
+    senior: '资深',
+    mentor: '导师',
   };
   const unitBasisMap: Record<string, string> = {
     sku_quantity: '商品数量',
@@ -1693,7 +1717,9 @@
   const scopeLabel = (scope: string, key: string) =>
     scope === 'global'
       ? scopeMap.global
-      : `${scopeMap[scope] || scope}（${key || '-'}）`;
+      : `${scopeMap[scope] || scope}（${
+          scope === 'level' ? playerLevelMap[key] || key : key || '-'
+        }）`;
   const calcLabel = (record: CommissionRule) => {
     if (record.calc_mode === 'percent')
       return `按比例 ${(record.value_bp / 100).toFixed(2)}%`;
