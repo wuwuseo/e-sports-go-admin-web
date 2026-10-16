@@ -145,6 +145,18 @@
                   record.settlement_id ? `#${record.settlement_id}` : '-'
                 }}</template>
               </a-table-column>
+              <a-table-column title="争议冻结" :width="160">
+                <template #cell="{ record }">
+                  <a-tag v-if="record.frozen_at" color="orange">已冻结</a-tag>
+                  <span v-else>-</span>
+                  <a-typography-text
+                    v-if="record.frozen_reason"
+                    type="secondary"
+                    class="freeze-reason"
+                    >{{ record.frozen_reason }}</a-typography-text
+                  >
+                </template>
+              </a-table-column>
               <a-table-column data-index="created_at" title="创建时间" />
             </template>
           </a-table>
@@ -193,6 +205,11 @@
               </a-table-column>
               <a-table-column title="计费">
                 <template #cell="{ record }">{{ csCalcText(record) }}</template>
+              </a-table-column>
+              <a-table-column title="礼物提成">
+                <template #cell="{ record }">{{
+                  record.include_gifts ? '开启' : '关闭'
+                }}</template>
               </a-table-column>
               <a-table-column title="提成周期">
                 <template #cell="{ record }">{{
@@ -288,11 +305,23 @@
             :pagination="{ pageSize: 20 }"
           >
             <template #columns>
-              <a-table-column data-index="order_id" title="订单" :width="90" />
+              <a-table-column title="来源" :width="110">
+                <template #cell="{ record }">{{
+                  record.gift_order_id
+                    ? `礼物 #${record.gift_order_id}`
+                    : `订单 #${record.order_id}`
+                }}</template>
+              </a-table-column>
               <a-table-column data-index="admin_id" title="客服" :width="80" />
               <a-table-column title="类型">
                 <template #cell="{ record }">{{
-                  record.kind === 'reversal' ? '退款冲回' : '订单提成'
+                  record.kind === 'gift_reversal'
+                    ? '礼物退款冲回'
+                    : record.kind === 'gift'
+                    ? '礼物提成'
+                    : record.kind === 'reversal'
+                    ? '订单退款冲回'
+                    : '订单提成'
                 }}</template>
               </a-table-column>
               <a-table-column title="基数">
@@ -589,8 +618,25 @@
                   {{ closeRuleStatusLabel(record.status) }}</template
                 >
               </a-table-column>
-              <a-table-column title="操作" :width="140">
+              <a-table-column title="条件树（§3.4）" :width="220">
                 <template #cell="{ record }">
+                  <span
+                    v-if="ruleHasConditionTree(record)"
+                    class="close-rule-tree"
+                    :title="closeRuleTreeSummary(record)"
+                    >{{ closeRuleTreeSummary(record) }}</span
+                  >
+                  <span v-else class="close-rule-tree-none">默认结构化项</span>
+                </template>
+              </a-table-column>
+              <a-table-column title="操作" :width="200">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="record.status === 'draft'"
+                    type="text"
+                    @click="openCloseRuleEdit(record)"
+                    >编辑</a-button
+                  >
                   <a-button
                     v-if="record.status === 'draft'"
                     type="text"
@@ -605,6 +651,60 @@
                     >回滚</a-button
                   >
                   <span v-else>—</span>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+        </a-tab-pane>
+
+        <!-- 结算周期（§12.6）：日/周/月/自定义间隔，按 全局 → 游戏 → 等级 → 陪玩 逐级覆盖 -->
+        <a-tab-pane key="settlement_cycles" title="结算周期">
+          <a-space class="toolbar">
+            <a-button type="primary" @click="openCycleCreate"
+              >新建周期</a-button
+            >
+            <a-button :loading="cyclesLoading" @click="loadCycles"
+              >刷新</a-button
+            >
+          </a-space>
+          <a-typography-text type="secondary" class="close-rule-tip">
+            按工作室发薪习惯配置日结 / 周结 / 月结 / 自定义间隔（天数，按 UTC
+            自然日对齐切分）；同一维度同一键只保留一条配置，解析时按「单个陪玩 →
+            按等级 → 按游戏 → 全局默认」逐级覆盖，全部缺失时回落系统配置
+            app.esports.settlement_period。陪玩端「下次结算时间」与自动结算任务均按解析结果执行；
+            存在争议的被冻结明细不参与当期结算，争议终结后自动解冻。
+          </a-typography-text>
+          <a-table
+            :data="cycles"
+            :loading="cyclesLoading"
+            row-key="id"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column title="维度">
+                <template #cell="{ record }">{{
+                  cycleScopeLabel(record)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="周期">
+                <template #cell="{ record }">{{
+                  cyclePeriodLabel(record)
+                }}</template>
+              </a-table-column>
+              <a-table-column data-index="note" title="备注" />
+              <a-table-column title="状态" :width="90">
+                <template #cell="{ record }">{{
+                  record.enabled ? '启用' : '停用'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="操作" :width="150">
+                <template #cell="{ record }">
+                  <a-button type="text" @click="openCycleEdit(record)"
+                    >编辑</a-button
+                  >
+                  <a-button type="text" @click="toggleCycle(record)">
+                    {{ record.enabled ? '停用' : '启用' }}
+                  </a-button>
                 </template>
               </a-table-column>
             </template>
@@ -700,13 +800,20 @@
 
     <a-modal
       v-model:visible="closeRuleVisible"
-      title="新建结单规则（§3.4）"
+      :title="
+        closeRuleForm.id > 0 ? '编辑结单规则（§3.4）' : '新建结单规则（§3.4）'
+      "
+      :width="760"
       @ok="submitCloseRule"
       @cancel="closeRuleVisible = false"
     >
       <a-form :model="closeRuleForm">
         <a-form-item label="规则编号" required>
-          <a-input v-model="closeRuleForm.code" :max-length="48" />
+          <a-input
+            v-model="closeRuleForm.code"
+            :max-length="48"
+            :disabled="closeRuleForm.id > 0"
+          />
         </a-form-item>
         <a-form-item label="名称" required>
           <a-input v-model="closeRuleForm.name" :max-length="64" />
@@ -751,8 +858,80 @@
             订单应付达该阈值时须由非负责客服的管理员复核结单；0 表示不额外复核。
           </a-typography-text>
         </a-form-item>
+        <a-form-item label="结单条件树（§3.4 通用 AND / OR）">
+          <CloseConditionDesigner
+            v-model="closeRuleForm.conditionTree"
+            :structured-source="closeRuleStructuredSource"
+          />
+        </a-form-item>
         <a-form-item label="备注">
           <a-input v-model="closeRuleForm.note" :max-length="255" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="cycleVisible"
+      :title="cycleForm.id ? '编辑结算周期（§12.6）' : '新建结算周期（§12.6）'"
+      @ok="submitCycle"
+      @cancel="cycleVisible = false"
+    >
+      <a-form :model="cycleForm">
+        <a-form-item label="配置维度" required>
+          <a-select v-model="cycleForm.scope" :disabled="cycleForm.id > 0">
+            <a-option value="global">全局默认</a-option>
+            <a-option value="game">按游戏分区</a-option>
+            <a-option value="level">按陪玩等级</a-option>
+            <a-option value="player">按单个陪玩</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item
+          v-if="cycleForm.scope !== 'global'"
+          label="维度键"
+          required
+        >
+          <a-select
+            v-if="cycleForm.scope === 'level'"
+            v-model="cycleForm.scopeKey"
+          >
+            <a-option value="novice">新手</a-option>
+            <a-option value="skilled">熟练</a-option>
+            <a-option value="senior">资深</a-option>
+            <a-option value="mentor">导师</a-option>
+          </a-select>
+          <a-input
+            v-else
+            v-model="cycleForm.scopeKey"
+            :max-length="64"
+            :placeholder="
+              cycleForm.scope === 'player' ? '陪玩档案 ID' : '游戏分区名'
+            "
+          />
+        </a-form-item>
+        <a-form-item label="结算周期" required>
+          <a-select v-model="cycleForm.period">
+            <a-option value="daily">日结</a-option>
+            <a-option value="weekly">周结</a-option>
+            <a-option value="monthly">月结</a-option>
+            <a-option value="custom">自定义间隔</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item
+          v-if="cycleForm.period === 'custom'"
+          label="间隔天数"
+          required
+        >
+          <a-input-number
+            v-model="cycleForm.intervalDays"
+            :min="1"
+            :max="365"
+          />
+          <a-typography-text type="secondary">
+            按 UTC 自然日从 1970-01-01 对齐切分，1–365 天。
+          </a-typography-text>
+        </a-form-item>
+        <a-form-item label="备注">
+          <a-input v-model="cycleForm.note" :max-length="255" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -918,6 +1097,12 @@
             <a-option value="percent">按比例（万分比）</a-option>
             <a-option value="fixed_per_order">每单固定额</a-option>
           </a-select>
+        </a-form-item>
+        <a-form-item label="礼物收入">
+          <a-switch v-model="csRuleForm.includeGifts" />
+          <a-typography-text type="secondary" style="margin-left: 8px"
+            >开启后，已付款礼物按本规则计提客服提成；礼物退款冲回。</a-typography-text
+          >
         </a-form-item>
         <a-form-item
           v-if="csRuleForm.calcMode === 'percent'"
@@ -1108,10 +1293,12 @@
     listCommissionRules,
     listCsCommissionEntries,
     listCsCommissionRules,
+    listSettlementCycles,
     listSettlements,
     listWithdrawals,
     lockSettlement,
     approvePlayerRecovery,
+    createSettlementCycle,
     executePlayerRecovery,
     listPlayerRecoveries,
     paySettlement,
@@ -1121,8 +1308,12 @@
     rollbackCloseRule,
     rollbackCommissionRule,
     rollbackCsCommissionRule,
+    setSettlementCycleStatus,
+    updateCloseRule,
+    updateSettlementCycle,
   } from '../../api';
   import type {
+    CloseConditionNode,
     CloseRuleScope,
     CommissionCalcMode,
     CommissionEntry,
@@ -1133,6 +1324,9 @@
     EsportsCloseRule,
     EsportsPlayerRecovery,
     Settlement,
+    SettlementCycle,
+    SettlementCyclePeriod,
+    SettlementCycleScope,
     CsCommissionEntry,
     CsCommissionPeriod,
     CsCommissionRule,
@@ -1142,6 +1336,13 @@
     WithdrawalChannel,
     WithdrawalStatus,
   } from '../../api';
+  import CloseConditionDesigner from '../../components/close-condition-designer/index.vue';
+  import {
+    cloneCloseConditionTree,
+    closeConditionSummary,
+    isCloseConditionTreeConfigured,
+    validateCloseConditionTree,
+  } from '../../components/close-condition-designer/logic';
 
   const { hasButtonPermission } = usePermission();
   const canOperate = computed(() =>
@@ -1162,6 +1363,8 @@
   const closeRulesLoading = ref(false);
   const closeRuleVisible = ref(false);
   const closeRuleForm = reactive<{
+    id: number;
+    version: number;
     code: string;
     name: string;
     scope: CloseRuleScope;
@@ -1171,8 +1374,12 @@
     requireNoPendingAddon: boolean;
     requireNoOpenAftersale: boolean;
     reviewThresholdYuan: number;
+    /** 通用 AND/OR 条件树（§3.4）；null 表示未配置，结单回落结构化条件项。 */
+    conditionTree: CloseConditionNode | null;
     note: string;
   }>({
+    id: 0,
+    version: 0,
     code: '',
     name: '',
     scope: 'global',
@@ -1182,6 +1389,7 @@
     requireNoPendingAddon: true,
     requireNoOpenAftersale: true,
     reviewThresholdYuan: 0,
+    conditionTree: null,
     note: '',
   });
   const closeRuleScopeMap: Record<string, string> = {
@@ -1203,6 +1411,19 @@
   const closeRuleStatusLabel = (value: string) =>
     closeRuleStatusMap[value] || value;
 
+  // 条件树（§3.4）：后端未配置时零值序列化为 {}，按 op / field 非空判定是否已配置。
+  const ruleHasConditionTree = (record: EsportsCloseRule) =>
+    isCloseConditionTreeConfigured(record.condition_tree);
+  const closeRuleTreeSummary = (record: EsportsCloseRule) =>
+    closeConditionSummary(record.condition_tree);
+  // 设计器的起点模板：按当前结构化条件项生成等价条件树，避免从空白条件开始配置。
+  const closeRuleStructuredSource = computed(() => ({
+    minEvidence: closeRuleForm.minEvidence,
+    requireDuration: closeRuleForm.requireDuration,
+    requireNoPendingAddon: closeRuleForm.requireNoPendingAddon,
+    requireNoOpenAftersale: closeRuleForm.requireNoOpenAftersale,
+  }));
+
   async function loadCloseRules() {
     closeRulesLoading.value = true;
     try {
@@ -1214,7 +1435,9 @@
     }
   }
 
-  function openCloseRuleCreate() {
+  function resetCloseRuleForm() {
+    closeRuleForm.id = 0;
+    closeRuleForm.version = 0;
     closeRuleForm.code = '';
     closeRuleForm.name = '';
     closeRuleForm.scope = 'global';
@@ -1224,7 +1447,34 @@
     closeRuleForm.requireNoPendingAddon = true;
     closeRuleForm.requireNoOpenAftersale = true;
     closeRuleForm.reviewThresholdYuan = 0;
+    closeRuleForm.conditionTree = null;
     closeRuleForm.note = '';
+  }
+
+  function openCloseRuleCreate() {
+    resetCloseRuleForm();
+    closeRuleVisible.value = true;
+  }
+
+  // 仅草稿可编辑（后端要求 status=draft 且按 expected_version 乐观锁），生效 / 历史版本只读。
+  function openCloseRuleEdit(record: EsportsCloseRule) {
+    resetCloseRuleForm();
+    closeRuleForm.id = record.id;
+    closeRuleForm.version = record.version;
+    closeRuleForm.code = record.code;
+    closeRuleForm.name = record.name;
+    closeRuleForm.scope = record.scope;
+    closeRuleForm.scopeKey = record.scope_key;
+    closeRuleForm.minEvidence = record.min_evidence;
+    closeRuleForm.requireDuration = record.require_duration;
+    closeRuleForm.requireNoPendingAddon = record.require_no_pending_addon;
+    closeRuleForm.requireNoOpenAftersale = record.require_no_open_aftersale;
+    closeRuleForm.reviewThresholdYuan = record.review_threshold_cents / 100;
+    // 深拷贝条件树：设计器就地编辑只作用于副本，取消编辑不会污染列表数据。
+    closeRuleForm.conditionTree = cloneCloseConditionTree(
+      record.condition_tree
+    );
+    closeRuleForm.note = record.note;
     closeRuleVisible.value = true;
   }
 
@@ -1237,26 +1487,47 @@
       Message.warning('请填写范围键');
       return;
     }
+    // 结单条件树（§3.4）：与后端 normalizeCloseConditionTree 同口径（深度 / 节点数 / 叶子完整性），
+    // 前端先拦一道，后端写入时仍会原子校验。
+    const treeErrors = validateCloseConditionTree(closeRuleForm.conditionTree);
+    if (treeErrors.length > 0) {
+      Message.warning(`结单条件树不完整：${treeErrors[0]}`);
+      return;
+    }
+    const payload = {
+      code: closeRuleForm.code.trim(),
+      name: closeRuleForm.name.trim(),
+      scope: closeRuleForm.scope,
+      scope_key: closeRuleForm.scopeKey.trim(),
+      min_evidence: closeRuleForm.minEvidence,
+      require_duration: closeRuleForm.requireDuration,
+      require_no_pending_addon: closeRuleForm.requireNoPendingAddon,
+      require_no_open_aftersale: closeRuleForm.requireNoOpenAftersale,
+      review_threshold_cents: Math.round(
+        closeRuleForm.reviewThresholdYuan * 100
+      ),
+      condition_tree: closeRuleForm.conditionTree,
+      note: closeRuleForm.note.trim(),
+    };
     try {
-      await createCloseRule({
-        code: closeRuleForm.code.trim(),
-        name: closeRuleForm.name.trim(),
-        scope: closeRuleForm.scope,
-        scope_key: closeRuleForm.scopeKey.trim(),
-        min_evidence: closeRuleForm.minEvidence,
-        require_duration: closeRuleForm.requireDuration,
-        require_no_pending_addon: closeRuleForm.requireNoPendingAddon,
-        require_no_open_aftersale: closeRuleForm.requireNoOpenAftersale,
-        review_threshold_cents: Math.round(
-          closeRuleForm.reviewThresholdYuan * 100
-        ),
-        note: closeRuleForm.note.trim(),
-      });
+      if (closeRuleForm.id > 0) {
+        await updateCloseRule(closeRuleForm.id, closeRuleForm.version, payload);
+        Message.success('已保存草稿（版本递增）');
+      } else {
+        await createCloseRule(payload);
+        Message.success('已创建结单规则（草稿）');
+      }
       closeRuleVisible.value = false;
-      Message.success('已创建结单规则（草稿）');
       await loadCloseRules();
     } catch (err) {
-      Message.error(errorText(err, '创建失败：规则编号冲突或参数无效'));
+      Message.error(
+        errorText(
+          err,
+          closeRuleForm.id > 0
+            ? '保存失败：规则已变更或参数无效'
+            : '创建失败：规则编号冲突或参数无效'
+        )
+      );
     }
   }
 
@@ -1277,6 +1548,126 @@
       await loadCloseRules();
     } catch (err) {
       Message.error(errorText(err, '回滚失败'));
+    }
+  }
+
+  // ── 结算周期（§12.6 逐级覆盖） ──
+  const cycles = ref<SettlementCycle[]>([]);
+  const cyclesLoading = ref(false);
+  const cycleVisible = ref(false);
+  const cycleForm = reactive<{
+    id: number;
+    scope: SettlementCycleScope;
+    scopeKey: string;
+    period: SettlementCyclePeriod;
+    intervalDays: number;
+    note: string;
+  }>({
+    id: 0,
+    scope: 'global',
+    scopeKey: '',
+    period: 'weekly',
+    intervalDays: 7,
+    note: '',
+  });
+  const cycleScopeMap: Record<string, string> = {
+    global: '全局默认',
+    game: '按游戏分区',
+    level: '按陪玩等级',
+    player: '按单个陪玩',
+  };
+  const cyclePeriodMap: Record<string, string> = {
+    daily: '日结',
+    weekly: '周结',
+    monthly: '月结',
+    custom: '自定义间隔',
+  };
+  const cycleScopeLabel = (record: SettlementCycle) =>
+    record.scope === 'global'
+      ? '全局默认'
+      : `${cycleScopeMap[record.scope] || record.scope}：${record.scope_key}`;
+  const cyclePeriodLabel = (record: SettlementCycle) =>
+    record.period === 'custom'
+      ? `每 ${record.interval_days} 天`
+      : cyclePeriodMap[record.period] || record.period;
+
+  async function loadCycles() {
+    cyclesLoading.value = true;
+    try {
+      cycles.value = (await listSettlementCycles()).data.data || [];
+    } catch {
+      Message.error('加载结算周期失败，请稍后重试');
+    } finally {
+      cyclesLoading.value = false;
+    }
+  }
+
+  function openCycleCreate() {
+    cycleForm.id = 0;
+    cycleForm.scope = 'global';
+    cycleForm.scopeKey = '';
+    cycleForm.period = 'weekly';
+    cycleForm.intervalDays = 7;
+    cycleForm.note = '';
+    cycleVisible.value = true;
+  }
+
+  function openCycleEdit(record: SettlementCycle) {
+    cycleForm.id = record.id;
+    cycleForm.scope = record.scope;
+    cycleForm.scopeKey = record.scope_key;
+    cycleForm.period = record.period;
+    cycleForm.intervalDays = record.interval_days || 7;
+    cycleForm.note = record.note;
+    cycleVisible.value = true;
+  }
+
+  async function submitCycle() {
+    const key = cycleForm.scopeKey.trim();
+    if (cycleForm.scope !== 'global' && !key) {
+      Message.warning('请填写维度键');
+      return;
+    }
+    if (
+      cycleForm.scope === 'player' &&
+      (!/^\d+$/.test(key) || Number(key) < 1)
+    ) {
+      Message.warning('按陪玩维度的维度键须为陪玩档案 ID');
+      return;
+    }
+    const payload = {
+      scope: cycleForm.scope,
+      scope_key: cycleForm.scope === 'global' ? '' : key,
+      period: cycleForm.period,
+      interval_days: cycleForm.period === 'custom' ? cycleForm.intervalDays : 0,
+      note: cycleForm.note.trim(),
+    };
+    try {
+      if (cycleForm.id > 0) {
+        await updateSettlementCycle(cycleForm.id, payload);
+      } else {
+        await createSettlementCycle(payload);
+      }
+      cycleVisible.value = false;
+      Message.success('已保存结算周期');
+      await loadCycles();
+    } catch (err) {
+      Message.error(
+        errorText(
+          err,
+          '保存失败：同维度同键已存在或参数无效（自定义间隔限 1–365 天）'
+        )
+      );
+    }
+  }
+
+  async function toggleCycle(record: SettlementCycle) {
+    try {
+      await setSettlementCycleStatus(record.id, !record.enabled);
+      Message.success(record.enabled ? '已停用' : '已启用');
+      await loadCycles();
+    } catch (err) {
+      Message.error(errorText(err, '启停失败：状态已变化'));
     }
   }
 
@@ -1610,6 +2001,7 @@
     scopeKey?: number;
     baseMode: 'order_amount' | 'order_contribution' | 'order_count';
     calcMode: 'percent' | 'fixed_per_order';
+    includeGifts: boolean;
     valueBp: number;
     valueYuan: number;
     period: CsCommissionPeriod;
@@ -1620,6 +2012,7 @@
     scope: 'global',
     baseMode: 'order_amount',
     calcMode: 'percent',
+    includeGifts: false,
     valueBp: 500,
     valueYuan: 0,
     period: 'monthly',
@@ -1633,6 +2026,7 @@
     csRuleForm.scopeKey = undefined;
     csRuleForm.baseMode = 'order_amount';
     csRuleForm.calcMode = 'percent';
+    csRuleForm.includeGifts = false;
     csRuleForm.valueBp = 500;
     csRuleForm.valueYuan = 0;
     csRuleForm.period = 'monthly';
@@ -1674,6 +2068,7 @@
           : undefined,
       base_mode: csRuleForm.baseMode,
       calc_mode: csRuleForm.calcMode,
+      include_gifts: csRuleForm.includeGifts,
       value_bp: percent ? csRuleForm.valueBp : 0,
       value_cents: percent ? 0 : Math.round(csRuleForm.valueYuan * 100),
       tiers: csRuleForm.tiers.map((tier) => ({
@@ -2022,6 +2417,7 @@
     else if (key === 'cs_entries') loadCsEntries();
     else if (key === 'withdrawals') loadWithdrawals();
     else if (key === 'recoveries') loadRecoveries();
+    else if (key === 'settlement_cycles') loadCycles();
     else loadSettlements();
   };
 
@@ -2039,5 +2435,24 @@
   .close-rule-tip {
     display: block;
     margin-bottom: 12px;
+  }
+
+  /* 条件树摘要：单行省略，完整内容由 title 悬浮展示。 */
+  .close-rule-tree {
+    display: inline-block;
+    max-width: 210px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+  }
+
+  .close-rule-tree-none {
+    color: var(--color-text-3, #86909c);
+  }
+
+  .freeze-reason {
+    display: block;
+    font-size: 12px;
   }
 </style>

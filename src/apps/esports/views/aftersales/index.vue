@@ -88,13 +88,6 @@
                   >提交方案</a-button
                 >
                 <a-button
-                  v-if="record.status === 'pending_customer_confirm'"
-                  type="text"
-                  status="success"
-                  @click="confirmPlan(record)"
-                  >代客户确认</a-button
-                >
-                <a-button
                   v-if="record.status === 'pending_approval'"
                   type="text"
                   status="success"
@@ -297,6 +290,13 @@
               :precision="2"
             />
           </a-form-item>
+          <a-form-item label="争议陪玩 ID（0 = 不指定）">
+            <a-input-number v-model="planForm.disputePlayerId" :min="0" />
+            <a-typography-text type="secondary">
+              可选：指定该单实际服务成员后，退款将优先冲回该成员的服务与加钟分成，
+              剩余额度再按比例分摊其他成员；留空或填 0 则按整体比例冲回。
+            </a-typography-text>
+          </a-form-item>
           <template v-if="planForm.faultParty === 'player'">
             <a-form-item label="向陪玩追偿（元，0 = 不追偿）">
               <a-input-number
@@ -437,7 +437,6 @@
   import {
     acceptAfterSale,
     approveAfterSale,
-    confirmAfterSalePlan,
     completeFulfillmentMakeup,
     createAfterSale,
     executeAfterSale,
@@ -599,6 +598,8 @@
     // 追偿（§13.4）：责任方为陪玩时可填向陪玩追偿的陪玩与金额。
     recoveryPlayerId: number;
     recoveryYuan: number;
+    // 争议涉及陪玩（§13.3 成员明细冲回）：退款类方案可指定优先冲回该成员分成。
+    disputePlayerId: number;
   }>({
     faultParty: 'undetermined',
     planAction: 'refund_original',
@@ -611,6 +612,7 @@
     makeupCompanyPayYuan: 0,
     recoveryPlayerId: 0,
     recoveryYuan: 0,
+    disputePlayerId: 0,
   });
 
   const rejectVisible = ref(false);
@@ -710,6 +712,7 @@
     planForm.makeupCompanyPayYuan = 0;
     planForm.recoveryPlayerId = 0;
     planForm.recoveryYuan = 0;
+    planForm.disputePlayerId = 0;
     planVisible.value = true;
   }
 
@@ -738,23 +741,19 @@
         payload.recovery_cents = Math.round(planForm.recoveryYuan * 100);
         payload.recovery_player_id = planForm.recoveryPlayerId;
       }
+      if (
+        planForm.planAction !== 'makeup_service' &&
+        planForm.disputePlayerId > 0
+      ) {
+        // 争议涉及陪玩（§13.3）：退款类方案可指定优先冲回该成员分成。
+        payload.dispute_player_id = planForm.disputePlayerId;
+      }
       await planAfterSale(record.id, payload);
       planVisible.value = false;
-      Message.success('已提交方案，等待审批');
+      Message.success('已提交方案，等待客户确认');
       await load();
     } catch (err) {
       Message.error(errorText(err, '提交方案失败：参数无效或状态已变化'));
-    }
-  }
-
-  // §13.3 待客户确认：客户线下已同意时由客服代确认，方案随后进入待审批。
-  async function confirmPlan(record: EsportsAfterSale) {
-    try {
-      await confirmAfterSalePlan(record.id);
-      Message.success('已代客户确认，售后进入待审批');
-      await load();
-    } catch (err) {
-      Message.error(errorText(err, '确认失败：售后不在待客户确认状态'));
     }
   }
 

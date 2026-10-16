@@ -73,6 +73,13 @@
                 "
                 type="text"
                 status="success"
+                class="close-btn"
+                :disabled="isCloseBlocked(record)"
+                :title="
+                  isCloseBlocked(record)
+                    ? `结单条件未满足：${closeBlockedReason(record)}`
+                    : ''
+                "
                 @click="openOps(record, 'close')"
                 >结单</a-button
               >
@@ -132,6 +139,84 @@
         </template>
       </a-table>
     </a-card>
+
+    <a-card class="general-card" title="人工改价审批">
+      <a-space class="toolbar"
+        ><a-button :loading="priceLoading" @click="loadPriceAdjustments"
+          >刷新审批单</a-button
+        ></a-space
+      >
+      <a-table
+        :data="priceAdjustments"
+        :loading="priceLoading"
+        row-key="id"
+        :pagination="{ pageSize: 10 }"
+      >
+        <template #columns>
+          <a-table-column data-index="id" title="审批单" />
+          <a-table-column data-index="order_id" title="订单 ID" />
+          <a-table-column title="份数 / 人工调整">
+            <template #cell="{ record }"
+              >{{ record.quantity }} /
+              {{ money(record.manual_adjust_cents) }}</template
+            >
+          </a-table-column>
+          <a-table-column title="审批报价"
+            ><template #cell="{ record }">{{
+              money(record.payable_cents)
+            }}</template></a-table-column
+          >
+          <a-table-column data-index="reason" title="原因" />
+          <a-table-column data-index="status" title="状态" />
+          <a-table-column title="操作">
+            <template #cell="{ record }">
+              <a-button
+                v-if="
+                  canApprovePrice &&
+                  record.status === 'pending' &&
+                  record.requested_by_admin_id !== currentAdminId
+                "
+                type="text"
+                @click="openPriceDecision(record, true)"
+                >通过</a-button
+              >
+              <a-button
+                v-if="
+                  canApprovePrice &&
+                  record.status === 'pending' &&
+                  record.requested_by_admin_id !== currentAdminId
+                "
+                type="text"
+                status="danger"
+                @click="openPriceDecision(record, false)"
+                >驳回</a-button
+              >
+              <a-button
+                v-if="
+                  record.status === 'approved' &&
+                  record.requested_by_admin_id === currentAdminId
+                "
+                type="text"
+                @click="applyPriceAdjustment(record)"
+                >应用改价</a-button
+              >
+            </template>
+          </a-table-column>
+        </template>
+      </a-table>
+    </a-card>
+
+    <a-modal
+      v-model:visible="priceDecisionVisible"
+      title="改价审批"
+      @ok="submitPriceDecision"
+    >
+      <a-textarea
+        v-model="priceDecisionNote"
+        placeholder="填写审批意见"
+        :max-length="255"
+      />
+    </a-modal>
 
     <a-modal
       v-model:visible="detailVisible"
@@ -218,9 +303,50 @@
             format="YYYY-MM-DD HH:mm:ss"
           />
         </a-form-item>
+        <div
+          v-if="opsAction === 'reprice' && repriceQuote?.requires_approval"
+          class="hint"
+          >人工调整超过 {{ repriceQuote.approval_threshold_bp / 100 }}%
+          免审幅度，提交后先由其他管理员审批。</div
+        >
         <a-form-item :label="opsAction === 'close' ? '备注' : '原因（必填）'">
           <a-textarea v-model="opsForm.reason" :max-length="255" />
         </a-form-item>
+        <template
+          v-if="
+            opsAction === 'close' && opsTarget && closeConditionOf(opsTarget)
+          "
+        >
+          <a-divider>
+            结单条件（§3.4）{{
+              closeConditionOf(opsTarget)!.rule_code || '内置默认'
+            }}
+            <template v-if="closeConditionOf(opsTarget)!.tree_configured"
+              >· 自定义条件树</template
+            >
+          </a-divider>
+          <div
+            v-for="(item, index) in closeConditionOf(opsTarget)!.items"
+            :key="`${item.field}-${item.operator}-${item.expected}-${index}`"
+            class="condition-row"
+          >
+            <a-tag :color="item.satisfied ? 'green' : 'red'">
+              {{ item.satisfied ? '满足' : '未满足' }}
+            </a-tag>
+            <span>
+              {{ item.label }} 需 {{ item.operator }} {{ item.expected }}，当前
+              {{ item.actual }}
+            </span>
+          </div>
+          <div
+            v-if="!closeConditionOf(opsTarget)!.satisfied"
+            class="hint danger"
+          >
+            条件未满足，结单将被拦截：{{
+              closeConditionOf(opsTarget)!.reasons.join('；')
+            }}
+          </div>
+        </template>
         <template v-if="opsAction === 'close' && closeFormFields.length > 0">
           <a-divider>结单表单（§3.4）：{{ closeFormTemplateName }}</a-divider>
           <a-form-item
@@ -476,9 +602,10 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from 'vue';
+  import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import useUserStore from '@/store/modules/user';
   import {
     approveCloseReview,
     cancelOrder,
@@ -488,12 +615,17 @@
     depositOrder,
     getOrder,
     getOrderCloseApproval,
+    getOrderCloseConditions,
     getOrderCloseForm,
     listOrderAddons,
     listOrders,
     payEsportsOrderByStoredValueCard,
     payOrderAddonByBalance,
     payOrderWithBalance,
+    previewReprice,
+    requestPriceAdjustment,
+    listPriceAdjustments,
+    decidePriceAdjustment,
     rejectCloseReview,
     repriceOrder,
     rescheduleOrder,
@@ -501,21 +633,78 @@
     setOrderChannelCost,
   } from '../../api';
   import type {
+    CloseConditionStatus,
     EsportsCloseFormField,
     EsportsOrder,
     EsportsOrderAddon,
     OrderCloseApprovalView,
     OrderCloseFormView,
+    RepriceQuote,
+    PriceAdjustment,
   } from '../../api';
 
   type OpsAction = 'reprice' | 'reschedule' | 'cancel' | 'close';
 
   const { hasButtonPermission } = usePermission();
+  const userStore = useUserStore();
+  const currentAdminId = computed(() => Number(userStore.accountId || 0));
+  const canApprovePrice = computed(
+    () =>
+      userStore.isSuperAdmin &&
+      hasButtonPermission('esports:orders:price_approve')
+  );
   const canOperate = computed(() =>
     hasButtonPermission('esports:orders:operate')
   );
 
   const loading = ref(false);
+  const priceLoading = ref(false);
+  const priceAdjustments = ref<PriceAdjustment[]>([]);
+  const priceDecisionVisible = ref(false);
+  const priceDecisionTarget = ref<PriceAdjustment | null>(null);
+  const priceDecisionApprove = ref(false);
+  const priceDecisionNote = ref('');
+
+  // 透出后端返回的中文错误信息（如结单条件缺失），取不到时回退默认文案。
+  const errorText = (err: unknown, fallback: string) => {
+    const { response } = err as { response?: { data?: { message?: string } } };
+    return response?.data?.message || fallback;
+  };
+
+  async function loadPriceAdjustments() {
+    priceLoading.value = true;
+    try {
+      priceAdjustments.value = (await listPriceAdjustments()).data.data || [];
+    } catch (err) {
+      Message.error(errorText(err, '加载改价审批单失败'));
+    } finally {
+      priceLoading.value = false;
+    }
+  }
+  function openPriceDecision(item: PriceAdjustment, approve: boolean) {
+    priceDecisionTarget.value = item;
+    priceDecisionApprove.value = approve;
+    priceDecisionNote.value = '';
+    priceDecisionVisible.value = true;
+  }
+  async function submitPriceDecision() {
+    if (!priceDecisionTarget.value || !priceDecisionNote.value.trim()) {
+      Message.warning('请填写审批意见');
+      return;
+    }
+    try {
+      await decidePriceAdjustment(
+        priceDecisionTarget.value.id,
+        priceDecisionApprove.value,
+        priceDecisionNote.value.trim()
+      );
+      priceDecisionVisible.value = false;
+      Message.success('审批已记录');
+      await loadPriceAdjustments();
+    } catch (err) {
+      Message.error(errorText(err, '审批失败：订单状态或版本已变化'));
+    }
+  }
   const orders = ref<EsportsOrder[]>([]);
   const detail = ref<EsportsOrder | null>(null);
   const detailVisible = ref(false);
@@ -607,11 +796,6 @@
   >([]);
 
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
-  // 透出后端返回的中文错误信息（如结单条件缺失），取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
   const isUnpaid = (order: EsportsOrder) =>
     order.payment_status === 'unpaid' &&
     order.fulfillment_status === 'pending_payment';
@@ -631,16 +815,76 @@
   };
   const addonStatusLabel = (value: string) => addonStatusMap[value] || value;
 
+  // ── 结单条件（§3.4）：条件不满足时结单按钮不可点，弹窗内逐项展示未满足原因 ──
+  const closeConditionMap = ref<Record<number, CloseConditionStatus>>({});
+
+  async function loadCloseConditions() {
+    const pending = orders.value.filter(
+      (order) => order.fulfillment_status === 'pending_close'
+    );
+    if (!pending.length) {
+      closeConditionMap.value = {};
+      return;
+    }
+    const results = await Promise.all(
+      pending.map(async (order) => {
+        try {
+          return {
+            id: order.id,
+            status: (await getOrderCloseConditions(order.id)).data.data,
+          };
+        } catch {
+          return { id: order.id, status: null };
+        }
+      })
+    );
+    const map: Record<number, CloseConditionStatus> = {};
+    results.forEach((item) => {
+      if (item.status) map[item.id] = item.status;
+    });
+    closeConditionMap.value = map;
+  }
+
   async function load() {
     loading.value = true;
     try {
       orders.value = (await listOrders()).data.data || [];
+      await loadCloseConditions();
     } catch {
       Message.error('加载失败，请稍后重试');
     } finally {
       loading.value = false;
     }
   }
+
+  async function applyPriceAdjustment(item: PriceAdjustment) {
+    try {
+      await repriceOrder(item.order_id, {
+        expected_version: item.order_version,
+        quantity: item.quantity,
+        manual_adjust_cents: item.manual_adjust_cents,
+        reason: item.reason,
+        approval_id: item.id,
+      });
+      Message.success('审批报价已应用，须客户重新确认报价');
+      await load();
+      await loadPriceAdjustments();
+    } catch (err) {
+      Message.error(errorText(err, '应用失败：订单或审批状态已变化'));
+    }
+  }
+
+  const closeConditionOf = (record: EsportsOrder) =>
+    closeConditionMap.value[record.id];
+  // 仅在已拿到条件状态且判定为不满足时置灰，避免接口异常导致无法结单。
+  const isCloseBlocked = (record: EsportsOrder) => {
+    const status = closeConditionOf(record);
+    return !!status && !status.satisfied;
+  };
+  const closeBlockedReason = (record: EsportsOrder) => {
+    const status = closeConditionOf(record);
+    return status ? status.reasons.join('；') : '';
+  };
 
   async function loadAddons() {
     if (!addonOrderId.value) return;
@@ -776,15 +1020,68 @@
         close: '结单',
       }[opsAction.value])
   );
-  // 改价预览：标价 × 份数 − 会员折扣 + 人工调整，与后端算法保持一致。
+  const repriceQuote = ref<RepriceQuote | null>(null);
+  const repricePreviewError = ref('');
+  const repricePreviewLoading = ref(false);
+  let repricePreviewSequence = 0;
+  watch(
+    () => [
+      opsVisible.value,
+      opsAction.value,
+      opsTarget.value?.id,
+      opsForm.quantity,
+      opsForm.manualAdjustYuan,
+    ],
+    async () => {
+      repricePreviewSequence += 1;
+      const sequence = repricePreviewSequence;
+      repriceQuote.value = null;
+      repricePreviewError.value = '';
+      if (
+        !opsVisible.value ||
+        opsAction.value !== 'reprice' ||
+        !opsTarget.value ||
+        !Number.isSafeInteger(opsForm.quantity) ||
+        opsForm.quantity < 1 ||
+        !Number.isFinite(opsForm.manualAdjustYuan)
+      ) {
+        repricePreviewLoading.value = false;
+        return;
+      }
+      repricePreviewLoading.value = true;
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 180);
+      });
+      if (sequence !== repricePreviewSequence) return;
+      try {
+        const result = await previewReprice(opsTarget.value.id, {
+          expected_version: opsTarget.value.version,
+          quantity: opsForm.quantity,
+          manual_adjust_cents: Math.round(opsForm.manualAdjustYuan * 100),
+          reason: '',
+        });
+        if (sequence === repricePreviewSequence) {
+          repriceQuote.value = result.data.data;
+        }
+      } catch (error) {
+        if (sequence === repricePreviewSequence) {
+          repricePreviewError.value = errorText(error, '报价无法计算');
+        }
+      } finally {
+        if (sequence === repricePreviewSequence) {
+          repricePreviewLoading.value = false;
+        }
+      }
+    }
+  );
   const previewPayableText = computed(() => {
-    const order = opsTarget.value;
-    if (!order) return '';
-    const next =
-      order.unit_price_cents * opsForm.quantity -
-      order.discount_cents +
-      Math.round(opsForm.manualAdjustYuan * 100);
-    return `${money(next)}（须大于 0）`;
+    if (repricePreviewLoading.value) return '正在计算报价…';
+    if (repricePreviewError.value) return repricePreviewError.value;
+    const quote = repriceQuote.value;
+    if (!quote) return '请填写份数和调整金额';
+    return `${money(quote.unit_price_cents)} × ${quote.quantity} − ${money(
+      quote.discount_cents
+    )} + ${money(quote.manual_adjust_cents)} = ${money(quote.payable_cents)}`;
   });
 
   async function showDetail(id: number) {
@@ -837,6 +1134,14 @@
       Message.warning('请填写原因');
       return;
     }
+    // 结单条件（§3.4）：条件不满足时结单按钮已置灰，这里再兜一道，后端仍会事务内原子校验。
+    if (opsAction.value === 'close') {
+      const condition = closeConditionOf(order);
+      if (condition && !condition.satisfied) {
+        Message.error(`结单条件未满足：${condition.reasons.join('；')}`);
+        return;
+      }
+    }
     // 结单表单（§3.4）：必填项前端先拦一道，后端仍会事务内原子校验。
     if (opsAction.value === 'close') {
       const missing = closeFormFields.value.filter(
@@ -854,13 +1159,27 @@
       }
     }
     try {
+      let submittedPriceApproval = false;
       if (opsAction.value === 'reprice') {
-        await repriceOrder(order.id, {
+        if (!repriceQuote.value || repricePreviewLoading.value) {
+          Message.warning('请等待服务器计算新报价');
+          return;
+        }
+        const payload = {
           expected_version: order.version,
           quantity: opsForm.quantity,
           manual_adjust_cents: Math.round(opsForm.manualAdjustYuan * 100),
           reason: opsForm.reason.trim(),
-        });
+        };
+        if (repriceQuote.value.requires_approval) {
+          await requestPriceAdjustment(order.id, {
+            ...payload,
+            request_key: crypto.randomUUID(),
+          });
+          submittedPriceApproval = true;
+        } else {
+          await repriceOrder(order.id, payload);
+        }
       } else if (opsAction.value === 'reschedule') {
         if (!opsForm.startAt) {
           Message.warning('请选择新的开始时间');
@@ -889,8 +1208,15 @@
         await cancelOrder(order.id, opsForm.reason.trim());
       }
       opsVisible.value = false;
-      Message.success(opsAction.value === 'close' ? '已结单' : '操作已提交');
+      let successText = '操作已提交';
+      if (submittedPriceApproval) {
+        successText = '已提交改价审批，审批通过后再应用报价';
+      } else if (opsAction.value === 'close') {
+        successText = '已结单';
+      }
+      Message.success(successText);
       await load();
+      if (submittedPriceApproval) await loadPriceAdjustments();
     } catch (err) {
       Message.error(errorText(err, '操作失败，请刷新后重试'));
     }
@@ -992,7 +1318,10 @@
     }
   }
 
-  onMounted(load);
+  onMounted(async () => {
+    await load();
+    await loadPriceAdjustments();
+  });
 </script>
 
 <style scoped>
@@ -1003,5 +1332,11 @@
   .addon-tip {
     display: block;
     margin: 12px 0;
+  }
+
+  /* 结单按钮（§3.4）：条件未满足时置灰，仍保留 title 悬浮提示未满足原因。 */
+  .close-btn:disabled {
+    color: rgb(0 0 0 / 25%);
+    cursor: not-allowed;
   }
 </style>

@@ -72,6 +72,69 @@
       </a-table>
     </a-card>
 
+    <a-card class="general-card" title="待确认礼物">
+      <a-space class="toolbar">
+        <a-button :loading="intentLoading" @click="loadIntents"
+          >刷新确认单</a-button
+        >
+        <a-button v-if="canManage" type="primary" @click="openSend"
+          >发起客户确认</a-button
+        >
+      </a-space>
+      <a-table
+        :data="intents"
+        :loading="intentLoading"
+        row-key="id"
+        :pagination="{ pageSize: 10 }"
+      >
+        <template #columns>
+          <a-table-column data-index="id" title="确认单 ID" />
+          <a-table-column data-index="customer_id" title="客户 ID" />
+          <a-table-column title="礼物 / 收礼陪玩">
+            <template #cell="{ record }"
+              >{{ record.gift_name }} × {{ record.quantity }} →
+              {{ record.player_name }}</template
+            >
+          </a-table-column>
+          <a-table-column title="客户确认金额">
+            <template #cell="{ record }">{{
+              yuan(record.amount_cents)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="付款来源">
+            <template #cell="{ record }">{{
+              record.stored_value_card_id
+                ? `储值卡 ${record.stored_value_card_no} 本金`
+                : '客户余额本金'
+            }}</template>
+          </a-table-column>
+          <a-table-column title="状态">
+            <template #cell="{ record }">{{
+              intentStatus(record.status)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="到期时间">
+            <template #cell="{ record }">{{ record.expires_at }}</template>
+          </a-table-column>
+          <a-table-column title="操作">
+            <template #cell="{ record }">
+              <a-button
+                v-if="canManage && record.status === 'confirmed'"
+                type="text"
+                @click="executeIntent(record)"
+                >执行送礼</a-button
+              >
+              <span v-else>-</span>
+            </template>
+          </a-table-column>
+        </template>
+      </a-table>
+      <div class="hint"
+        >客户在移动端核对礼物、收礼人、数量和金额后确认；确认单 30
+        分钟内有效。</div
+      >
+    </a-card>
+
     <a-card class="general-card" title="送礼单据">
       <a-space class="toolbar" wrap>
         <a-input-number
@@ -100,9 +163,6 @@
         <a-button type="primary" :loading="orderLoading" @click="loadOrders"
           >查询</a-button
         >
-        <a-button v-if="canManage" type="outline" @click="openSend"
-          >代客送礼</a-button
-        >
       </a-space>
 
       <a-table
@@ -123,6 +183,13 @@
           <a-table-column title="金额">
             <template #cell="{ record }">{{
               yuan(record.amount_cents)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="付款来源">
+            <template #cell="{ record }">{{
+              record.stored_value_card_id
+                ? `储值卡 ${record.stored_value_card_id} 本金`
+                : '客户余额本金'
             }}</template>
           </a-table-column>
           <a-table-column title="陪玩收入">
@@ -215,6 +282,185 @@
       </a-table>
     </a-card>
 
+    <a-card
+      class="general-card"
+      title="礼物争议（§9.5 申请 → 审核 → 执行部分退款）"
+    >
+      <a-space class="toolbar">
+        <a-select
+          v-model="disputeFilterStatus"
+          placeholder="全部状态"
+          allow-clear
+          :style="{ width: '160px' }"
+        >
+          <a-option value="pending_review">待审核</a-option>
+          <a-option value="approved">待执行</a-option>
+          <a-option value="completed">已完成</a-option>
+          <a-option value="rejected">已驳回</a-option>
+          <a-option value="withdrawn">已撤回</a-option>
+        </a-select>
+        <a-button :loading="disputesLoading" @click="loadDisputes"
+          >刷新</a-button
+        >
+        <a-button type="primary" @click="openDisputeCreate"
+          >代客户建单</a-button
+        >
+      </a-space>
+      <div class="hint">
+        客户可在移动端对本人礼物订单发起争议；客服审核须给出不超过申请额与可退余额的确认金额，
+        审核人与申请人、执行人与审核人不得为同一人。执行后按比例冲回礼物分成、客服提成与成长值。
+      </div>
+      <a-table
+        :data="disputes"
+        :loading="disputesLoading"
+        row-key="id"
+        :pagination="{ pageSize: 10 }"
+      >
+        <template #columns>
+          <a-table-column
+            data-index="dispute_no"
+            title="争议单号"
+            :width="200"
+          />
+          <a-table-column data-index="gift_no" title="礼物单号" :width="180" />
+          <a-table-column title="类型" :width="120">
+            <template #cell="{ record }">{{
+              disputeKindText(record.kind)
+            }}</template>
+          </a-table-column>
+          <a-table-column data-index="demand" title="客户诉求" />
+          <a-table-column title="申请 / 确认" :width="160">
+            <template #cell="{ record }">
+              {{ yuan(record.requested_refund_cents) }} /
+              {{
+                record.approved_refund_cents
+                  ? yuan(record.approved_refund_cents)
+                  : '-'
+              }}
+            </template>
+          </a-table-column>
+          <a-table-column title="状态" :width="110">
+            <template #cell="{ record }">
+              <a-tag :color="disputeStatusTagColor(record.status)">{{
+                disputeStatusText(record.status)
+              }}</a-tag>
+            </template>
+          </a-table-column>
+          <a-table-column title="操作" :width="180">
+            <template #cell="{ record }">
+              <a-button
+                v-if="record.status === 'pending_review'"
+                type="text"
+                @click="openDisputeReview(record)"
+                >审核</a-button
+              >
+              <a-button
+                v-else-if="record.status === 'approved'"
+                type="text"
+                @click="executeDispute(record)"
+                >执行退款</a-button
+              >
+              <span v-else>-</span>
+            </template>
+          </a-table-column>
+        </template>
+      </a-table>
+    </a-card>
+
+    <a-modal
+      v-model:visible="disputeCreateVisible"
+      title="代客户建礼物争议单"
+      :width="600"
+      @ok="submitDisputeCreate"
+      @cancel="disputeCreateVisible = false"
+    >
+      <a-form :model="disputeCreateForm">
+        <a-form-item label="礼物单据" required>
+          <a-select
+            v-model="disputeCreateForm.giftOrderId"
+            placeholder="选择可退的礼物单据"
+          >
+            <a-option
+              v-for="order in refundableOrders"
+              :key="order.id"
+              :value="order.id"
+            >
+              {{ order.gift_no }} · 客户 {{ order.customer_id }} ·
+              {{ yuan(order.amount_cents) }}
+            </a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="争议类型" required>
+          <a-select v-model="disputeCreateForm.kind">
+            <a-option
+              v-for="(label, key) in disputeKindMap"
+              :key="key"
+              :value="key"
+              >{{ label }}</a-option
+            >
+          </a-select>
+        </a-form-item>
+        <a-form-item label="客户诉求" required>
+          <a-textarea
+            v-model="disputeCreateForm.demand"
+            :max-length="500"
+            :auto-size="{ minRows: 2 }"
+          />
+        </a-form-item>
+        <a-form-item label="申请退款（元）" required>
+          <a-input-number
+            v-model="disputeCreateForm.requestedYuan"
+            :min="0.01"
+            :precision="2"
+          />
+        </a-form-item>
+        <div class="hint">代客户建单时会记录申请人，审核不得由本人完成。</div>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="disputeReviewVisible"
+      title="审核礼物争议"
+      :width="560"
+      @ok="submitDisputeReview"
+      @cancel="disputeReviewVisible = false"
+    >
+      <a-form :model="disputeReviewForm">
+        <a-form-item label="审核结论" required>
+          <a-radio-group v-model="disputeReviewForm.approve">
+            <a-radio :value="true">通过并退款</a-radio>
+            <a-radio :value="false">驳回</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item
+          v-if="disputeReviewForm.approve"
+          label="确认退款（元）"
+          required
+        >
+          <a-input-number
+            v-model="disputeReviewForm.approvedYuan"
+            :min="0.01"
+            :precision="2"
+          />
+        </a-form-item>
+        <a-form-item label="审核说明">
+          <a-textarea
+            v-model="disputeReviewForm.resolution"
+            :max-length="255"
+            :auto-size="{ minRows: 2 }"
+          />
+        </a-form-item>
+        <div class="hint">
+          申请退款
+          {{
+            disputeReviewTarget
+              ? yuan(disputeReviewTarget.requested_refund_cents)
+              : '-'
+          }}，确认额不得超过申请额与可退余额；驳回必须填写说明。
+        </div>
+      </a-form>
+    </a-modal>
+
     <a-modal
       v-model:visible="formVisible"
       :title="formTarget ? '编辑礼物' : '新建礼物'"
@@ -277,7 +523,7 @@
 
     <a-modal
       v-model:visible="sendVisible"
-      title="代客送礼"
+      title="发起礼物确认"
       @ok="submitSend"
       @cancel="sendVisible = false"
     >
@@ -304,10 +550,25 @@
         <a-form-item label="关联订单 ID（仅追溯，可不填）">
           <a-input-number v-model="sendForm.orderId" :min="0" />
         </a-form-item>
-        <a-form-item label="大额二次确认">
-          <a-switch v-model="sendForm.confirmed" />
-          <div class="hint">高额档礼物或超过阈值的大额打赏必须开启</div>
+        <a-form-item label="付款来源" required>
+          <a-radio-group v-model="sendForm.paymentSource">
+            <a-radio value="customer_balance_principal">客户余额本金</a-radio>
+            <a-radio value="stored_value_card_principal">储值卡本金</a-radio>
+          </a-radio-group>
         </a-form-item>
+        <a-form-item
+          v-if="sendForm.paymentSource === 'stored_value_card_principal'"
+          label="可送礼储值卡 ID"
+          required
+        >
+          <a-input-number v-model="sendForm.storedValueCardId" :min="1" />
+          <div class="hint"
+            >请从该客户的储值卡列表选择合同允许送礼且仍有实付本金的卡。</div
+          >
+        </a-form-item>
+        <div class="hint"
+          >创建后请客户在移动端“我的 → 待确认礼物”核对并确认，再执行送礼。</div
+        >
       </a-form>
     </a-modal>
 
@@ -322,7 +583,9 @@
           <a-textarea v-model="refundForm.reason" :max-length="255" />
         </a-form-item>
       </a-form>
-      <div class="hint">退款将退还本金，并冲回礼物分成与会员成长值。</div>
+      <div class="hint"
+        >退款将原路退还余额或储值卡本金，并冲回礼物分成与会员成长值。</div
+      >
     </a-modal>
   </div>
 </template>
@@ -333,17 +596,27 @@
   import usePermission from '@/hooks/permission';
   import {
     createGift,
+    createGiftDisputeByAdmin,
+    executeGiftDispute,
     getGiftLeaderboard,
+    listGiftDisputes,
     listGiftOrders,
     listGifts,
     refundGift,
     reviewGift,
-    sendGift,
+    reviewGiftDispute,
+    listGiftIntents,
+    createGiftIntent,
+    executeGiftIntent,
     setGiftStatus,
     updateGift,
   } from '../../api';
   import type {
     Gift,
+    GiftDispute,
+    GiftDisputeKind,
+    GiftDisputeStatus,
+    GiftIntent,
     GiftLeaderboardRow,
     GiftOrder,
     GiftReviewStatus,
@@ -532,13 +805,47 @@
   }
 
   const sendVisible = ref(false);
+  const intentLoading = ref(false);
+  const intents = ref<GiftIntent[]>([]);
+  const intentStatus = (value: GiftIntent['status']) =>
+    ({
+      pending: '待客户确认',
+      confirmed: '客户已确认',
+      consumed: '已送礼',
+      cancelled: '已取消',
+    }[value]);
+  async function loadIntents() {
+    intentLoading.value = true;
+    try {
+      intents.value = (await listGiftIntents()).data.data || [];
+    } catch (err) {
+      Message.error(errorText(err, '加载确认单失败'));
+    } finally {
+      intentLoading.value = false;
+    }
+  }
+  async function executeIntent(intent: GiftIntent) {
+    try {
+      await executeGiftIntent(intent.id);
+      Message.success('送礼成功');
+      await loadIntents();
+      await loadOrders();
+    } catch (err) {
+      Message.error(
+        errorText(err, '执行失败：确认单过期、明细已变化或余额不足')
+      );
+    }
+  }
   const sendForm = reactive({
     customerId: 0,
     giftId: undefined as number | undefined,
     playerId: 0,
     quantity: 1,
     orderId: 0,
-    confirmed: false,
+    paymentSource: 'customer_balance_principal' as
+      | 'customer_balance_principal'
+      | 'stored_value_card_principal',
+    storedValueCardId: 0,
   });
 
   function openSend() {
@@ -548,7 +855,8 @@
       playerId: 0,
       quantity: 1,
       orderId: 0,
-      confirmed: false,
+      paymentSource: 'customer_balance_principal',
+      storedValueCardId: 0,
     });
     sendVisible.value = true;
   }
@@ -558,22 +866,34 @@
       Message.error('请选择礼物');
       return;
     }
+    if (
+      sendForm.paymentSource === 'stored_value_card_principal' &&
+      !sendForm.storedValueCardId
+    ) {
+      Message.error('请选择可送礼储值卡');
+      return;
+    }
     try {
-      await sendGift({
+      await createGiftIntent({
         customer_id: sendForm.customerId,
         gift_id: sendForm.giftId,
         player_id: sendForm.playerId,
         quantity: sendForm.quantity,
         order_id: sendForm.orderId ? sendForm.orderId : null,
-        confirmed: sendForm.confirmed,
-        // 客户端防抖 + 服务端幂等：每次提交生成一次性幂等键。
+        payment_source: sendForm.paymentSource,
+        stored_value_card_id:
+          sendForm.paymentSource === 'stored_value_card_principal'
+            ? sendForm.storedValueCardId
+            : 0,
         client_key: crypto.randomUUID(),
       });
-      Message.success('送礼成功');
+      Message.success('已发起客户确认');
       sendVisible.value = false;
-      await loadOrders();
+      await loadIntents();
     } catch (err) {
-      Message.error(errorText(err, '送礼失败：身份/年龄/大额确认或余额不足'));
+      Message.error(
+        errorText(err, '创建确认单失败：身份、年龄或礼物状态不符合要求')
+      );
     }
   }
 
@@ -627,10 +947,182 @@
     }
   }
 
+  // ── 礼物争议（§9.5）：客户申请 → 客服审核 → 执行部分退款 ──
+  const disputeKindMap: Record<GiftDisputeKind, string> = {
+    not_received: '未收到礼物',
+    wrong_gift: '送错对象',
+    quality: '礼物与说明不符',
+    unauthorized: '非本人授权送礼',
+    other: '其他',
+  };
+  const disputeStatusMap: Record<GiftDisputeStatus, string> = {
+    pending_review: '待审核',
+    approved: '待执行',
+    rejected: '已驳回',
+    completed: '已完成',
+    withdrawn: '已撤回',
+  };
+  const disputeStatusColor: Record<GiftDisputeStatus, string> = {
+    pending_review: 'orange',
+    approved: 'blue',
+    rejected: 'red',
+    completed: 'green',
+    withdrawn: 'gray',
+  };
+
+  const disputeKindText = (kind: string) =>
+    disputeKindMap[kind as GiftDisputeKind] || kind;
+  const disputeStatusText = (status: string) =>
+    disputeStatusMap[status as GiftDisputeStatus] || status;
+  const disputeStatusTagColor = (status: string) =>
+    disputeStatusColor[status as GiftDisputeStatus] || 'gray';
+
+  const disputes = ref<GiftDispute[]>([]);
+  const disputesLoading = ref(false);
+  const disputeFilterStatus = ref<GiftDisputeStatus>();
+
+  // 可发起争议的礼物单据：已支付且未退满。
+  const refundableOrders = computed(() =>
+    orders.value.filter(
+      (order) => order.status === 'paid' && order.refund_status !== 'full'
+    )
+  );
+
+  async function loadDisputes() {
+    disputesLoading.value = true;
+    try {
+      disputes.value =
+        (await listGiftDisputes(disputeFilterStatus.value)).data.data || [];
+    } catch (err) {
+      Message.error(errorText(err, '加载礼物争议失败'));
+    } finally {
+      disputesLoading.value = false;
+    }
+  }
+
+  const disputeCreateVisible = ref(false);
+  const disputeCreateForm = reactive<{
+    giftOrderId?: number;
+    kind: GiftDisputeKind;
+    demand: string;
+    requestedYuan: number;
+  }>({ giftOrderId: undefined, kind: 'quality', demand: '', requestedYuan: 0 });
+
+  function openDisputeCreate() {
+    disputeCreateForm.giftOrderId = undefined;
+    disputeCreateForm.kind = 'quality';
+    disputeCreateForm.demand = '';
+    disputeCreateForm.requestedYuan = 0;
+    disputeCreateVisible.value = true;
+  }
+
+  async function submitDisputeCreate() {
+    const order = refundableOrders.value.find(
+      (row) => row.id === disputeCreateForm.giftOrderId
+    );
+    if (!order) {
+      Message.warning('请选择可退的礼物单据');
+      return;
+    }
+    if (!disputeCreateForm.demand.trim()) {
+      Message.warning('请填写客户诉求');
+      return;
+    }
+    if (disputeCreateForm.requestedYuan <= 0) {
+      Message.warning('请填写申请退款金额');
+      return;
+    }
+    const availableYuan = (order.amount_cents - order.refund_cents) / 100;
+    if (disputeCreateForm.requestedYuan > availableYuan) {
+      Message.warning(`申请额不得超过可退余额 ${availableYuan} 元`);
+      return;
+    }
+    try {
+      await createGiftDisputeByAdmin({
+        gift_order_id: order.id,
+        customer_id: order.customer_id,
+        kind: disputeCreateForm.kind,
+        demand: disputeCreateForm.demand.trim(),
+        requested_refund_cents: Math.round(
+          disputeCreateForm.requestedYuan * 100
+        ),
+      });
+      disputeCreateVisible.value = false;
+      Message.success('已建争议单，待审核');
+      await loadDisputes();
+    } catch (err) {
+      Message.error(
+        errorText(err, '建单失败：该单据已有进行中争议、非归属客户或参数无效')
+      );
+    }
+  }
+
+  const disputeReviewVisible = ref(false);
+  const disputeReviewTarget = ref<GiftDispute | null>(null);
+  const disputeReviewForm = reactive<{
+    approve: boolean;
+    approvedYuan: number;
+    resolution: string;
+  }>({ approve: true, approvedYuan: 0, resolution: '' });
+
+  function openDisputeReview(record: GiftDispute) {
+    disputeReviewTarget.value = record;
+    disputeReviewForm.approve = true;
+    disputeReviewForm.approvedYuan = record.requested_refund_cents / 100;
+    disputeReviewForm.resolution = '';
+    disputeReviewVisible.value = true;
+  }
+
+  async function submitDisputeReview() {
+    const target = disputeReviewTarget.value;
+    if (!target) return;
+    if (disputeReviewForm.approve && disputeReviewForm.approvedYuan <= 0) {
+      Message.warning('请填写确认退款金额');
+      return;
+    }
+    if (!disputeReviewForm.approve && !disputeReviewForm.resolution.trim()) {
+      Message.warning('驳回必须填写说明');
+      return;
+    }
+    try {
+      await reviewGiftDispute(target.id, {
+        approve: disputeReviewForm.approve,
+        approved_refund_cents: disputeReviewForm.approve
+          ? Math.round(disputeReviewForm.approvedYuan * 100)
+          : undefined,
+        resolution: disputeReviewForm.resolution.trim(),
+      });
+      disputeReviewVisible.value = false;
+      Message.success(
+        disputeReviewForm.approve ? '已通过，待执行退款' : '已驳回'
+      );
+      await loadDisputes();
+    } catch (err) {
+      Message.error(
+        errorText(err, '审核失败：申请人不得自审、确认额超限或状态已变化')
+      );
+    }
+  }
+
+  async function executeDispute(record: GiftDispute) {
+    try {
+      await executeGiftDispute(record.id);
+      Message.success('已执行退款并按比例冲回分成');
+      await loadDisputes();
+      await loadOrders();
+    } catch (err) {
+      Message.error(
+        errorText(err, '执行失败：执行人不得为审核人，或可退余额不足')
+      );
+    }
+  }
+
   onMounted(async () => {
     await load();
     await loadOrders();
+    await loadIntents();
     await loadBoard();
+    await loadDisputes();
   });
 </script>
 

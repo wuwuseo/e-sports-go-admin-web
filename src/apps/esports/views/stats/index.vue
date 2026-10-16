@@ -32,6 +32,31 @@
           :style="{ width: '120px' }"
         />
         <a-select
+          v-if="activeTab !== 'finance'"
+          v-model="channelSource"
+          placeholder="客户渠道来源"
+          allow-clear
+          :style="{ width: '150px' }"
+        >
+          <a-option value="manual">人工建档</a-option>
+          <a-option value="wecom">企业微信</a-option>
+          <a-option value="self">客户自助</a-option>
+          <a-option value="import">批量导入</a-option>
+        </a-select>
+        <a-select
+          v-if="activeTab !== 'finance'"
+          v-model="entryPoint"
+          placeholder="报单入口"
+          allow-clear
+          :style="{ width: '150px' }"
+        >
+          <a-option value="cs_pc">电脑客服端</a-option>
+          <a-option value="cs_mobile">移动客服端</a-option>
+          <a-option value="wecom_sidebar">企微侧边栏</a-option>
+          <a-option value="customer_self">客户自助</a-option>
+          <a-option value="admin_backfill">后台补录</a-option>
+        </a-select>
+        <a-select
           v-model="appointmentType"
           placeholder="即时/预约"
           allow-clear
@@ -443,6 +468,8 @@
   const endDate = ref('');
   const responsibleAdminId = ref<number>();
   const game = ref('');
+  const channelSource = ref<ReportQuery['channel_source']>();
+  const entryPoint = ref<ReportQuery['entry_point']>();
   const appointmentType = ref<'instant' | 'request' | undefined>();
   const seatType = ref<'single' | 'multi' | undefined>();
   const paymentChannel = ref('');
@@ -502,6 +529,10 @@
     if (responsibleAdminId.value)
       params.responsible_admin_id = responsibleAdminId.value;
     if (game.value) params.game = game.value;
+    if (activeTab.value !== 'finance' && channelSource.value)
+      params.channel_source = channelSource.value;
+    if (activeTab.value !== 'finance' && entryPoint.value)
+      params.entry_point = entryPoint.value;
     if (appointmentType.value) params.appointment_type = appointmentType.value;
     if (seatType.value) params.seat_type = seatType.value;
     if (paymentChannel.value) params.payment_channel = paymentChannel.value;

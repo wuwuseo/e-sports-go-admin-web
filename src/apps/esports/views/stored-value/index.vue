@@ -206,6 +206,12 @@
             :max-tag-count="6"
           />
         </a-form-item>
+        <a-form-item label="允许本金购买礼物">
+          <a-switch v-model="createForm.allowGifts" />
+          <a-typography-text type="secondary"
+            >只允许使用卡内实付本金，赠送权益不可用于送礼。</a-typography-text
+          >
+        </a-form-item>
         <a-form-item label="有效天数" required>
           <a-input-number v-model="createForm.validityDays" :min="1" />
         </a-form-item>
@@ -221,7 +227,7 @@
           {{
             createForm.paymentChannel === 'customer_balance'
               ? '用余额购卡属账户间划转：同事务扣减客户余额本金、增加卡内本金，不接受赠送权益。'
-              : '外部收款开卡须填写支付凭证号，便于财务核验。'
+              : '外部收款先生成待核验申请；独立财务核对实际到账后才发放卡内余额。'
           }}
         </a-typography-text>
       </a-form>
@@ -279,6 +285,18 @@
           <a-descriptions-item label="来源支付">{{
             channelLabel(detail.card.payment_channel)
           }}</a-descriptions-item>
+          <a-descriptions-item label="申请凭证号">{{
+            detail.card.payment_ref || '-'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="核验人">{{
+            detail.card.payment_verified_by_admin_id || '-'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="核验时间">{{
+            fmtMinute(detail.card.payment_verified_at)
+          }}</a-descriptions-item>
+          <a-descriptions-item label="核验记录">{{
+            detail.card.payment_verification_note || '-'
+          }}</a-descriptions-item>
           <a-descriptions-item label="本金余额">{{
             moneyText(detail.card.principal_remaining_cents)
           }}</a-descriptions-item>
@@ -295,6 +313,9 @@
             (detail.card.applicable_scope || []).length
               ? (detail.card.applicable_scope || []).join('、')
               : '全场通用'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="本金可送礼">{{
+            detail.card.allow_gifts ? '是' : '否'
           }}</a-descriptions-item>
           <a-descriptions-item label="已退金额">{{
             moneyText(detail.card.refunded_cents)
@@ -323,6 +344,50 @@
             </a-table-column>
           </template>
         </a-table>
+
+        <template v-if="detail.card.status === 'pending_verification'">
+          <a-divider>核验外部收款</a-divider>
+          <a-alert type="warning">
+            待核对实际到账。当前卡内余额为 0，不能用于订单核销。
+          </a-alert>
+          <a-form
+            v-if="canVerifyPayment"
+            :model="verificationForm"
+            style="margin-top: 16px"
+          >
+            <a-form-item label="实际到账流水号" required>
+              <a-input
+                v-model="verificationForm.receiptRef"
+                :max-length="128"
+              />
+            </a-form-item>
+            <a-form-item label="实收金额（分）" required>
+              <a-input-number
+                v-model="verificationForm.receivedCents"
+                :min="0"
+              />
+            </a-form-item>
+            <a-form-item label="核验依据/驳回原因" required>
+              <a-textarea
+                v-model="verificationForm.evidenceNote"
+                :max-length="255"
+              />
+            </a-form-item>
+            <a-space>
+              <a-button
+                type="primary"
+                :loading="verifying"
+                @click="submitPaymentVerification(true)"
+                >确认到账并激活</a-button
+              >
+              <a-button
+                :loading="verifying"
+                @click="submitPaymentVerification(false)"
+                >驳回申请</a-button
+              >
+            </a-space>
+          </a-form>
+        </template>
 
         <a-divider>退卡</a-divider>
         <a-space class="toolbar" wrap>
@@ -385,6 +450,7 @@
     requestEsportsStoredValueCardRefund,
     setEsportsStoredValuePackageStatus,
     updateEsportsStoredValuePackage,
+    verifyEsportsStoredValueCardPayment,
   } from '../../api';
   import type {
     EsportsStoredValueCard,
@@ -401,8 +467,13 @@
   const canApprove = computed(() =>
     hasButtonPermission('esports:stored_value:refund_approve')
   );
+  const canVerifyPayment = computed(() =>
+    hasButtonPermission('esports:stored_value:payment_verify')
+  );
 
   const statusOptions: { value: StoredValueStatus; label: string }[] = [
+    { value: 'pending_verification', label: '待核验收款' },
+    { value: 'rejected', label: '收款未通过' },
     { value: 'active', label: '可用' },
     { value: 'exhausted', label: '已用尽' },
     { value: 'refund_pending', label: '退卡待审' },
@@ -427,6 +498,10 @@
         return 'green';
       case 'refund_pending':
         return 'orangered';
+      case 'pending_verification':
+        return 'orange';
+      case 'rejected':
+        return 'red';
       case 'exhausted':
       case 'expired':
         return 'gray';
@@ -599,6 +674,7 @@
     principalCents: 0,
     bonusCents: 0,
     applicableScope: [] as string[],
+    allowGifts: false,
     validityDays: 365,
     note: '',
     contractConfirmed: false,
@@ -613,6 +689,7 @@
     createForm.principalCents = 0;
     createForm.bonusCents = 0;
     createForm.applicableScope = [];
+    createForm.allowGifts = false;
     createForm.validityDays = 365;
     createForm.note = '';
     createForm.contractConfirmed = false;
@@ -655,13 +732,18 @@
         applicable_scope: createForm.applicableScope
           .map((value) => Number(value))
           .filter((value) => value > 0),
+        allow_gifts: createForm.allowGifts,
         contract_confirmed: true,
         validity_days: createForm.validityDays,
         note: createForm.note,
         idempotency_key: newKey('sv-open'),
       });
       createVisible.value = false;
-      Message.success('已开卡');
+      Message.success(
+        createForm.paymentChannel === 'customer_balance'
+          ? '已开卡'
+          : '已提交待核验开卡申请，到账确认后才可使用'
+      );
       await loadCards();
     } catch (err) {
       Message.error(errorText(err, '开卡失败'));
@@ -675,6 +757,12 @@
   const detail = ref<StoredValueCardDetail | null>(null);
   const quote = ref<Record<string, unknown> | null>(null);
   const quoteLoading = ref(false);
+  const verifying = ref(false);
+  const verificationForm = reactive({
+    receiptRef: '',
+    receivedCents: 0,
+    evidenceNote: '',
+  });
   // 仅可用 / 已用尽 / 已过期的卡可申请退卡（待审、已退、冻结不可）。
   const canRequestRefund = computed(() => {
     const status = detail.value?.card.status;
@@ -689,8 +777,36 @@
     quote.value = null;
     try {
       detail.value = (await getEsportsStoredValueCard(card.id)).data.data;
+      verificationForm.receiptRef = detail.value.card.payment_ref || '';
+      verificationForm.receivedCents = detail.value.card.principal_cents;
+      verificationForm.evidenceNote = '';
     } catch (err) {
       Message.error(errorText(err, '加载储值卡详情失败'));
+    }
+  }
+
+  async function submitPaymentVerification(approve: boolean) {
+    if (!detail.value) return;
+    if (verificationForm.evidenceNote.trim().length < 8) {
+      Message.warning('请填写至少 8 字的核验依据或驳回原因');
+      return;
+    }
+    const { card } = detail.value;
+    verifying.value = true;
+    try {
+      await verifyEsportsStoredValueCardPayment(card.id, {
+        approve,
+        receipt_ref: verificationForm.receiptRef.trim(),
+        received_cents: verificationForm.receivedCents,
+        evidence_note: verificationForm.evidenceNote.trim(),
+      });
+      Message.success(approve ? '已核验到账并激活储值卡' : '已驳回申请');
+      await openDetail(card);
+      await loadCards();
+    } catch (err) {
+      Message.error(errorText(err, '收款核验失败'));
+    } finally {
+      verifying.value = false;
     }
   }
 

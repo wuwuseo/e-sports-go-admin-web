@@ -23,11 +23,15 @@ export interface EsportsSku {
   category_id: number | null;
   description: string;
   unit_price_cents: number;
+  min_unit_price_cents: number;
+  adjustment_approval_bp: number;
   service_units: number;
   service_unit_name: string;
   required_seats: number;
   // 所需技能等级（§5.5）：陪玩等级不得低于该值。
   required_level: PlayerLevel;
+  // 结单要求（§15.3）：引用生效结单规则的 code，留空按游戏 / 全局规则回落。
+  close_rule_code: string;
   quota_total: number;
   quota_reserved: number;
   quota_sold: number;
@@ -95,8 +99,17 @@ export interface EsportsOrder {
   order_no: string;
   customer_id: number;
   sku_id: number;
+  channel_source: CustomerSource;
+  entry_point:
+    | 'cs_pc'
+    | 'cs_mobile'
+    | 'wecom_sidebar'
+    | 'customer_self'
+    | 'admin_backfill';
   quantity: number;
   unit_price_cents: number;
+  min_unit_price_cents: number;
+  adjustment_approval_bp: number;
   discount_cents: number;
   manual_adjust_cents: number;
   payable_cents: number;
@@ -145,6 +158,36 @@ export interface RepriceInput {
   quantity: number;
   manual_adjust_cents: number;
   reason: string;
+  approval_id?: number;
+}
+
+export interface RepriceQuote {
+  order_id: number;
+  quote_version: number;
+  quantity: number;
+  unit_price_cents: number;
+  discount_cents: number;
+  manual_adjust_cents: number;
+  payable_cents: number;
+  promised_service_units: number;
+  min_unit_price_cents: number;
+  approval_threshold_bp: number;
+  requires_approval: boolean;
+}
+
+export interface PriceAdjustment {
+  id: number;
+  order_id: number;
+  order_version: number;
+  quantity: number;
+  manual_adjust_cents: number;
+  payable_cents: number;
+  requested_by_admin_id: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'consumed';
+  reviewed_by_admin_id: number | null;
+  review_note: string;
+  created_at: string;
 }
 
 export interface RescheduleInput {
@@ -314,6 +357,36 @@ export const createOrder = (input: OrderInput, idempotencyKey: string) =>
 
 export const repriceOrder = (id: number, input: RepriceInput) =>
   axios.put<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/quote`, input);
+
+export const requestPriceAdjustment = (
+  id: number,
+  input: RepriceInput & { request_key: string }
+) =>
+  axios.post<ApiResponse<PriceAdjustment>>(
+    `${base}/orders/${id}/price-adjustments`,
+    input
+  );
+
+export const listPriceAdjustments = (status?: PriceAdjustment['status']) =>
+  axios.get<ApiResponse<PriceAdjustment[]>>(`${base}/price-adjustments`, {
+    params: { status },
+  });
+
+export const decidePriceAdjustment = (
+  id: number,
+  approve: boolean,
+  note: string
+) =>
+  axios.post<ApiResponse<PriceAdjustment>>(
+    `${base}/price-adjustments/${id}/decision`,
+    { approve, note }
+  );
+
+export const previewReprice = (id: number, input: RepriceInput) =>
+  axios.post<ApiResponse<RepriceQuote>>(
+    `${base}/orders/${id}/quote-preview`,
+    input
+  );
 
 export const cancelOrder = (id: number, reason: string) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/cancel`, {
@@ -585,11 +658,16 @@ export const startPlayerService = (orderId: number) =>
 export const finishPlayerService = (
   orderId: number,
   reportedUnits: number,
+  reportedSeconds: number,
   evidenceRef: string
 ) =>
   axios.post<ApiResponse<EsportsOrder>>(
     `${userBase}/player/orders/${orderId}/service/finish`,
-    { reported_units: reportedUnits, evidence_ref: evidenceRef }
+    {
+      reported_units: reportedUnits,
+      reported_seconds: reportedSeconds,
+      evidence_ref: evidenceRef,
+    }
   );
 
 // ── 结单（客服手动结单）与售后 / 退款 ──
@@ -706,6 +784,9 @@ export interface AfterSalePlanInput {
   // 追偿（§13.4）：赔付由陪玩承担时填承接陪玩与追偿金额（不得超过赔付额）。
   recovery_player_id?: number;
   recovery_cents?: number;
+  // 争议涉及陪玩（§13.3 部分退款成员明细冲回）：退款类方案可指定该单实际服务成员，
+  // 执行退款时优先冲回该成员的服务与加钟分成；0 表示不指定、按整体比例冲回。
+  dispute_player_id?: number;
 }
 
 // ── 陪玩追偿明细（§13.4）：售后赔付由陪玩承担时另建的扣回单 ──
@@ -840,12 +921,6 @@ export const planAfterSale = (id: number, input: AfterSalePlanInput) =>
 export const approveAfterSale = (id: number) =>
   axios.post<ApiResponse<EsportsAfterSale>>(
     `${base}/after-sales/${id}/approve`
-  );
-
-// 待客户确认（§13.3）：客服代客户确认方案（客户线下已同意），方案随后进入待审批。
-export const confirmAfterSalePlan = (id: number) =>
-  axios.post<ApiResponse<EsportsAfterSale>>(
-    `${base}/after-sales/${id}/confirm`
   );
 
 export const rejectAfterSale = (id: number, reason: string) =>
@@ -1030,6 +1105,10 @@ export interface CommissionEntry {
   amount_cents: number;
   status: CommissionEntryStatus;
   settlement_id: number | null;
+  // 争议冻结（§12.6）：被争议的明细冻结待结算金额，不参与当期结算。
+  frozen_at: string | null;
+  frozen_reason: string;
+  frozen_by_admin_id: number | null;
   note: string;
   version: number;
   created_at: string;
@@ -1067,8 +1146,41 @@ export interface SettlementInput {
 
 export interface PlayerCommissionSummary {
   pending_settlement_cents: number;
+  // 被争议冻结的待结算金额（§12.6）。
+  frozen_cents: number;
   settled_cents: number;
   next_settlement_at: string;
+  // 生效结算周期与命中层级（player/level/game/global/system_config）。
+  settlement_period: string;
+  settlement_scope: string;
+}
+
+// ── §12.6 结算周期与争议冻结 ──
+
+export type SettlementCycleScope = 'global' | 'game' | 'level' | 'player';
+export type SettlementCyclePeriod = 'daily' | 'weekly' | 'monthly' | 'custom';
+
+export interface SettlementCycle {
+  id: number;
+  scope: SettlementCycleScope;
+  scope_key: string;
+  period: SettlementCyclePeriod;
+  interval_days: number;
+  enabled: boolean;
+  note: string;
+  created_by_admin_id: number | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SettlementCycleInput {
+  scope: SettlementCycleScope;
+  scope_key?: string;
+  period: SettlementCyclePeriod;
+  interval_days?: number;
+  enabled?: boolean;
+  note?: string;
 }
 
 export const listCommissionRules = (ruleNo = '') =>
@@ -1112,6 +1224,43 @@ export const lockSettlement = (id: number) =>
 export const getSettlement = (id: number) =>
   axios.get<ApiResponse<Settlement>>(`${base}/settlements/${id}`);
 
+// §12.6 结算周期配置：日/周/月/自定义间隔，按 全局 → 游戏 → 等级 → 陪玩 逐级覆盖。
+export const listSettlementCycles = () =>
+  axios.get<ApiResponse<SettlementCycle[]>>(`${base}/settlement-cycles`);
+
+export const createSettlementCycle = (input: SettlementCycleInput) =>
+  axios.post<ApiResponse<SettlementCycle>>(`${base}/settlement-cycles`, input);
+
+export const updateSettlementCycle = (
+  id: number,
+  input: SettlementCycleInput
+) =>
+  axios.put<ApiResponse<SettlementCycle>>(
+    `${base}/settlement-cycles/${id}`,
+    input
+  );
+
+export const setSettlementCycleStatus = (id: number, enabled: boolean) =>
+  axios.post<ApiResponse<SettlementCycle>>(
+    `${base}/settlement-cycles/${id}/status`,
+    { enabled }
+  );
+
+// §12.6 争议冻结：人工冻结 / 解冻订单待结算分成明细。
+export const freezeOrderCommission = (
+  orderId: number,
+  input: { player_id?: number; reason?: string } = {}
+) =>
+  axios.post<ApiResponse<{ order_id: number; frozen: number }>>(
+    `${base}/orders/${orderId}/freeze-commission`,
+    input
+  );
+
+export const unfreezeOrderCommission = (orderId: number) =>
+  axios.post<ApiResponse<{ order_id: number; unfrozen: number }>>(
+    `${base}/orders/${orderId}/unfreeze-commission`
+  );
+
 // ── §12.2 客服提成 ──
 export type CsCommissionScope = 'global' | 'admin';
 export type CsCommissionBaseMode =
@@ -1135,6 +1284,7 @@ export interface CsCommissionRule {
   scope_key: string;
   base_mode: CsCommissionBaseMode;
   calc_mode: CsCommissionCalcMode;
+  include_gifts: boolean;
   value_bp: number;
   value_cents: number;
   tiers: CsCommissionTier[] | null;
@@ -1152,6 +1302,7 @@ export interface CsCommissionRuleInput {
   scope_key?: string;
   base_mode: CsCommissionBaseMode;
   calc_mode: CsCommissionCalcMode;
+  include_gifts?: boolean;
   value_bp?: number;
   value_cents?: number;
   tiers?: CsCommissionTier[];
@@ -1163,9 +1314,10 @@ export interface CsCommissionRuleInput {
 export interface CsCommissionEntry {
   id: number;
   idem_key: string;
-  order_id: number;
+  order_id: number | null;
+  gift_order_id: number | null;
   admin_id: number;
-  kind: 'service' | 'reversal';
+  kind: 'service' | 'reversal' | 'gift' | 'gift_reversal';
   after_sale_id: number | null;
   rule_id: number | null;
   rule_no: string;
@@ -1801,6 +1953,8 @@ export interface GiftOrder {
   amount_cents: number;
   principal_cents: number;
   bonus_cents: number;
+  payment_source: string;
+  stored_value_card_id: number | null;
   commission_mode: GiftCommissionMode;
   commission_bp: number;
   commission_cents: number;
@@ -1813,16 +1967,47 @@ export interface GiftOrder {
   created_at: string;
 }
 
-export interface GiftSendInput {
+export interface GiftIntent {
+  id: number;
+  customer_id: number;
+  gift_id: number;
+  gift_name: string;
+  gift_version: number;
+  player_id: number;
+  player_name: string;
+  order_id: number | null;
+  quantity: number;
+  unit_price_cents: number;
+  amount_cents: number;
+  payment_source: string;
+  stored_value_card_id: number | null;
+  stored_value_card_no: string;
+  created_by_admin_id: number;
+  status: 'pending' | 'confirmed' | 'consumed' | 'cancelled';
+  version: number;
+  expires_at: string;
+  confirmed_at: string | null;
+  gift_order_id: number | null;
+}
+
+export const listGiftIntents = () =>
+  axios.get<ApiResponse<GiftIntent[]>>(`${base}/gift-intents`);
+
+export const createGiftIntent = (input: {
   customer_id: number;
   gift_id: number;
   player_id: number;
   quantity: number;
   order_id?: number | null;
-  // 大额打赏或高额档礼物需二次确认。
-  confirmed: boolean;
+  payment_source?: 'customer_balance_principal' | 'stored_value_card_principal';
+  stored_value_card_id?: number;
   client_key: string;
-}
+}) => axios.post<ApiResponse<GiftIntent>>(`${base}/gift-intents`, input);
+
+export const executeGiftIntent = (intentId: number) =>
+  axios.post<ApiResponse<GiftOrder>>(`${base}/gift-orders`, {
+    intent_id: intentId,
+  });
 
 export interface GiftLeaderboardRow {
   owner_id: number;
@@ -1859,10 +2044,6 @@ export const listGiftOrders = (params: {
   review_status?: GiftReviewStatus;
 }) => axios.get<ApiResponse<GiftOrder[]>>(`${base}/gift-orders`, { params });
 
-// 客服代客送礼：原子扣减客户余额本金，生成礼物收入与会员成长值。
-export const sendGift = (input: GiftSendInput) =>
-  axios.post<ApiResponse<GiftOrder>>(`${base}/gift-orders`, input);
-
 export const refundGift = (id: number, reason: string) =>
   axios.post<ApiResponse<GiftOrder>>(`${base}/gift-orders/${id}/refund`, {
     reason,
@@ -1881,6 +2062,226 @@ export const getGiftLeaderboard = (
   axios.get<ApiResponse<GiftLeaderboardRow[]>>(`${base}/gift-leaderboard`, {
     params: { board, period },
   });
+
+// ── §9.5 礼物争议：客户申请 → 客服审核 → 执行退款（支持部分退款） ──
+
+export type GiftDisputeKind =
+  | 'not_received'
+  | 'wrong_gift'
+  | 'quality'
+  | 'unauthorized'
+  | 'other';
+export type GiftDisputeStatus =
+  | 'pending_review'
+  | 'approved'
+  | 'rejected'
+  | 'completed'
+  | 'withdrawn';
+
+export interface GiftDispute {
+  id: number;
+  dispute_no: string;
+  gift_order_id: number;
+  gift_no: string;
+  customer_id: number;
+  owner_admin_id: number | null;
+  created_by_admin_id: number | null;
+  kind: GiftDisputeKind;
+  channel: 'customer' | 'admin';
+  demand: string;
+  evidence_ref: string;
+  requested_refund_cents: number;
+  approved_refund_cents: number;
+  status: GiftDisputeStatus;
+  resolution: string;
+  reviewed_by_admin_id: number | null;
+  reviewed_at: string | null;
+  executed_by_admin_id: number | null;
+  executed_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GiftDisputeInput {
+  gift_order_id: number;
+  kind: GiftDisputeKind;
+  demand: string;
+  evidence_ref?: string;
+  requested_refund_cents: number;
+  customer_id?: number;
+}
+
+export const listGiftDisputes = (status?: GiftDisputeStatus) =>
+  axios.get<ApiResponse<GiftDispute[]>>(`${base}/gift-disputes`, {
+    params: { status },
+  });
+
+// 客服代客户建争议单需带 customer_id（须为归属客户）。
+export const createGiftDisputeByAdmin = (input: GiftDisputeInput) =>
+  axios.post<ApiResponse<GiftDispute>>(`${base}/gift-disputes`, input);
+
+export const reviewGiftDispute = (
+  id: number,
+  input: {
+    approve: boolean;
+    approved_refund_cents?: number;
+    resolution?: string;
+  }
+) =>
+  axios.post<ApiResponse<GiftDispute>>(
+    `${base}/gift-disputes/${id}/review`,
+    input
+  );
+
+export const executeGiftDispute = (id: number) =>
+  axios.post<ApiResponse<GiftDispute>>(`${base}/gift-disputes/${id}/execute`);
+
+// ── §4.3 收款账户、收款方式启停与外部到账核销 ──
+
+export type PaymentChannel =
+  | 'wechat_work'
+  | 'merchant_qr'
+  | 'corporate_transfer';
+export type PaymentAccountStatus =
+  | 'pending_review'
+  | 'active'
+  | 'rejected'
+  | 'disabled';
+
+export interface PaymentAccount {
+  id: number;
+  channel: PaymentChannel;
+  subject_name: string;
+  account_no: string;
+  qr_url: string;
+  bank_name: string;
+  status: PaymentAccountStatus;
+  submit_note: string;
+  submitted_by_admin_id: number | null;
+  reviewed_by_admin_id: number | null;
+  reviewed_at: string | null;
+  review_resolution: string;
+  disabled_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentAccountInput {
+  channel: PaymentChannel;
+  subject_name: string;
+  account_no?: string;
+  qr_url?: string;
+  bank_name?: string;
+  submit_note?: string;
+}
+
+export interface PaymentChannelView {
+  channel: PaymentChannel;
+  enabled: boolean;
+  active_accounts: number;
+}
+
+export type OfflinePaymentProofStatus =
+  | 'pending_verification'
+  | 'verified'
+  | 'rejected';
+
+export interface OfflinePaymentProof {
+  id: number;
+  proof_no: string;
+  order_id: number;
+  intent_id: number;
+  account_id: number;
+  channel: PaymentChannel;
+  transaction_no: string;
+  amount_cents: number;
+  proof_ref: string;
+  note: string;
+  status: OfflinePaymentProofStatus;
+  submitted_by_admin_id: number | null;
+  verified_by_admin_id: number | null;
+  verified_at: string | null;
+  resolution: string;
+  receipt_id: number | null;
+  version: number;
+  created_at: string;
+}
+
+export interface OfflinePaymentProofInput {
+  order_id: number;
+  account_id: number;
+  transaction_no: string;
+  amount_cents: number;
+  proof_ref: string;
+  note?: string;
+}
+
+export const listPaymentAccounts = (params: {
+  channel?: PaymentChannel;
+  status?: PaymentAccountStatus;
+}) =>
+  axios.get<ApiResponse<PaymentAccount[]>>(`${base}/payment-accounts`, {
+    params,
+  });
+
+export const createPaymentAccount = (input: PaymentAccountInput) =>
+  axios.post<ApiResponse<PaymentAccount>>(`${base}/payment-accounts`, input);
+
+export const reviewPaymentAccount = (
+  id: number,
+  input: { approve: boolean; resolution?: string }
+) =>
+  axios.post<ApiResponse<PaymentAccount>>(
+    `${base}/payment-accounts/${id}/review`,
+    input
+  );
+
+export const disablePaymentAccount = (id: number) =>
+  axios.post<ApiResponse<PaymentAccount>>(
+    `${base}/payment-accounts/${id}/disable`
+  );
+
+export const listPaymentChannels = () =>
+  axios.get<ApiResponse<PaymentChannelView[]>>(`${base}/payment-channels`);
+
+export const setPaymentChannelStatus = (
+  channel: PaymentChannel,
+  enabled: boolean
+) =>
+  axios.post<ApiResponse<PaymentChannelView[]>>(
+    `${base}/payment-channels/${channel}/status`,
+    { enabled }
+  );
+
+export const listOfflinePaymentProofs = (params: {
+  status?: OfflinePaymentProofStatus;
+  order_id?: number;
+}) =>
+  axios.get<ApiResponse<OfflinePaymentProof[]>>(
+    `${base}/offline-payment-proofs`,
+    {
+      params,
+    }
+  );
+
+export const submitOfflinePaymentProof = (input: OfflinePaymentProofInput) =>
+  axios.post<ApiResponse<OfflinePaymentProof>>(
+    `${base}/offline-payment-proofs`,
+    input
+  );
+
+export const verifyOfflinePaymentProof = (id: number) =>
+  axios.post<ApiResponse<OfflinePaymentProof>>(
+    `${base}/offline-payment-proofs/${id}/verify`
+  );
+
+export const rejectOfflinePaymentProof = (id: number, resolution: string) =>
+  axios.post<ApiResponse<OfflinePaymentProof>>(
+    `${base}/offline-payment-proofs/${id}/reject`,
+    { resolution }
+  );
 
 // ── 考官端（§7）：考核权重、考核任务、申诉复核、客户评价与综合评分 ──
 
@@ -2101,6 +2502,8 @@ export interface ReportQuery {
   created_by_admin_id?: number;
   sku_id?: number;
   game?: string;
+  channel_source?: CustomerSource;
+  entry_point?: EsportsOrder['entry_point'];
   appointment_type?: 'instant' | 'request';
   seat_type?: 'single' | 'multi';
   payment_channel?: string;
@@ -2525,6 +2928,8 @@ export type StoredValuePaymentChannel =
   | 'corporate_transfer'
   | 'customer_balance';
 export type StoredValueStatus =
+  | 'pending_verification'
+  | 'rejected'
   | 'active'
   | 'exhausted'
   | 'refund_pending'
@@ -2539,9 +2944,16 @@ export interface EsportsStoredValueCard {
   source: StoredValueSource;
   payment_channel: StoredValuePaymentChannel;
   payment_ref: string;
+  open_request_key: string | null;
+  verified_payment_key: string | null;
+  payment_verified_by_admin_id: number | null;
+  payment_verified_at: string | null;
+  payment_verified_amount_cents: number;
+  payment_verification_note: string;
   principal_cents: number;
   bonus_cents: number;
   applicable_scope: number[] | null;
+  allow_gifts: boolean;
   contract_confirmed: boolean;
   valid_from: string;
   valid_until: string;
@@ -2574,6 +2986,7 @@ export interface StoredValueCardInput {
   principal_cents: number;
   bonus_cents?: number;
   applicable_scope?: number[];
+  allow_gifts?: boolean;
   contract_confirmed: boolean;
   valid_until?: string;
   validity_days?: number;
@@ -2668,6 +3081,20 @@ export const createEsportsStoredValueCard = (input: StoredValueCardInput) =>
     input
   );
 
+export const verifyEsportsStoredValueCardPayment = (
+  id: number,
+  input: {
+    approve: boolean;
+    receipt_ref: string;
+    received_cents: number;
+    evidence_note: string;
+  }
+) =>
+  axios.post<ApiResponse<EsportsStoredValueCard>>(
+    `${base}/stored-value-cards/${id}/payment-verification`,
+    input
+  );
+
 export const getEsportsStoredValueCardRefundQuote = (id: number) =>
   axios.get<ApiResponse<StoredValueRefundQuote>>(
     `${base}/stored-value-cards/${id}/refund-quote`
@@ -2701,6 +3128,76 @@ export const payEsportsOrderByStoredValueCard = (
 export type CloseRuleScope = 'global' | 'game' | 'sku';
 export type CloseRuleStatus = 'draft' | 'active' | 'history';
 
+// 结单条件树（§3.4 结单条件自定义）：组合节点填 op（and / or / not）与 children，
+// 叶子节点填 field + operator + value；字段与运算符取值见结单条件状态接口返回的元信息。
+export type CloseConditionOperator = '>=' | '>' | '<=' | '<' | '==' | '!=';
+
+export interface CloseConditionNode {
+  op?: 'and' | 'or' | 'not';
+  children?: CloseConditionNode[];
+  field?: string;
+  operator?: CloseConditionOperator;
+  value?: number | null;
+}
+
+export interface CloseConditionFieldSpec {
+  key: string;
+  label: string;
+  kind: 'count' | 'seconds' | 'units' | 'bool';
+}
+
+export interface CloseConditionItem {
+  field: string;
+  label: string;
+  operator: CloseConditionOperator;
+  expected: number;
+  actual: number;
+  satisfied: boolean;
+  reason: string;
+}
+
+export interface CloseConditionStatus {
+  satisfied: boolean;
+  tree_configured: boolean;
+  rule_code: string;
+  rule_version: number;
+  review_threshold_cents: number;
+  items: CloseConditionItem[];
+  reasons: string[];
+  fields: CloseConditionFieldSpec[];
+  operators: CloseConditionOperator[];
+}
+
+// 结单条件字段与运算符枚举（§3.4 结单条件自定义）：与后端
+// internal/apps/esports/close_condition.go 的 closeConditionFieldSpecs / closeConditionOperators
+// 逐字对齐；后端新增字段或运算符时须同步此处，否则设计器会漏配或提交被拒。
+// 深度 / 节点上限同样对齐 normalizeCloseConditionTree 的 closeCondMaxDepth / closeCondMaxNodes。
+export const CLOSE_CONDITION_FIELD_SPECS: CloseConditionFieldSpec[] = [
+  { key: 'evidence_count', label: '服务凭证张数', kind: 'count' },
+  { key: 'service_seconds', label: '系统服务时长（秒）', kind: 'seconds' },
+  { key: 'service_units', label: '成员上报服务量', kind: 'units' },
+  { key: 'promised_service_units', label: '承诺服务量', kind: 'units' },
+  { key: 'addon_units', label: '加钟量', kind: 'units' },
+  { key: 'pending_addon_count', label: '待处理加钟数', kind: 'count' },
+  { key: 'open_aftersale_count', label: '进行中售后数', kind: 'count' },
+  { key: 'stored_value_consistent', label: '储值卡核销一致', kind: 'bool' },
+];
+
+export const CLOSE_CONDITION_OPERATORS: CloseConditionOperator[] = [
+  '>=',
+  '>',
+  '<=',
+  '<',
+  '==',
+  '!=',
+];
+
+export const CLOSE_CONDITION_MAX_DEPTH = 5;
+export const CLOSE_CONDITION_MAX_NODES = 50;
+
+// 条件树组合节点支持的逻辑运算（§3.4）：与后端 closeCondOpAnd / closeCondOpOr / closeCondOpNot 对齐。
+export type CloseConditionGroupOp = 'and' | 'or' | 'not';
+
 export interface EsportsCloseRule {
   id: number;
   code: string;
@@ -2712,6 +3209,8 @@ export interface EsportsCloseRule {
   require_no_pending_addon: boolean;
   require_no_open_aftersale: boolean;
   review_threshold_cents: number;
+  // 通用 AND/OR 条件树；为空表示使用上面的结构化条件项。
+  condition_tree: CloseConditionNode | null;
   status: CloseRuleStatus;
   version: number;
   created_by_admin_id: number | null;
@@ -2730,8 +3229,15 @@ export interface CloseRuleInput {
   require_no_pending_addon: boolean;
   require_no_open_aftersale: boolean;
   review_threshold_cents: number;
+  condition_tree?: CloseConditionNode | null;
   note?: string;
 }
+
+// 结单条件逐项状态（§3.4）：条件不满足时结单按钮置灰，口径与结单拦截一致。
+export const getOrderCloseConditions = (orderId: number) =>
+  axios.get<ApiResponse<CloseConditionStatus>>(
+    `${base}/orders/${orderId}/close-conditions`
+  );
 
 export const listCloseRules = () =>
   axios.get<ApiResponse<EsportsCloseRule[]>>(`${base}/close-rules`);

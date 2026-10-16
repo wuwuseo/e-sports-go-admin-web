@@ -41,6 +41,16 @@
               money(record.unit_price_cents)
             }}</template>
           </a-table-column>
+          <a-table-column title="人工议价底价">
+            <template #cell="{ record }">{{
+              money(record.min_unit_price_cents || record.unit_price_cents)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="免审调整幅度">
+            <template #cell="{ record }"
+              >{{ record.adjustment_approval_bp / 100 }}%</template
+            >
+          </a-table-column>
           <a-table-column title="一份服务量">
             <template #cell="{ record }"
               >{{ record.service_units }}
@@ -152,6 +162,23 @@
         <a-form-item label="每份标价（分）" required>
           <a-input-number v-model="skuForm.unit_price_cents" :min="1" />
         </a-form-item>
+        <a-form-item label="每份最低议价（分）" required>
+          <a-input-number
+            v-model="skuForm.min_unit_price_cents"
+            :min="1"
+            :max="skuForm.unit_price_cents"
+          />
+        </a-form-item>
+        <a-form-item label="免审调整幅度（基点）" required>
+          <a-input-number
+            v-model="skuForm.adjustment_approval_bp"
+            :min="1"
+            :max="10000"
+          />
+          <div class="hint"
+            >1000 基点 = 标价小计的 10%；超过该幅度须异人审批。</div
+          >
+        </a-form-item>
         <a-form-item label="一份服务量" required>
           <a-input-number v-model="skuForm.service_units" :min="1" />
         </a-form-item>
@@ -168,6 +195,26 @@
             <a-option value="senior">资深</a-option>
             <a-option value="mentor">导师</a-option>
           </a-select>
+        </a-form-item>
+        <a-form-item label="结单要求">
+          <a-select
+            v-model="skuForm.close_rule_code"
+            allow-clear
+            placeholder="不限（按游戏 / 全局规则）"
+          >
+            <a-option
+              v-for="rule in activeCloseRules"
+              :key="rule.id"
+              :value="rule.code"
+              >{{ rule.name }}（{{ rule.code }} · v{{
+                rule.version
+              }}）</a-option
+            >
+          </a-select>
+          <div class="hint">
+            关联生效结单规则后，该商品订单按规则的条件树与审批流结单（§15.3
+            结单要求）。
+          </div>
         </a-form-item>
         <a-form-item label="名额总量（-1 不限量）" required>
           <a-input-number v-model="skuForm.quota_total" :min="-1" />
@@ -221,7 +268,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from 'vue';
+  import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import {
@@ -229,12 +276,14 @@
     createSku,
     deleteCategory,
     listCategories,
+    listCloseRules,
     listSkus,
     updateCategory,
     updateSku,
   } from '../../api';
   import type {
     CategoryInput,
+    EsportsCloseRule,
     EsportsProductCategory,
     EsportsSku,
     SkuInput,
@@ -252,6 +301,11 @@
   const loading = ref(false);
   const skus = ref<EsportsSku[]>([]);
   const categories = ref<EsportsProductCategory[]>([]);
+  // 结单要求下拉只列出生效中的结单规则（§15.3）。
+  const closeRules = ref<EsportsCloseRule[]>([]);
+  const activeCloseRules = computed(() =>
+    closeRules.value.filter((rule) => rule.status === 'active')
+  );
   const skuVisible = ref(false);
   const categoryVisible = ref(false);
 
@@ -263,15 +317,26 @@
     category_id: null,
     description: '',
     unit_price_cents: 1,
+    min_unit_price_cents: 1,
+    adjustment_approval_bp: 2000,
     service_units: 1,
     service_unit_name: '小时',
     required_seats: 1,
     required_level: 'novice',
+    close_rule_code: '',
     quota_total: -1,
     sort_order: 0,
     status: 'draft',
   });
   const skuForm = reactive(emptySkuForm());
+  watch(
+    () => skuForm.unit_price_cents,
+    (price, previous) => {
+      if (!skuForm.id && skuForm.min_unit_price_cents === previous) {
+        skuForm.min_unit_price_cents = price;
+      }
+    }
+  );
   // a-select 的 modelValue 不接受 null，这里把「清空」的 undefined 转回 null 以匹配 SkuInput 类型。
   function onCategoryChange(value: unknown) {
     skuForm.category_id = typeof value === 'number' ? value : null;
@@ -300,12 +365,14 @@
     loading.value = true;
     try {
       if (activeTab.value === 'skus') {
-        const [skuResult, categoryResult] = await Promise.all([
+        const [skuResult, categoryResult, ruleResult] = await Promise.all([
           listSkus(),
           listCategories(),
+          listCloseRules(),
         ]);
         skus.value = skuResult.data.data || [];
         categories.value = categoryResult.data.data || [];
+        closeRules.value = ruleResult.data.data || [];
       } else {
         categories.value = (await listCategories()).data.data || [];
       }
@@ -328,10 +395,13 @@
     category_id: skuForm.category_id,
     description: skuForm.description,
     unit_price_cents: skuForm.unit_price_cents,
+    min_unit_price_cents: skuForm.min_unit_price_cents,
+    adjustment_approval_bp: skuForm.adjustment_approval_bp,
     service_units: skuForm.service_units,
     service_unit_name: skuForm.service_unit_name,
     required_seats: skuForm.required_seats,
     required_level: skuForm.required_level,
+    close_rule_code: skuForm.close_rule_code || '',
     quota_total: skuForm.quota_total,
     sort_order: skuForm.sort_order,
     status: skuForm.status,
@@ -365,10 +435,14 @@
         category_id: record.category_id,
         description: record.description,
         unit_price_cents: record.unit_price_cents,
+        min_unit_price_cents:
+          record.min_unit_price_cents || record.unit_price_cents,
+        adjustment_approval_bp: record.adjustment_approval_bp,
         service_units: record.service_units,
         service_unit_name: record.service_unit_name,
         required_seats: record.required_seats,
         required_level: record.required_level,
+        close_rule_code: record.close_rule_code,
         quota_total: record.quota_total,
         sort_order: record.sort_order,
         status,

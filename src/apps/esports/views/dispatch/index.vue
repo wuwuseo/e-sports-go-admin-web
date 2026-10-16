@@ -2,7 +2,7 @@
   <div class="container page-container">
     <a-card class="general-card" title="排单看板">
       <a-space class="toolbar">
-        <a-button :loading="loading" @click="load">刷新</a-button>
+        <a-button :loading="loading" @click="load()">刷新</a-button>
         <a-tag color="arcoblue">在线陪玩：{{ onlinePlayers }}</a-tag>
       </a-space>
 
@@ -613,7 +613,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from 'vue';
+  import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import {
@@ -684,12 +684,12 @@
   const loading = ref(false);
   const board = ref<EsportsDispatchBoard | null>(null);
 
-  async function load() {
+  async function load(silent = false) {
     loading.value = true;
     try {
       board.value = (await getDispatchBoard()).data.data || null;
     } catch {
-      Message.error('加载看板失败，请稍后重试');
+      if (!silent) Message.error('加载看板失败，请稍后重试');
     } finally {
       loading.value = false;
     }
@@ -1257,10 +1257,19 @@
     }
   }
 
+  let refreshTimer: ReturnType<typeof setInterval> | undefined;
   onMounted(async () => {
     await load();
     await loadPriority();
     await loadTransfers();
+    refreshTimer = setInterval(() => {
+      if (!loading.value && document.visibilityState === 'visible') {
+        load(true);
+      }
+    }, 15_000);
+  });
+  onUnmounted(() => {
+    if (refreshTimer) clearInterval(refreshTimer);
   });
 </script>
 
