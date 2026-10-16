@@ -20,20 +20,40 @@
       >
         <template #columns>
           <a-table-column data-index="owner_id" title="归属人 ID" />
-          <a-table-column data-index="display_name" title="名称" />
+          <a-table-column title="名称">
+            <template #cell="{ record }">
+              <a-space>
+                <component
+                  :is="walletIcon(record.display?.icon)"
+                  v-if="walletIcon(record.display?.icon)"
+                />
+                <a-tooltip
+                  v-if="record.display?.description"
+                  :content="record.display.description"
+                >
+                  <span>
+                    {{ record.display?.display_name || record.display_name }}
+                  </span>
+                </a-tooltip>
+                <span v-else>
+                  {{ record.display?.display_name || record.display_name }}
+                </span>
+              </a-space>
+            </template>
+          </a-table-column>
           <a-table-column title="本金">
             <template #cell="{ record }">{{
-              money(record.principal_cents)
+              amountText(record.principal_cents, record)
             }}</template>
           </a-table-column>
           <a-table-column title="赠送权益">
             <template #cell="{ record }">{{
-              money(record.bonus_cents)
+              amountText(record.bonus_cents, record)
             }}</template>
           </a-table-column>
           <a-table-column title="余额合计">
             <template #cell="{ record }">{{
-              money(record.balance_cents)
+              amountText(record.balance_cents, record)
             }}</template>
           </a-table-column>
           <a-table-column title="状态">
@@ -128,12 +148,12 @@
           <a-table-column data-index="entry_type" title="类型" />
           <a-table-column title="本金变动">
             <template #cell="{ record }">{{
-              signed(record.principal_delta_cents)
+              signedByUnit(record.principal_delta_cents)
             }}</template>
           </a-table-column>
           <a-table-column title="赠送变动">
             <template #cell="{ record }">{{
-              signed(record.bonus_delta_cents)
+              signedByUnit(record.bonus_delta_cents)
             }}</template>
           </a-table-column>
           <a-table-column data-index="note" title="说明" />
@@ -173,7 +193,7 @@
           </a-table-column>
           <a-table-column title="分摊金额">
             <template #cell="{ record }">{{
-              money(record.amount_cents)
+              moneyByUnit(record.amount_cents)
             }}</template>
           </a-table-column>
         </template>
@@ -183,8 +203,16 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from 'vue';
+  import {
+    computed,
+    markRaw,
+    onMounted,
+    reactive,
+    ref,
+    type Component,
+  } from 'vue';
   import { Message } from '@arco-design/web-vue';
+  import { IconGift, IconSafe } from '@arco-design/web-vue/es/icon';
   import usePermission from '@/hooks/permission';
   import {
     adjustWallet,
@@ -231,6 +259,52 @@
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
   const signed = (cents: number) =>
     cents > 0 ? `+${money(cents)}` : money(cents);
+
+  // §11.4 钱包展示图标映射：后端下发 icon 字符串，映射到 Arco 图标组件；映射不到只显示文字。
+  const walletIconMap: Record<string, Component> = {
+    wallet: markRaw(IconSafe),
+    cat: markRaw(IconGift),
+  };
+  const walletIcon = (icon?: string) =>
+    icon ? walletIconMap[icon] || null : null;
+
+  // §11.4 按账户单位倍率换算：cents / unitCents 保留两位，整数运算避免浮点误差。
+  const fmtByUnit = (cents: number, unitCents?: number) => {
+    const unit = unitCents && unitCents > 0 ? unitCents : 100;
+    const sign = cents < 0 ? '-' : '';
+    const abs = Math.abs(cents);
+    let intPart = Math.floor(abs / unit);
+    let fracPart = Math.round(((abs % unit) / unit) * 100);
+    if (fracPart === 100) {
+      intPart += 1;
+      fracPart = 0;
+    }
+    return `${sign}${intPart}.${String(fracPart).padStart(2, '0')}`;
+  };
+  // 表格金额：有展示配置时按单位换算并拼单位名，缺失回落旧 ¥ 逻辑。
+  const amountText = (cents: number, record: WalletAccount) =>
+    record.display
+      ? `${fmtByUnit(cents, record.display.unit_cents)} ${
+          record.display.unit_name
+        }`
+      : money(cents);
+  // 流水金额：按当前账户的展示单位换算，缺失回落 ¥ 逻辑。
+  const unitName = () => txTarget.value?.display?.unit_name;
+  const moneyByUnit = (cents: number) => {
+    const name = unitName();
+    return name
+      ? `${fmtByUnit(cents, txTarget.value?.display?.unit_cents)} ${name}`
+      : money(cents);
+  };
+  const signedByUnit = (cents: number) => {
+    const name = unitName();
+    if (!name) return signed(cents);
+    const text = `${fmtByUnit(
+      cents,
+      txTarget.value?.display?.unit_cents
+    )} ${name}`;
+    return cents > 0 ? `+${text}` : text;
+  };
   const txTitle = computed(() =>
     txTarget.value ? `${txTarget.value.display_name} 的流水` : '钱包流水'
   );

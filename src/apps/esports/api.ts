@@ -164,6 +164,24 @@ export interface OrderInput {
   preferred_player_id?: number;
 }
 
+// 管理员历史订单补录（entry_point=admin_backfill）：为历史成交生成订单，不计入自助下单流程。
+export interface BackfillOrderInput {
+  customer_id: number;
+  sku_id: number;
+  quantity: number;
+  // 实际成交单价（分）：留 0 表示按 SKU 当前规格价。
+  unit_price_cents: number;
+  // 实际成交时间（RFC3339）：不晚于当前、不早于 5 年前。
+  settled_at: string;
+  // 已完成单必须已收款，后端事务内校验。
+  fulfillment_status: 'completed' | 'cancelled';
+  payment_status: 'paid' | 'unpaid';
+  // 补录原因（4-255 字）。
+  reason: string;
+  // 是否计入当期业绩：false 不计提分成 / 提成 / 成长值。
+  count_commission: boolean;
+}
+
 export interface RepriceInput {
   expected_version: number;
   quantity: number;
@@ -213,6 +231,22 @@ export type WalletAccountType =
   // 储值卡是独立预付账户（§11.3），账户号为卡 ID。
   | 'stored_value_card';
 
+// 钱包展示配置（§11.4）：后端按账户类型下发展示名称 / 图标 / 说明 / 单位与换算倍率。
+export interface WalletDisplay {
+  // 展示名称，如 "账户余额" / "猫粮"。
+  display_name: string;
+  // 图标标识，如 "wallet" / "cat"，前端需映射到实际图标组件，映射不到仅显示文字。
+  icon: string;
+  // 说明文案。
+  description: string;
+  // 单位名，如 "元" / "猫粮"。
+  unit_name: string;
+  // 每单位多少分，如 100（1 元 = 100 分）。
+  unit_cents: number;
+  // 按倍率换算后的展示金额（两位小数字符串，后端已算好，仅余额有值）。
+  display_amount: string;
+}
+
 export interface WalletAccount {
   account_type: WalletAccountType;
   owner_id: number;
@@ -221,6 +255,8 @@ export interface WalletAccount {
   principal_cents: number;
   bonus_cents: number;
   balance_cents: number;
+  // 展示配置（§11.4）：后端钱包账户视图返回，旧数据可能缺失。
+  display?: WalletDisplay;
 }
 
 export interface WalletTx {
@@ -363,6 +399,15 @@ export const getOrder = (id: number) =>
 
 export const createOrder = (input: OrderInput, idempotencyKey: string) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders`, input, {
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+
+// 管理员历史订单补录：生成历史订单（entry_point=admin_backfill），返回订单视图对象。
+export const backfillOrder = (
+  input: BackfillOrderInput,
+  idempotencyKey: string
+) =>
+  axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/backfill`, input, {
     headers: { 'Idempotency-Key': idempotencyKey },
   });
 

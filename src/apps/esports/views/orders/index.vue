@@ -3,6 +3,9 @@
     <a-card class="general-card" title="订单">
       <a-space class="toolbar">
         <a-button :loading="loading" @click="load">刷新</a-button>
+        <a-button v-if="canBackfill" type="primary" @click="openBackfill"
+          >补录订单</a-button
+        >
       </a-space>
       <a-table
         :data="orders"
@@ -652,6 +655,81 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-modal
+      v-model:visible="backfillVisible"
+      title="补录历史订单"
+      :ok-loading="backfillSubmitting"
+      @ok="submitBackfill"
+      @cancel="backfillVisible = false"
+    >
+      <a-form :model="backfillForm">
+        <a-form-item label="客户 ID" required>
+          <a-input-number
+            v-model="backfillForm.customerId"
+            :min="1"
+            :precision="0"
+          />
+        </a-form-item>
+        <a-form-item label="SKU ID" required>
+          <a-input-number
+            v-model="backfillForm.skuId"
+            :min="1"
+            :precision="0"
+          />
+        </a-form-item>
+        <a-form-item label="数量" required>
+          <a-input-number
+            v-model="backfillForm.quantity"
+            :min="1"
+            :precision="0"
+          />
+        </a-form-item>
+        <a-form-item label="实际成交单价（元，留空按 SKU 价）">
+          <a-input-number
+            v-model="backfillForm.unitPriceYuan"
+            :min="0"
+            :precision="2"
+            placeholder="留空按 SKU 当前规格价"
+          />
+        </a-form-item>
+        <a-form-item label="实际成交时间" required>
+          <a-date-picker
+            v-model="backfillForm.settledAt"
+            show-time
+            format="YYYY-MM-DD HH:mm:ss"
+          />
+        </a-form-item>
+        <a-form-item label="履约状态" required>
+          <a-radio-group v-model="backfillForm.fulfillmentStatus">
+            <a-radio value="completed">已完成</a-radio>
+            <a-radio value="cancelled">已取消</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item label="收款状态" required>
+          <a-radio-group v-model="backfillForm.paymentStatus">
+            <a-radio value="paid">已收款</a-radio>
+            <a-radio value="unpaid">未收款</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item label="补录原因" required>
+          <a-textarea
+            v-model="backfillForm.reason"
+            :max-length="255"
+            show-word-limit
+            placeholder="填写补录原因（4-255 字）"
+          />
+        </a-form-item>
+        <a-form-item label="计入当期业绩">
+          <a-space>
+            <a-switch v-model="backfillForm.countCommission" />
+            <a-typography-text type="secondary">
+              关闭则不计提分成 / 提成 / 成长值
+            </a-typography-text>
+          </a-space>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -662,6 +740,7 @@
   import useUserStore from '@/store/modules/user';
   import {
     approveCloseReview,
+    backfillOrder,
     cancelOrder,
     cancelOrderAddon,
     closeOrder,
@@ -714,6 +793,8 @@
   const canOperate = computed(() =>
     hasButtonPermission('esports:orders:operate')
   );
+  // 补录订单复用「新增订单」权限码 esports:orders:add（语义为生成订单），后端无独立 backfill 权限码。
+  const canBackfill = computed(() => hasButtonPermission('esports:orders:add'));
 
   const loading = ref(false);
   const priceLoading = ref(false);
@@ -1435,6 +1516,101 @@
       await load();
     } catch {
       Message.error('恢复失败：订单状态已变化');
+    }
+  }
+
+  // ── 补录历史订单（entry_point=admin_backfill）──
+  const backfillVisible = ref(false);
+  const backfillSubmitting = ref(false);
+  const backfillForm = reactive({
+    customerId: 0,
+    skuId: 0,
+    quantity: 1,
+    unitPriceYuan: undefined as number | undefined,
+    settledAt: '',
+    fulfillmentStatus: 'completed' as 'completed' | 'cancelled',
+    paymentStatus: 'paid' as 'paid' | 'unpaid',
+    reason: '',
+    countCommission: false,
+  });
+
+  function openBackfill() {
+    backfillForm.customerId = 0;
+    backfillForm.skuId = 0;
+    backfillForm.quantity = 1;
+    backfillForm.unitPriceYuan = undefined;
+    backfillForm.settledAt = '';
+    backfillForm.fulfillmentStatus = 'completed';
+    backfillForm.paymentStatus = 'paid';
+    backfillForm.reason = '';
+    backfillForm.countCommission = false;
+    backfillVisible.value = true;
+  }
+
+  async function submitBackfill() {
+    if (
+      !Number.isSafeInteger(backfillForm.customerId) ||
+      backfillForm.customerId <= 0
+    ) {
+      Message.warning('请填写客户 ID');
+      return;
+    }
+    if (!Number.isSafeInteger(backfillForm.skuId) || backfillForm.skuId <= 0) {
+      Message.warning('请填写 SKU ID');
+      return;
+    }
+    if (
+      !Number.isSafeInteger(backfillForm.quantity) ||
+      backfillForm.quantity <= 0
+    ) {
+      Message.warning('请填写数量（大于 0）');
+      return;
+    }
+    if (!backfillForm.settledAt) {
+      Message.warning('请选择实际成交时间');
+      return;
+    }
+    const reason = backfillForm.reason.trim();
+    if (reason.length < 4 || reason.length > 255) {
+      Message.warning('补录原因须为 4-255 字');
+      return;
+    }
+    // 契约约束：completed 单必须 paid。
+    if (
+      backfillForm.fulfillmentStatus === 'completed' &&
+      backfillForm.paymentStatus !== 'paid'
+    ) {
+      Message.warning('已完成订单必须已收款');
+      return;
+    }
+    backfillSubmitting.value = true;
+    try {
+      await backfillOrder(
+        {
+          customer_id: backfillForm.customerId,
+          sku_id: backfillForm.skuId,
+          quantity: backfillForm.quantity,
+          unit_price_cents:
+            backfillForm.unitPriceYuan == null
+              ? 0
+              : Math.round(backfillForm.unitPriceYuan * 100),
+          settled_at: new Date(backfillForm.settledAt).toISOString(),
+          fulfillment_status: backfillForm.fulfillmentStatus,
+          payment_status: backfillForm.paymentStatus,
+          reason,
+          count_commission: backfillForm.countCommission,
+        },
+        crypto.randomUUID()
+      );
+      backfillVisible.value = false;
+      Message.success('补录成功');
+      await load();
+    } catch (err) {
+      Message.error(
+        errorText(err, '补录失败：请检查客户 / SKU 与成交时间范围')
+      );
+    } finally {
+      backfillSubmitting.value = false;
     }
   }
 
