@@ -2323,6 +2323,29 @@ export const disablePaymentAccount = (id: number) =>
 export const listPaymentChannels = () =>
   axios.get<ApiResponse<PaymentChannelView[]>>(`${base}/payment-channels`);
 
+// 上线自检（§18）：逐项回报需要外部配置才能用的能力，只读且不含密钥值。
+export type ReadinessStatus = 'ready' | 'degraded' | 'missing';
+
+export interface ReadinessCheck {
+  key: string;
+  name: string;
+  status: ReadinessStatus;
+  blocking: boolean;
+  detail: string;
+  action: string;
+}
+
+export interface ReadinessReport {
+  ready: boolean;
+  blockers: number;
+  degraded: number;
+  generated_at: string;
+  checks: ReadinessCheck[];
+}
+
+export const fetchReadiness = () =>
+  axios.get<ApiResponse<ReadinessReport>>(`${base}/readiness`);
+
 export const setPaymentChannelStatus = (
   channel: PaymentChannel,
   enabled: boolean
