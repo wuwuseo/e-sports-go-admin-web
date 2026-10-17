@@ -1,583 +1,176 @@
 # AGENTS.md
 
-## Overview
+> 本文件面向在本仓库中工作的 AI 代理与自动化工具，说明项目定位、硬性规则、代码地图、常见变更流程与验收标准。
+> 人类开发者同样可以把它当作快速上手清单。完整的架构说明见 [CODE_WIKI.md](CODE_WIKI.md)，功能集接入契约见 [docs/source-apps.md](docs/source-apps.md)。
 
-This document describes the agent system used to assist with software engineering tasks in this repository. It is intended for both technical and non-technical stakeholders:
+---
 
-- **Product and operations stakeholders** can use it to understand what agents do, how they collaborate, and where human approval is required.
-- **Developers and maintainers** can use it as a reference for extending, configuring, and safely operating agent-based workflows.
+## 1. 项目定位
 
-An agent is an AI-assisted worker that can inspect project context, reason about a task, use approved tools, make changes, and verify outcomes. Agents are designed to support humans rather than replace them. They should keep changes focused, explain important decisions, and request approval when a task is ambiguous or potentially risky.
+- 本仓库 `go-admin-web` 是电竞陪玩报单系统（EsportsPartner）的**管理端前端**，配套后端为同工作区的 `go-admin`（Go + Fiber，默认监听 `127.0.0.1:9501`）。
+- 技术栈：Vue 3.5 + TypeScript 4.9 + Vite 3.2 + Arco Design Vue 2.58 + Pinia + Vue Router 4。
+- 接口统一以 `/api/v1` 开头；开发环境通过 Vite 代理（`/api`、`/api/v1/admin/sse`）转发到后端。
+- 构建产物 `dist/` 需同步到后端 `go-admin/web/dist`，由 `//go:embed` 打进二进制。**只改前端源码而不重新构建、不重新编译后端，线上不会生效。**
 
-## Core Principles
+---
 
-### Human-in-the-loop operation
+## 2. 硬性规则（必须遵守）
 
-Agents operate under user direction. They should ask for clarification when requirements are unclear and avoid destructive actions unless explicitly authorized.
+### 2.1 语言与风格
 
-### Minimal, focused changes
+- 与用户交流、代码注释、提交说明一律使用**中文**；变量、函数、类名、文件名使用英文。
+- 新增代码沿用既有风格：Composition API + `<script setup lang="ts">`、2 空格缩进、单引号、行宽 80、LF 换行（见 `.prettierrc.js`）。
+- ESLint 基于 airbnb-base + `@typescript-eslint` + `vue3-recommended` + `prettier`，`prettier/prettier` 以 warning 级别出现但**不允许保留**。
 
-Agents should implement only what was requested. They should avoid broad refactors, speculative abstractions, or unrelated improvements unless the user explicitly asks for them.
+### 2.2 终端
 
-### Verifiable outcomes
+- 使用 PowerShell，命令分隔符用 `;`，**禁止使用 `&&`**。
+- 工作目录：`d:\www\EsportsPartner\go-admin-web`。
+- 包管理器优先 pnpm（存在 `pnpm-lock.yaml`、`.npmrc`）；脚本仍通过 `npm run <script>` 调用。
 
-Whenever possible, agents should validate their work with formatting, linting, type checks, tests, or targeted manual verification. Claims such as “fixed” or “complete” should be based on evidence.
+### 2.3 修改后立即格式化
 
-### Transparent communication
+每次修改源码文件后，立刻执行对应命令（不要等到提交）：
 
-Agents should communicate progress, blockers, assumptions, and results clearly. Technical details should be available for developers, while summaries should remain understandable for non-technical readers.
+| 文件类型                            | 命令                                                                                     |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| `.ts` `.tsx` `.js` `.jsx`           | `npx prettier --write "<文件>" ; npx eslint --fix "<文件>"`                              |
+| `.vue`                              | `npx stylelint --fix "<文件>" ; npx prettier --write "<文件>" ; npx eslint --fix "<文件>"` |
+| `.less` `.css`                      | `npx stylelint --fix "<文件>" ; npx prettier --write "<文件>"`                           |
 
-## System Architecture
-
-The agent system can be understood as several cooperating layers:
-
-```text
-User Request
-    ↓
-Conversation Orchestrator
-    ↓
-Planning and Context Layer
-    ↓
-Specialized Agents and Skills
-    ↓
-Tool Execution Layer
-    ↓
-Repository, Terminal, Browser, or External Services
-    ↓
-Verification and User Summary
-```
-
-### Conversation Orchestrator
-
-The orchestrator receives user instructions, determines the likely intent, chooses appropriate tools or specialist agents, and keeps the conversation aligned with the user’s goal.
-
-Responsibilities include:
-
-- Interpreting requests and project context.
-- Selecting direct tool usage or delegating to specialized agents.
-- Maintaining concise user-facing updates.
-- Preventing unsafe or unnecessary actions.
-- Summarizing completed work and known limitations.
-
-### Planning and Context Layer
-
-The planning and context layer helps agents understand the current task before changing files. It may inspect existing files, search code, review configuration, or create a short task list for multi-step work.
-
-Typical activities include:
-
-- Reading relevant source files before proposing changes.
-- Searching for related functions, components, routes, or configuration.
-- Identifying test, lint, formatting, and build commands.
-- Tracking progress for larger tasks.
-
-### Specialized Agents and Skills
-
-Specialized agents and skills provide focused expertise for specific categories of work, such as frontend architecture, backend design, API testing, AI integration, security review, browser automation, and code review.
-
-Specialists should be used when a task benefits from domain-specific reasoning or when parallel research can reduce complexity.
-
-### Tool Execution Layer
-
-Tools are the controlled interface between agents and the environment. They can read files, edit files, search the codebase, run terminal commands, inspect diagnostics, or open previews.
-
-The tool layer helps enforce safety by making actions explicit and reviewable.
-
-## Agent Types
-
-### General Engineering Agent
-
-The general engineering agent handles day-to-day development tasks such as bug fixes, small feature changes, refactoring, documentation updates, and verification.
-
-Common use cases:
-
-- Updating existing source files.
-- Explaining code behavior.
-- Running project checks.
-- Making focused documentation changes.
-
-### Search Agent
-
-The search agent explores unfamiliar codebases and returns concise findings. It is useful when the required files, symbols, or flows are not immediately known.
-
-Common use cases:
-
-- Finding where authentication is implemented.
-- Locating route registration logic.
-- Mapping how state flows between modules.
-- Identifying all usages of a shared utility.
-
-### Frontend Architect Agent
-
-The frontend architect agent focuses on user interfaces, frontend state management, component structure, accessibility, and performance.
-
-Common use cases:
-
-- Implementing Vue, React, or Angular components.
-- Improving frontend state synchronization.
-- Optimizing rendering behavior.
-- Reviewing layout and interaction patterns.
-
-### Backend Architect Agent
-
-The backend architect agent focuses on APIs, services, persistence, business logic, authentication, and scalable backend design.
-
-Common use cases:
-
-- Designing API endpoints.
-- Implementing server-side workflows.
-- Reviewing database access patterns.
-- Improving backend reliability.
-
-### API Test Agent
-
-The API test agent focuses on validating APIs through contract checks, functional tests, performance checks, and load-oriented scenarios.
-
-Common use cases:
-
-- Testing new REST or RPC endpoints.
-- Validating request and response schemas.
-- Checking error handling and edge cases.
-- Reviewing API performance characteristics.
-
-### AI Integration Agent
-
-The AI integration agent focuses on language models, recommendation systems, automation, and AI-powered application features.
-
-Common use cases:
-
-- Integrating model APIs.
-- Designing prompt and response flows.
-- Adding retrieval-augmented generation.
-- Building intelligent automation features.
-
-### UI Designer Agent
-
-The UI designer agent focuses on visual hierarchy, design systems, accessibility, and interaction quality.
-
-Common use cases:
-
-- Designing component variants.
-- Improving dashboard clarity.
-- Standardizing colors, typography, and spacing.
-- Reviewing user experience trade-offs.
-
-### Review and Security Agents
-
-Review-oriented agents inspect code for correctness, maintainability, or security concerns.
-
-Common use cases:
-
-- Reviewing merge requests or patches.
-- Identifying risky implementation choices.
-- Checking for common security issues.
-- Suggesting practical remediation steps.
-
-## Core Capabilities
-
-### Codebase Understanding
-
-Agents can inspect the repository using file reads, glob searches, semantic searches, symbol graph queries, and diagnostics.
-
-Example search intent:
-
-```text
-Find the component responsible for rendering the user permission table.
-```
-
-Example developer workflow:
-
-```text
-1. Search for route or component names.
-2. Read the most relevant files.
-3. Identify data flow and dependencies.
-4. Make a focused change.
-5. Run the relevant verification command.
-```
-
-### File Editing
-
-Agents can create or modify files when necessary. Existing files should be read before being edited, and new files should only be created when they directly support the user’s request.
-
-Safe editing practices:
-
-- Keep changes small and scoped.
-- Avoid unrelated formatting churn.
-- Remove unused imports and variables.
-- Preserve existing conventions.
-- Prefer editing existing files over creating new ones.
-
-### Terminal Execution
-
-Agents can run terminal commands for development workflows such as installing dependencies, formatting files, building, type checking, running tests, or starting a development server.
-
-For this repository, PowerShell-compatible commands should be used. Command chaining should use `;` instead of `&&`.
-
-Example:
+批量处理：
 
 ```powershell
-npm run type:check ; npm run build
-```
-
-### Verification
-
-Verification confirms that the completed work is likely correct.
-
-Common verification methods:
-
-- Format changed files.
-- Run lint or lint-fix commands.
-- Run type checks.
-- Run unit, integration, or end-to-end tests.
-- Inspect runtime behavior through a local preview.
-
-Example commands used by this project:
-
-```powershell
-npm run type:check
-npm run build
 npx prettier --write "src/**/*.{ts,tsx,js,jsx,vue,less,css}" ; npx eslint --fix "src/**/*.{ts,tsx,js,jsx,vue}"
 ```
 
-### Browser Interaction
+### 2.4 不要触碰的内容
+
+- `dist/`、`node_modules/`、`pnpm-lock.yaml`：构建产物与锁文件，除非任务明确要求安装/升级依赖。
+- `components.d.ts`：由 unplugin-vue-components 生成，禁止手工编辑。
+- `go-admin/web/dist`：属于后端仓库，仅在用户明确要求「发布/同步产物」时才改动。
+- `.env.*`、`src/config/settings.json`：涉及环境与默认行为，修改前需确认意图。
+- 大范围重构、无关注释/命名调整、顺手删除"看起来没用"的代码：一律不做，除非用户明确要求。
 
-When browser automation is available, agents can interact with web pages to test UI behavior, fill forms, click controls, capture screenshots, or inspect visible errors.
+### 2.5 Git 与安全
 
-Common use cases:
+- 未经用户明确要求，不执行 `git commit`、`git push`、`git reset --hard`、分支删除等操作。
+- 忽略 `dist`、构建日志、临时脚本；不提交密钥、Token、内网地址等敏感信息。
+- 验证命令失败时，先报告失败原因，不要反复重跑同一条命令；不要用 `--no-verify` 或关闭 lint 规则来"通过"检查。
 
-- Testing a local development page.
-- Reproducing a UI bug.
-- Capturing screenshots for review.
-- Verifying navigation and form validation.
+---
 
-### Documentation Generation
+## 3. 代码地图
 
-Agents can generate or update documentation for architecture, workflows, APIs, onboarding, or operational procedures.
+| 路径                  | 职责                                                                 |
+| --------------------- | -------------------------------------------------------------------- |
+| `src/main.ts`         | 应用入口：注册 Arco、路由、Pinia、i18n、全局组件、指令、请求拦截器    |
+| `src/api/`            | 接口封装（`interceptor.ts` 为 axios 拦截器与 NProgress），按业务分文件 |
+| `src/api/interceptor.ts` | Token 注入、统一响应解包、错误提示、并发进度条、SSE 请求排除        |
+| `src/router/`         | 静态路由（`routes/modules`）、守卫（`guard/`）、功能集路由注入        |
+| `src/router/source-apps.ts` | 依据后端权限树动态注册 `src/apps/*` 页面路由并生成菜单          |
+| `src/store/modules/`  | Pinia：`user`（登录/权限）、`app`、`tab-bar`、`permission` 等         |
+| `src/hooks/`          | `permission`（权限判断）、`request`、`themes`、`locale`、`sse-message`、`dict` 等 |
+| `src/directive/permission` | `v-permission` 按钮级权限指令                                   |
+| `src/components/`     | 全局组件（菜单、导航栏、标签页、图表、附件选择器、富文本编辑器等）      |
+| `src/layout/`         | `default-layout.vue`（主布局）、`page-layout.vue`（页面容器）        |
+| `src/views/`          | 系统页面：登录、OAuth 回调、工作台、消息中心、系统管理、404           |
+| `src/apps/<code>/`    | 源码功能集（`esports`、`cms`、`demo`），含 `api.ts`、`views`、`locale`  |
+| `src/services/`       | SSE 连接、系统配置、附件访问等服务                                    |
+| `src/locale/`         | 国际化入口与语言包（zh-CN / en-US，按模块拆分）                       |
+| `src/types/`          | `api.ts`（接口模型）、全局类型声明                                     |
+| `src/utils/`          | `auth`、`permission-transformer`、`oauth`、`route-listener` 等工具    |
+| `config/`             | Vite 基础/开发/生产配置与插件（Arco 按需、gzip、imagemin、visualizer）  |
 
-Documentation should:
+### 关键链路速查
 
-- Use clear headings and short sections.
-- Explain concepts before implementation details.
-- Include examples where helpful.
-- Avoid claiming behavior that has not been verified.
+- **登录鉴权**：`views/login/index.vue` → `api/user.ts`（`/api/v1/public/login`）→ `store/modules/user.ts` 保存 Token → `router/guard/permission.ts` 校验登录态并加载用户信息与权限树（`/api/v1/admin/auth/user/permissions`）。
+- **权限判定**：`store` 中权限集合 → `hooks/permission.ts`（`hasMenuPermission` / `hasAnyPermission`）→ 守卫按 `meta.permissionCode` 拦截；`role === 'admin'` 直接放行。
+- **动态菜单/路由**：后端权限树中 `type === 'menu'` 且 `status === 1` 的节点，由 `router/source-apps.ts` 解析 `menu_path` 与 `component`，映射到构建期收录的 `src/apps/<code>/views/**.vue`。
+- **按钮权限**：`v-permission="'esports:order:add'"` 或 `usePermission()`；前端隐藏按钮**不替代**后端接口鉴权。
+- **请求与进度条**：SSE 相关 URL 不触发 NProgress，避免长连接导致进度条卡死（新增拦截逻辑时注意保留该判断）。
 
-## Interaction Protocols
+---
 
-### Request Handling Protocol
+## 4. 常见变更流程
 
-Agents should follow this general sequence:
+### 4.1 新增/修改系统管理页面（`src/views/system`）
 
-```text
-1. Understand the user request.
-2. Check relevant project rules and constraints.
-3. Gather only the context needed for the task.
-4. Ask clarifying questions if requirements are ambiguous.
-5. Make the requested change or provide the requested answer.
-6. Verify the result when possible.
-7. Summarize what changed and what was checked.
-```
+1. 在 `src/api/` 新增或扩展接口函数，请求/响应类型写入 `src/types/api.ts`；
+2. 在 `src/views/system/<module>/` 下新增页面，复用 `page-layout`、Arco 的 `a-table`、`a-form`、`a-modal` 等既有模式；
+3. 在 `src/router/routes/modules/` 注册静态路由（`meta.locale`、`meta.icon`、`meta.permissionCode`）；
+4. 在 `src/locale/zh-CN.ts` 与 `src/locale/en-US.ts`（模块化文案在 `zh-CN/*.ts` / `en-US/*.ts`）同步补齐文案，**键名成对存在**；
+5. 若需状态复用，在 `src/store/modules/` 增加模块并在 `src/store/index.ts` 导出。
 
-### Clarification Protocol
+### 4.2 新增/修改功能集页面（`src/apps/<code>`）
 
-Agents should ask questions when:
+- 目录名必须与后端 `App.Code` 完全一致；页面路径 `src/apps/<code>/views/<page>.vue` 对应后端 `Component: "<code>/<page>"`；
+- 菜单文案键为 `menu.app.<权限码中的冒号改为点>`，写入功能集自身的 `locale/zh-CN.ts`、`locale/en-US.ts`；
+- `menu_path` 必须是 `/<code>` 或其子路径，`icon` 只接受 `icon-` 开头的名称，否则菜单会被静默丢弃；
+- 只有构建期收录的页面才能加载，新增页面后须重新构建产物。
 
-- Multiple valid implementations exist and the choice affects behavior.
-- The requested change could be destructive.
-- Required credentials, APIs, or business rules are missing.
-- The target file, feature, or environment is unclear.
+### 4.3 新增接口封装
 
-Agents should avoid unnecessary questions when the request is already specific and can be completed safely.
+- 使用 `import axios from 'axios'` 直接调用，路径写全 `/api/v1/...`；
+- 返回值统一为 `ApiResponse<T>` / `PaginatedResponse<T>`（见 `src/types/api.ts`），不要自造包装结构；
+- 复用 `interceptor.ts` 的错误处理，不要在每个 API 里重复 `try/catch` 弹提示。
 
-### Approval Protocol
+### 4.4 新增单元测试
 
-User approval is required for actions such as:
+- 位置与源码同目录：`xxx.test.ts` / `xxx.spec.ts`，走 Vitest（`environment: 'node'`，`globals: false`，需显式 `import { describe, it, expect } from 'vitest'`）；
+- 纯逻辑优先（权限转换、OAuth 流程、路由构造、请求封装），不要为组件快照写无意义测试；
+- 运行：`npm run test:unit` 或 `npm run test:unit -- src/router/source-apps.test.ts`。
 
-- Committing code.
-- Pushing to a remote repository.
-- Running destructive git operations.
-- Deleting files.
-- Making broad architectural changes not explicitly requested.
-- Using credentials or accessing sensitive systems.
+---
 
-### Error Handling Protocol
+## 5. 验证矩阵
 
-When a command or verification step fails, agents should:
+| 改动类型                    | 至少执行                                                       |
+| --------------------------- | -------------------------------------------------------------- |
+| 任意 TS/Vue 源码             | 格式化命令 + `npm run type:check`                              |
+| 路由、权限、功能集、store    | 上述 + `npm run test:unit`                                     |
+| 构建配置、依赖、入口文件     | 上述 + `npm run build`（或 `npm run report:skip-check` 快速验证） |
+| 样式/布局                    | 格式化命令 + 浏览器实际查看（Vite 开发服务器）                 |
+| 需要交付产物                 | `npm run build`，产物同步后端并重新编译后端                    |
 
-1. Report the failure concisely.
-2. Explain the likely cause if known.
-3. Avoid repeatedly running the same failing command without a change.
-4. Propose or apply a focused fix when appropriate.
-5. Ask for user input if the next step requires a decision.
+验收标准：命令退出码为 0；不新增 lint/type 错误；控制台无 `prettier/prettier`、`no-unused-vars`、`no-console` 告警；行为与用户诉求一致。
 
-### Communication Protocol
+---
 
-Agent responses should be concise and action-oriented. Useful summaries include:
+## 6. 常见陷阱
 
-- Files changed.
-- Key behavior added or fixed.
-- Verification commands run.
-- Remaining risks or follow-up items.
+1. **看到旧页面**：`dist` 未重新构建，或后端未重新编译/重启（`//go:embed` 在编译期固化）。
+2. **接口 404/跨域**：`VITE_API_BASE_URL` 非空时请求直连该地址，不再走 Vite 代理；开发期建议留空。
+3. **进度条卡死**：新增请求链路涉及 SSE 时，需在 `interceptor.ts` 的 `isSseRequest` 中排除。
+4. **菜单不显示**：检查后端权限节点 `status`、`menu_path` 前缀、`component` 是否与 `src/apps/**` 实际文件对应、语言包键是否缺失。
+5. **单页功能集菜单丢失**：菜单 `children` 为空数组时须按叶子节点处理，仅有单测通过不足以证明可用，需在浏览器验证侧边栏。
+6. **权限判定失效**：`meta.permissionCode` 与权限树 code 必须一致；`admin` 角色会跳过权限判断，测试非管理员账号才能复现。
+7. **命令串联报错**：PowerShell 不认识 `&&`，改用 `;`。
+8. **误改生成文件**：`components.d.ts`、`dist/**`、锁文件不属于业务代码。
 
-Example completion summary:
+---
 
-```text
-Updated the permission table component to preserve selected rows after filtering.
-Verified with npm run type:check. No lint script is defined in package.json.
-```
+## 7. 沟通与交付
 
-## Configuration Options
+- 开工前先确认影响范围（页面 / 路由 / 权限 / 接口 / 语言包），不确定时提问而不是猜测。
+- 汇报保持简洁：改了哪些文件、关键行为、执行的验证命令及结果、遗留风险。
+- 不夸大结论：未运行验证就不要声称"已完成/已修复"；跳过某项检查要显式说明原因。
 
-Agent behavior can be configured at several levels.
+### 交付前检查清单
 
-### Workspace Rules
+- [ ] 改动范围与需求一致，无顺手重构、无无关注释与空行调整
+- [ ] 已按文件类型执行格式化 / lint 修复
+- [ ] `npm run type:check` 通过（涉及测试时 `npm run test:unit` 通过）
+- [ ] 涉及构建配置或发布的改动已跑 `npm run build`
+- [ ] 新增文案已同时补齐 `zh-CN` 与 `en-US`
+- [ ] 未提交、未推送、未执行破坏性 Git 操作（除非用户明确要求）
+- [ ] 未改动 `dist/`、锁文件、生成文件与后端仓库产物
 
-Workspace rules define repository-specific conventions. Examples include:
+---
 
-- Preferred language for communication and comments.
-- Required terminal shell syntax.
-- Formatting and lint-fix commands.
-- Project-specific safety rules.
+## 8. 参考文档
 
-In this repository, workspace rules are stored under `.trae/rules/`.
-
-### Project Scripts
-
-Project scripts define common development commands. This repository includes scripts such as:
-
-```json
-{
-  "dev": "vite --config ./config/vite.config.dev.ts",
-  "build": "vue-tsc --noEmit && vite build --config ./config/vite.config.prod.ts",
-  "type:check": "vue-tsc --noEmit --skipLibCheck",
-  "lint-staged": "npx lint-staged"
-}
-```
-
-When running commands manually in this environment, use PowerShell-compatible separators. For example:
-
-```powershell
-npm run type:check ; npm run build
-```
-
-### Permission Mode
-
-Permission settings determine whether tool execution is automatic or requires user approval. Sensitive operations may trigger approval prompts even when routine reads or edits are allowed.
-
-Examples of operations that may require approval:
-
-- Running terminal commands.
-- Installing dependencies.
-- Deleting files.
-- Accessing external services.
-
-### Tool Selection
-
-Agents should use the most specific available tool:
-
-| Task | Preferred tool type |
-| --- | --- |
-| Read a known file | File read tool |
-| Edit an existing file | File edit tool |
-| Search file names | Glob search |
-| Search file contents | Grep search |
-| Explore unfamiliar architecture | Semantic or codegraph search |
-| Run build or tests | Terminal command |
-| Inspect browser behavior | Browser automation |
-
-### Formatting and Linting
-
-For changed TypeScript, JavaScript, Vue, Less, or CSS files, this repository expects immediate formatting and lint-fix commands after modification.
-
-Examples:
-
-```powershell
-npx prettier --write "src/example.ts" ; npx eslint --fix "src/example.ts"
-```
-
-```powershell
-npx stylelint --fix "src/example.vue" ; npx prettier --write "src/example.vue" ; npx eslint --fix "src/example.vue"
-```
-
-## Usage Examples
-
-### Example 1: Asking an Agent to Explain Code
-
-User request:
-
-```text
-Explain how login state is stored and restored after page refresh.
-```
-
-Expected agent behavior:
-
-1. Search for authentication and store modules.
-2. Read the relevant files.
-3. Explain the flow in plain language.
-4. Cite specific files and functions when possible.
-
-### Example 2: Asking an Agent to Fix a Bug
-
-User request:
-
-```text
-The user list filter resets pagination incorrectly. Please fix it.
-```
-
-Expected agent behavior:
-
-1. Locate the user list view and filter logic.
-2. Reproduce or reason about the incorrect pagination behavior.
-3. Make a focused change.
-4. Run type checks or relevant tests.
-5. Summarize the fix.
-
-### Example 3: Asking an Agent to Add a Feature
-
-User request:
-
-```text
-Add an export button to the order table.
-```
-
-Expected agent behavior:
-
-1. Inspect the existing order table component.
-2. Reuse existing button, permission, and API patterns.
-3. Add the export action only where requested.
-4. Format and lint changed files.
-5. Verify with available checks.
-
-### Example 4: Delegating to a Specialized Agent
-
-User request:
-
-```text
-Review the new payment endpoint for API contract and performance concerns.
-```
-
-Expected orchestration:
-
-```text
-General agent → API test agent → findings summary → user review
-```
-
-The API test agent may inspect route definitions, request schemas, response formats, and performance-sensitive code paths.
-
-### Example 5: Safe Git Workflow
-
-User request:
-
-```text
-Commit the current changes.
-```
-
-Expected agent behavior:
-
-1. Check git status.
-2. Review staged and unstaged diffs.
-3. Avoid staging secrets or unrelated files.
-4. Create a concise commit message.
-5. Commit only after the user has explicitly requested it.
-
-Example commit command format:
-
-```powershell
-git commit -m "$(cat <<'EOF'
-Update agent system documentation
-
-EOF
-)"
-```
-
-## Extension Guidelines
-
-Developers extending the agent system should consider the following areas.
-
-### Adding a New Agent Type
-
-A new agent type should have:
-
-- A clear responsibility boundary.
-- A short description of when to use it.
-- A defined set of tools or permissions.
-- Expected inputs and outputs.
-- Verification or review expectations.
-
-Example agent definition:
-
-```json
-{
-  "name": "database-reviewer",
-  "description": "Reviews schema changes, migrations, and query performance risks.",
-  "inputs": ["migration files", "query code", "performance requirements"],
-  "outputs": ["risk summary", "recommended fixes", "verification steps"]
-}
-```
-
-### Adding a New Skill
-
-A skill should encode repeatable workflow knowledge, not one-off instructions. Good skill candidates include:
-
-- Debugging workflows.
-- Security review checklists.
-- Framework-specific implementation patterns.
-- Release or branch completion procedures.
-
-Skill documentation should state:
-
-- When the skill applies.
-- Required steps.
-- Optional steps.
-- Expected verification.
-- Common mistakes to avoid.
-
-### Defining Tool Permissions
-
-When adding or changing tool permissions, prefer least privilege. Agents should only receive access required for the task category.
-
-Recommended permission categories:
-
-- Read-only repository access.
-- File modification access.
-- Terminal command access.
-- Browser automation access.
-- External service access.
-- Git write access.
-
-### Maintaining Safety Boundaries
-
-Agents should not:
-
-- Commit, push, delete, or reset work without explicit approval.
-- Introduce hidden dependencies or credentials.
-- Make unrelated code changes.
-- Mask failing tests or lint errors.
-- Treat generated output as verified without running checks.
-
-## Stakeholder Glossary
-
-| Term | Plain-language meaning |
-| --- | --- |
-| Agent | An AI-assisted worker that can help with a task. |
-| Skill | A reusable workflow or checklist for a specific type of task. |
-| Tool | A controlled action the agent can perform, such as reading files or running commands. |
-| Orchestrator | The layer that decides what the agent should do next. |
-| Verification | Checks that confirm whether the result is likely correct. |
-| Permission mode | Rules that determine which actions require approval. |
-| Context | Information the agent uses to understand the current task. |
-
-## Operational Checklist
-
-Before completing a task, agents should confirm:
-
-- The requested scope was followed.
-- Changed files are relevant to the task.
-- Formatting was applied where required.
-- Lint, type checks, tests, or builds were run when available and appropriate.
-- Any failures or skipped checks are clearly reported.
-- No unauthorized git commits or destructive actions were performed.
-
-## Summary
-
-The agent system is a structured collaboration model between users, specialized AI workers, and controlled tools. Its goal is to make software work faster and safer by combining human direction, focused automation, transparent reasoning, and verifiable results.
-
-Well-designed agents should be easy for non-technical stakeholders to understand and precise enough for developers to extend. The most effective agents stay scoped, ask good questions, use the right tools, and prove their results before claiming completion.
+- [README.md](README.md) — 安装、脚本、目录与集成说明
+- [CODE_WIKI.md](CODE_WIKI.md) — 路由、菜单、权限、状态管理、API 层详解
+- [docs/source-apps.md](docs/source-apps.md) — 前端功能集接入契约
+- [.trae/rules/project_rules.md](.trae/rules/project_rules.md) — 仓库原始开发规则

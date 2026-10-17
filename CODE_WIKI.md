@@ -1,6 +1,7 @@
-# Code Wiki - Admin Web 前端项目
+# CODE_WIKI — go-admin-web
 
-> 本文档详细描述了本项目的整体架构、主要模块、路由系统、菜单系统、权限控制、API 层、状态管理和业务页面等核心内容。
+> 本文档描述 `go-admin-web`（电竞陪玩报单系统管理端）的整体架构、路由与菜单、权限模型、状态管理、API 层、页面与业务功能集的实现细节。
+> 内容以仓库当前代码为准，涉及结论均可在对应文件中核对。安装与命令使用说明见 [README.md](README.md)。
 
 ---
 
@@ -11,1460 +12,935 @@
 - [3. 项目结构](#3-项目结构)
 - [4. 入口与启动流程](#4-入口与启动流程)
 - [5. 路由系统](#5-路由系统)
-  - [5.1 路由配置文件结构](#51-路由配置文件结构)
-  - [5.2 基础路由与常量](#52-基础路由与常量)
-  - [5.3 业务路由模块](#53-业务路由模块)
-  - [5.4 路由守卫](#54-路由守卫)
 - [6. 菜单系统](#6-菜单系统)
-  - [6.1 菜单组件](#61-菜单组件)
-  - [6.2 菜单树生成逻辑](#62-菜单树生成逻辑)
-  - [6.3 服务端菜单（动态菜单）](#63-服务端菜单动态菜单)
-- [7. 导航栏（Navbar）](#7-导航栏navbar)
-- [8. 权限系统](#8-权限系统)
-  - [8.1 权限转换](#81-权限转换)
-  - [8.2 权限到路由的映射](#82-权限到路由的映射)
-  - [8.3 权限 Hook](#83-权限-hook)
-  - [8.4 权限指令 v-permission](#84-权限指令-v-permission)
-- [9. 状态管理（Pinia）](#9-状态管理pinia)
-  - [9.1 User Store（用户状态）](#91-user-store用户状态)
-  - [9.2 App Store（应用状态）](#92-app-store应用状态)
-  - [9.3 TabBar Store（标签页状态）](#93-tabbar-store标签页状态)
-  - [9.4 其他 Store 模块](#94-其他-store-模块)
-- [10. API 层与请求拦截](#10-api-层与请求拦截)
-  - [10.1 HTTP 请求拦截器](#101-http-请求拦截器)
-  - [10.2 HTTP 响应拦截器](#102-http-响应拦截器)
-  - [10.3 用户认证 API](#103-用户认证-api)
-  - [10.4 其他 API 模块](#104-其他-api-模块)
-- [11. 工具函数](#11-工具函数)
-  - [11.1 认证工具（auth.ts）](#111-认证工具authts)
-  - [11.2 路由监听器（route-listener.ts）](#112-路由监听器route-listenerts)
-- [12. 页面（Views）](#12-页面views)
-  - [12.1 登录页](#121-登录页)
-  - [12.2 仪表板（Dashboard）](#122-仪表板dashboard)
-  - [12.3 消息中心](#123-消息中心)
-  - [12.4 系统管理页面](#124-系统管理页面)
-- [13. 布局系统](#13-布局系统)
-- [14. 国际化（i18n）](#14-国际化i18n)
-- [15. 构建与环境配置](#15-构建与环境配置)
-- [16. 常用命令](#16-常用命令)
-- [17. 登录与鉴权完整流程](#17-登录与鉴权完整流程)
+- [7. 权限系统](#7-权限系统)
+- [8. 状态管理（Pinia）](#8-状态管理pinia)
+- [9. API 层与请求拦截](#9-api-层与请求拦截)
+- [10. 服务层](#10-服务层)
+- [11. 认证与登录](#11-认证与登录)
+- [12. 页面（views）](#12-页面views)
+- [13. 业务功能集（apps）](#13-业务功能集apps)
+- [14. 布局与全局组件](#14-布局与全局组件)
+- [15. 国际化](#15-国际化)
+- [16. 主题](#16-主题)
+- [17. 构建与环境配置](#17-构建与环境配置)
+- [18. 测试](#18-测试)
+- [19. 常用命令](#19-常用命令)
+- [20. 关键流程时序](#20-关键流程时序)
+- [21. 现状与注意事项](#21-现状与注意事项)
+- [22. 快速参考](#22-快速参考)
 
 ---
 
 ## 1. 项目概述
 
-本项目是一个基于 **Vue 3** + **Arco Design Pro** 的后台管理系统前端项目。它提供了一整套完整的后台管理界面，包括：
+`go-admin-web` 是与同工作区 `go-admin`（Go + Fiber，默认 `127.0.0.1:9501`）配套的管理端前端，负责三类事情：
 
-- 用户认证与管理员登录双模式
-- 基于角色与权限码的动态菜单与按钮权限
-- 多标签页（Tab Bar）导航
-- 响应式布局（支持桌面与移动端）
-- 消息中心（支持 SSE 推送）
-- 完善的系统管理（用户、管理员、角色、权限、字典、附件、定时任务、操作日志、配置、插件等）
-- 暗/亮主题切换与国际化（中英文）
+1. **后台管理**：登录认证、系统管理（用户/管理员/角色/权限/部门/字典/配置/任务/日志/附件/插件等）、消息中心；
+2. **业务运营**：电竞陪玩业务功能集 `src/apps/esports`（商品、订单、报单、排单、钱包、结算、售后、会员、储值卡等）；
+3. **权限驱动装配**：后端下发混合权限树，前端据此生成菜单、注册功能集路由、控制按钮可见性。
 
-核心设计原则：
+设计上的几个关键选择：
 
-- **权限驱动**：菜单和按钮均受权限码控制，admin 角色拥有所有权限
-- **模块化解耦**：路由、状态、API、视图分别按业务领域拆分
-- **服务端优先**：支持从服务端拉取菜单配置（动态菜单），也支持前端静态路由
+- **前后端分离 + 后端托管产物**：前端构建出 `dist/`，后端用 `//go:embed web/dist` 打包进二进制，因此**前端改动必须重新构建并重新编译后端**才生效。
+- **两套路由来源**：`src/views` 走静态路由表（`meta.permissionCode` 事后过滤）；`src/apps` 走运行时动态注册（后端权限树节点 → `router.addRoute`）。
+- **权限码多形态兼容**：权限判定同时接受 `system:user`、`/system/user`、`systemuser`、路由 `name` 等多种写法，用于消化后端历史数据。
 
 ---
 
 ## 2. 技术栈
 
-| 分类 | 技术 | 版本/说明 |
-|------|------|-----------|
-| 框架 | Vue | 3.x（Composition API） |
-| UI 组件库 | @arco-design/web-vue | Arco Design 组件库 |
-| 路由 | vue-router | 4.x |
-| 状态管理 | pinia | 2.x |
-| 国际化 | vue-i18n | 9.x |
-| HTTP 客户端 | axios | 0.24.x |
-| 工具库 | @vueuse/core | 9.x（响应式工具） |
-| 工具库 | lodash | 4.x |
-| 消息 | mitt | 3.x（事件总线） |
-| 进度条 | nprogress | 0.2.x |
-| 构建 | Vite | 3.x |
-| 语言 | TypeScript | 4.9.x |
-| 代码规范 | ESLint + Prettier + Stylelint | — |
-| Git 钩子 | husky + lint-staged | — |
+| 分类          | 技术                                   | 版本        |
+| ------------- | -------------------------------------- | ----------- |
+| 框架          | Vue（Composition API，支持 TSX）       | ^3.5.33     |
+| 构建          | Vite                                   | ^3.2.11     |
+| 语言          | TypeScript                             | ^4.9.5      |
+| UI            | @arco-design/web-vue、@arco-plugins/vite-vue | ^2.58.0 / ^1.4.6 |
+| 路由          | vue-router（`createWebHistory`）       | ^4.6.4      |
+| 状态          | pinia                                  | ^2.3.1      |
+| 国际化        | vue-i18n                               | ^9.14.4     |
+| HTTP          | axios                                  | ^0.24.0     |
+| 图表          | echarts / vue-echarts                  | ^5.6.0 / ^6.7.3 |
+| 工具          | @vueuse/core、lodash、dayjs、mitt、nprogress、sortablejs、query-string | — |
+| 测试          | vitest                                 | 0.34.6      |
+| 代码质量      | ESLint(airbnb-base) + Prettier + Stylelint + husky + lint-staged + commitlint | — |
 
 ---
 
 ## 3. 项目结构
 
-```
-d:\www\admin-web\web\
-├── config/                     # Vite 构建配置
-│   ├── vite.config.base.ts     # 基础配置
-│   ├── vite.config.dev.ts      # 开发配置
-│   └── vite.config.prod.ts     # 生产配置
+```text
+go-admin-web/
+├── config/
+│   ├── vite.config.base.ts      # 别名、SVG Loader、Arco 样式按需、Less 变量注入
+│   ├── vite.config.dev.ts       # ESLint 插件、/api 与 /api/v1/admin/sse 代理
+│   ├── vite.config.prod.ts      # gzip、imagemin、visualizer、manualChunks
+│   ├── plugin/                  # arcoResolver / arcoStyleImport / compress / imagemin / visualizer
+│   └── utils/
+├── docs/source-apps.md          # 功能集接入契约
 ├── src/
-│   ├── api/                    # API 接口层（按业务拆分）
-│   │   ├── interceptor.ts      # Axios 请求/响应拦截器
-│   │   ├── user.ts             # 用户与管理员认证 API
-│   │   ├── permission.ts       # 权限 API
-│   │   ├── role.ts             # 角色 API
-│   │   ├── message.ts          # 消息 API
-│   │   ├── dashboard.ts        # 仪表板 API
-│   │   ├── config.ts           # 系统配置 API
-│   │   ├── dict-data.ts        # 字典数据 API
-│   │   ├── attachment.ts       # 附件管理 API
-│   │   ├── cron-job.ts         # 定时任务 API
-│   │   ├── operation-log.ts    # 操作日志 API
-│   │   └── plugin.ts           # 插件 API
-│   ├── assets/                 # 静态资源与全局样式
-│   │   ├── images/             # 图片资源
-│   │   └── style/              # Less 样式
-│   ├── components/             # 全局通用组件
-│   │   ├── menu/               # 侧边栏/顶部菜单
-│   │   │   ├── index.vue       # 菜单渲染组件
-│   │   │   └── use-menu-tree.ts# 菜单树生成逻辑 Hook
-│   │   ├── navbar/             # 顶部导航栏
-│   │   ├── tab-bar/            # 多标签页组件
-│   │   ├── message-box/        # 消息通知弹窗
-│   │   ├── breadcrumb/         # 面包屑
-│   │   ├── chart/              # 图表组件
-│   │   ├── footer/             # 页脚
-│   │   └── global-setting/     # 全局设置抽屉
-│   ├── config/
-│   │   └── settings.json       # 应用默认设置（主题、菜单、布局等）
-│   ├── directive/              # 自定义 Vue 指令
-│   │   └── permission/         # v-permission 权限指令
-│   ├── hooks/                  # 组合式 Hook
-│   │   ├── permission.ts       # 权限检查 Hook
-│   │   ├── user.ts             # 用户相关 Hook
-│   │   ├── locale.ts           # 语言切换 Hook
-│   │   ├── themes.ts           # 主题切换 Hook
-│   │   ├── loading.ts          # 加载状态 Hook
-│   │   ├── responsive.ts       # 响应式布局 Hook
-│   │   ├── request.ts          # 请求相关 Hook
-│   │   ├── chart-option.ts     # 图表配置 Hook
-│   │   ├── dict.ts             # 字典 Hook
-│   │   ├── visible.ts          # 可见性控制 Hook
-│   │   └── sse-message.ts      # SSE 消息推送 Hook
-│   ├── layout/                 # 布局组件
-│   │   ├── default-layout.vue  # 主布局（导航栏+菜单+内容+页脚）
-│   │   └── page-layout.vue     # 页面内容包裹布局
-│   ├── locale/                 # 国际化资源
-│   │   ├── zh-CN/              # 中文
-│   │   ├── en-US/              # 英文
-│   │   └── index.ts            # i18n 实例创建
-│   ├── router/                 # 路由系统
-│   │   ├── index.ts            # 路由实例与注册
-│   │   ├── constants.ts        # 路由常量（白名单、默认路由等）
-│   │   ├── app-menus/          # 前端静态菜单数据
-│   │   ├── guard/              # 路由守卫
-│   │   │   ├── index.ts        # 守卫注册入口
-│   │   │   ├── userLoginInfo.ts# 用户登录信息守卫
-│   │   │   └── permission.ts   # 权限守卫
-│   │   └── routes/             # 路由配置
-│   │       ├── base.ts         # 基础路由（重定向、404）
-│   │       ├── types.ts        # 路由类型定义
-│   │       └── modules/        # 按业务拆分的路由模块
-│   │           ├── dashboard.ts
-│   │           ├── message.ts
-│   │           └── system.ts
-│   ├── services/               # 长连接/特殊服务
-│   │   ├── sse.service.ts      # SSE（Server-Sent Events）长连接服务
-│   │   └── config.service.ts   # 配置服务
-│   ├── store/                  # Pinia 状态管理
-│   │   ├── index.ts            # Store 聚合导出
-│   │   ├── mixins/             # Store 混入（如 CRUD 操作）
-│   │   └── modules/            # 各业务 Store
-│   │       ├── user/           # 用户状态（信息、权限、角色）
-│   │       ├── app/            # 应用设置状态
-│   │       ├── tab-bar/        # 标签页状态
-│   │       ├── role/           # 角色管理
-│   │       ├── permission/     # 权限管理
-│   │       ├── user-management/# 用户管理
-│   │       ├── admin-management/# 管理员管理
-│   │       ├── message/        # 消息中心
-│   │       ├── config/         # 系统配置
-│   │       ├── dict-data/      # 字典数据
-│   │       ├── attachment/     # 附件管理
-│   │       ├── cron-job/       # 定时任务
-│   │       └── operation-log/  # 操作日志
-│   ├── types/                  # 全局 TypeScript 类型定义
-│   │   ├── api.ts              # API 请求/响应类型
-│   │   ├── echarts.ts          # 图表类型
-│   │   ├── global.ts           # 全局类型
-│   │   └── mock.ts             # Mock 数据类型
-│   ├── utils/                  # 工具函数
-│   │   ├── auth.ts             # Token 与登录状态管理
-│   │   ├── permission-transformer.ts # 权限码标准化工具
-│   │   ├── permission-to-route.ts # 权限 → 路由 转换工具
-│   │   ├── route-listener.ts   # 路由变更事件总线
-│   │   ├── event.ts            # 通用事件工具
-│   │   ├── env.ts              # 环境检测
-│   │   ├── is.ts               # 类型判断
-│   │   ├── json.ts             # JSON 处理
-│   │   ├── monitor.ts          # 性能监控
-│   │   ├── setup-mock.ts       # Mock 数据配置
-│   │   └── index.ts            # 通用工具导出
-│   ├── views/                  # 页面视图
-│   │   ├── login/              # 登录页
-│   │   ├── dashboard/          # 仪表板
-│   │   │   └── workplace/      # 工作台
-│   │   ├── message/            # 消息中心
-│   │   ├── system/             # 系统管理（11 个子页面）
-│   │   │   ├── user/
-│   │   │   ├── admin/
-│   │   │   ├── role/
-│   │   │   ├── permission/
-│   │   │   ├── dict-data/
-│   │   │   ├── config/
-│   │   │   ├── attachment/
-│   │   │   ├── cron-job/
-│   │   │   ├── operation-log/
-│   │   │   ├── plugin/
-│   │   │   └── third-party-user/
-│   │   ├── not-found/          # 404
-│   │   └── redirect/           # 重定向过渡页
-│   ├── App.vue                 # 根组件
-│   ├── main.ts                 # 应用入口
-│   └── env.d.ts                # Vite 环境变量类型
-├── index.html                  # HTML 入口
-├── package.json                # 项目依赖
-├── tsconfig.json               # TypeScript 配置
-├── .env.development            # 开发环境变量
-├── .env.production             # 生产环境变量
-└── components.d.ts             # 组件类型声明
+│   ├── api/                     # 20 个业务 API 文件 + interceptor.ts（含 6 个 *.test.ts）
+│   ├── apps/                    # 源码功能集：esports / cms / demo
+│   ├── assets/                  # 图片、Less 样式（global.less、design-system.less、breakpoint.less）
+│   ├── components/              # 全局组件：menu、navbar、tab-bar、breadcrumb、footer、
+│   │                            # global-setting、message-box、chart、attachment-selector、rich-text-editor
+│   ├── config/settings.json     # 运行时默认设置（主题、布局、菜单、标签页等）
+│   ├── directive/permission/    # v-permission 指令
+│   ├── hooks/                   # 11 个组合式函数
+│   ├── layout/                  # default-layout.vue、page-layout.vue
+│   ├── locale/                  # i18n 入口与语言包（zh-CN / en-US）
+│   ├── router/                  # 路由、守卫、app-menus、source-apps、server-menu
+│   ├── services/                # sse / attachment-access / config
+│   ├── store/                   # Pinia：index.ts + modules/ + mixins/
+│   ├── types/                   # api.ts、global.ts、axios.d.ts、mock.ts、echarts.ts
+│   ├── utils/                   # auth、oauth、permission-transformer、permission-to-route、
+│   │                            # route-listener、json、event、is、monitor 等
+│   ├── views/                   # login、oauth、dashboard、message、system、not-found、redirect
+│   ├── App.vue                  # a-config-provider（语言） + router-view
+│   └── main.ts                  # 应用装配入口
+├── .env.development             # VITE_API_BASE_URL=（留空走代理）
+├── .env.production              # 空文件
+├── index.html
+├── package.json
+├── tsconfig.json                # @/* → src/*，target/module ES2020，strict
+└── vitest.config.ts             # Node 环境，include src/**/*.{test,spec}.{ts,tsx}
 ```
 
 ---
 
 ## 4. 入口与启动流程
 
-文件：[src/main.ts](file:///d:/www/admin-web/web/src/main.ts)
+`src/main.ts` 的装配顺序：
 
-应用启动时完成以下工作（按顺序）：
+```text
+createApp(App)
+  → app.use(ArcoVue) / ArcoVueIcon     // 全量注册 Arco 与图标
+  → app.use(router)                    // 创建路由并安装守卫
+  → app.use(store)                     // createPinia()
+  → app.use(i18n)                      // 默认 zh-CN，fallback en-US
+  → app.use(globalComponents)          // Chart / Breadcrumb / AttachmentSelector / RichTextEditor
+  → app.use(directive)                 // v-permission
+  → app.mount('#app')
+```
 
-1. **创建 Vue 应用**：`createApp(App)`
-2. **注册 UI 库**：`app.use(ArcoVue)`、`app.use(ArcoVueIcon)`
-3. **注册路由**：`app.use(router)` — 加载所有路由配置并挂载守卫
-4. **注册 Pinia**：`app.use(store)` — 初始化所有状态模块
-5. **注册 i18n**：`app.use(i18n)` — 注册国际化
-6. **注册全局组件**：`app.use(globalComponents)` — 自动注册 `components/` 下的组件
-7. **注册自定义指令**：`app.use(directive)` — 例如 `v-permission`
-8. **挂载全局拦截器**：执行 `src/api/interceptor.ts`，注册 Axios 请求/响应拦截器
-9. **挂载到 DOM**：`app.mount('#app')`
+- 请求拦截器通过 `import '@/api/interceptor'` 的副作用安装（`src/main.ts:16`）。
+- 全局样式在入口引入：`@/assets/style/global.less`、`@/assets/style/design-system.less`；Arco 组件样式由 `@arco-plugins/vite-vue` 按需注入（`config/plugin/arcoStyleImport.ts`）。
+- `// import './mock';` 已注释，`src/mock/` 目录不存在，**Mock 当前未启用**。
+- `src/App.vue` 使用 `<a-config-provider :locale>` 联动 i18n 与 Arco 组件语言，并渲染 `router-view`。
 
 ---
 
 ## 5. 路由系统
 
-### 5.1 路由配置文件结构
+### 5.1 文件结构与注册顺序
 
-路由入口：[src/router/index.ts](file:///d:/www/admin-web/web/src/router/index.ts)
+| 文件 | 作用 |
+| --- | --- |
+| `src/router/index.ts` | `createRouter` + 静态路由装配 + `createRouteGuard` |
+| `src/router/routes/index.ts` | `import.meta.glob('./modules/*.ts')` 收集静态业务路由；注册权限别名 |
+| `src/router/routes/modules/` | `dashboard.ts`、`message.ts`、`system.ts` |
+| `src/router/routes/base.ts` | `REDIRECT_MAIN`、`NOT_FOUND_ROUTE`、`DEFAULT_LAYOUT` |
+| `src/router/routes/types.ts` | `AppRouteRecordRaw` |
+| `src/router/typings.d.ts` | 扩展 `RouteMeta` |
+| `src/router/constants.ts` | `WHITE_LIST`、`NOT_FOUND`、`REDIRECT_ROUTE_NAME`、`DEFAULT_ROUTE_NAME`、`DEFAULT_ROUTE` |
+| `src/router/guard/` | `index.ts`（组合守卫）、`userLoginInfo.ts`、`permission.ts` |
+| `src/router/app-menus/index.ts` | 把静态路由拍平成侧边栏菜单（`appClientMenus`） |
+| `src/router/source-apps.ts` | 功能集动态路由与菜单生成 |
+| `src/router/routes/server-menu.ts` | 「服务端菜单模式」路由拉取（默认关闭） |
 
-路由按业务模块拆分在 `src/router/routes/modules/` 下，通过 `import.meta.glob` 自动加载：
+`createRouter` 的 routes 顺序（`src/router/index.ts:11-41`）：
 
-- `dashboard.ts` — 仪表板路由
-- `message.ts` — 消息中心路由
-- `system.ts` — 系统管理路由（包含 11 个子页面）
+1. `/` → 重定向 `login`
+2. `/login`（`meta.requiresAuth: false`）
+3. `/oauth/callback`（`meta.requiresAuth: false`）
+4. `...appRoutes`（dashboard / message / system）
+5. `REDIRECT_MAIN`（`/redirect`、`/redirect/:path`，`hideInMenu`）
+6. `NOT_FOUND_ROUTE`（`/:pathMatch(.*)*`，name `notFound`）
 
-### 5.2 基础路由与常量
+> `src/router/routes/index.ts` 还会 glob `./externalModules/*.ts`，但该目录不存在，因此 `appExternalRoutes` 恒为空数组。
 
-文件：[src/router/constants.ts](file:///d:/www/admin-web/web/src/router/constants.ts)
+### 5.2 静态业务路由
 
-| 常量 | 值 | 说明 |
-|------|----|------|
-| `WHITE_LIST` | `[{ name: 'notFound' }, { name: 'login' }]` | 不需要登录的路由白名单 |
-| `DEFAULT_ROUTE_NAME` | `'Workplace'` | 登录后的默认页面路由名 |
-| `DEFAULT_ROUTE` | `{ title: 'menu.dashboard.workplace', name: 'Workplace', fullPath: '/dashboard/workplace' }` | 默认路由完整配置 |
+**dashboard**（`src/router/routes/modules/dashboard.ts`）
 
-文件：[src/router/routes/base.ts](file:///d:/www/admin-web/web/src/router/routes/base.ts)
+| path | name | component | meta 关键项 |
+| --- | --- | --- | --- |
+| `/dashboard` | `dashboard` | `DEFAULT_LAYOUT` | `locale: menu.dashboard`、`icon: icon-dashboard`、`order: 0`、`permissionCode: ['/dashboard','/dashboard/workplace']` |
+| `/dashboard/workplace` | `Workplace` | `views/dashboard/workplace/index.vue` | `locale: menu.dashboard.workplace`、`roles: ['*']`、`permissionCode: '/dashboard/workplace'` |
 
-- `DEFAULT_LAYOUT` — 默认布局组件（懒加载）
-- `REDIRECT_MAIN` — `/redirect` 路由，用于标签页刷新的过渡
-- `NOT_FOUND_ROUTE` — `/:pathMatch(.*)*` 捕获所有未匹配路由，跳转到 404
+**message**（`src/router/routes/modules/message.ts`，父级 `/message`，`icon-message`，`order: 3`）
 
-### 5.3 业务路由模块
+| 子 path | name | 页面 | permissionCode |
+| --- | --- | --- | --- |
+| `center` | `MessageCenter` | `views/message/index.vue` | `['/message/center','messagecenter']` |
+| `manage` | `MessageManage` | `views/message/manage.vue` | `['/message/manage','messagemanage']` |
+| `broadcast` | `MessageBroadcast` | `views/message/broadcast.vue` | `['/message/broadcast','messagebroadcast']` |
+| `preference` | `MessagePreference` | `views/message/preference.vue` | `['/message/preference','messagepreference']`，`hideInMenu: true` |
 
-路由类型定义：[src/router/routes/types.ts](file:///d:/www/admin-web/web/src/router/routes/types.ts)
+**system**（`src/router/routes/modules/system.ts`，父级 `/system`，`icon-settings`，`order: 2`，`permissionCode: ['/system','unknown']`）
 
-每个路由项支持：`path`、`name`、`meta`、`redirect`、`component`、`children` 等。其中 `meta` 是关键：
+| 子 path | name | 组件（`@/views/system/...`） | permissionCode |
+| --- | --- | --- | --- |
+| `user` | `SystemUser` | `user/index.vue` | `['/system/user','user']` |
+| `third-party-user` | `SystemThirdPartyUser` | `third-party-user/index.vue` | `['/system/third-party-user','thirdpartyuser']` |
+| `role` | `SystemRole` | `role/index.vue` | `['/system/role','role']` |
+| `permission` | `SystemPermission` | `permission/index.vue` | `['/system/permission','permission']` |
+| `department` | `SystemDepartment` | `department/index.vue` | `['/system/department','system:department','department']` |
+| `attachment` | `SystemAttachment` | `attachment/index.vue` | `['/system/attachment','attachment']` |
+| `cron-job` | `SystemCronJob` | `cron-job/index.vue` | `['/system/cron-job','cronjob']` |
+| `queue-job` | `SystemQueueJob` | `queue-job/index.vue` | `['/system/queue-job','queuejob']` |
+| `slide` | `SystemSlide` | `slide/index.vue` | `['/system/slide','system:slide','slide']` |
+| `operation-log` | `SystemOperationLog` | `operation-log/index.vue` | `['/system/operation-log','operationlog']` |
+| `login-log` | `SystemLoginLog` | `login-log/index.vue` | `['/system/login-log','loginlog']` |
+| `dict-data` | `SystemDictData` | `dict-data/index.vue` | `['/system/dict-data','dictdata']` |
+| `admin` | `SystemAdmin` | `admin/index.vue` | `['/system/admin','admin']` |
+| `config` | `SystemConfig` | `config/index.vue` | `['/system/config','config']` |
+| `plugin` | `SystemPlugin` | `plugin/index.vue` | `['/system/plugin','plugin']` |
+| `captcha` | `SystemCaptcha` | `captcha/index.vue` | `['/system/captcha','system:captcha','captcha']` |
 
-```typescript
-meta: {
-  locale: 'menu.dashboard.workplace',   // 菜单名（i18n key）
-  requiresAuth: true,                    // 是否需要登录
-  roles: ['*'],                          // 允许的角色；'*' 表示所有
-  permissionCode: 'dashboard:workplace', // 权限码（字符串或数组）
-  hideInMenu: false,                     // 是否在菜单中隐藏
-  order: 0,                              // 菜单排序（越小越靠前）
-  icon: 'icon-dashboard',                // 菜单图标
-}
-```
+所有子路由均带 `requiresAuth: true`；`permissionCode` 数组写法用于兼容「新路径式 code」与「旧对象式 code」。
 
-#### 5.3.1 仪表板路由（dashboard.ts）
+### 5.3 路由守卫
 
-文件：[src/router/routes/modules/dashboard.ts](file:///d:/www/admin-web/web/src/router/routes/modules/dashboard.ts)
+`createRouteGuard` 依序安装三层（`src/router/guard/index.ts`）：
 
-| 路径 | 路由名 | 页面 | 说明 |
-|------|--------|------|------|
-| `/dashboard` | `dashboard` | 布局容器 | 父级菜单，不渲染页面 |
-| `/dashboard/workplace` | `Workplace` | `views/dashboard/workplace/index.vue` | 工作台页面 |
+1. **页面守卫**：`setRouteEmitter(to)`，向 `utils/route-listener` 发布路由变更（菜单高亮、TabBar 收集都依赖它）。
+2. **登录信息守卫**（`guard/userLoginInfo.ts`）：`NProgress.start()` → 未登录跳 `login?redirect=` → 已登录则 `loadAdminInfo()/info()` + `loadPermissions()` → 同步功能集路由 `syncSourceAppRoutes` → `appStore.setSourceAppMenus(menus)`；若刚注册的路由改变了当前路径的匹配结果，执行 `next({ path: to.fullPath, replace: true })` 重新匹配。
+3. **权限守卫**（`guard/permission.ts`）：白名单或 `meta.requiresAuth === false` 直接放行 → `isLogin()` → 等待 `permissionsLoading` 结束（最多 3s）→ 角色为 `admin` 直接放行 → 校验 `meta.roles` → 校验 `meta.permissionCode`（数组走 `hasAnyPermission`，字符串走 `hasMenuPermission`）→ 不通过跳 `notFound`。
 
-#### 5.3.2 消息中心路由（message.ts）
+`WHITE_LIST = [{ name: 'notFound' }, { name: 'login' }]`（`src/router/constants.ts`）。
 
-文件：[src/router/routes/modules/message.ts](file:///d:/www/admin-web/web/src/router/routes/modules/message.ts)
+`RouteMeta` 支持字段（`src/router/typings.d.ts`）：
 
-| 路径 | 路由名 | 页面 | 说明 |
-|------|--------|------|------|
-| `/message` | `Message` | 布局容器 | 父级菜单 |
-| `/message/center` | `MessageCenter` | `views/message/index.vue` | 消息中心列表 |
-| `/message/manage` | `MessageManage` | `views/message/manage.vue` | 消息管理 |
-| `/message/broadcast` | `MessageBroadcast` | `views/message/broadcast.vue` | 广播消息 |
-| `/message/preference` | `MessagePreference` | `views/message/preference.vue` | 消息偏好设置（隐藏菜单） |
-
-#### 5.3.3 系统管理路由（system.ts）
-
-文件：[src/router/routes/modules/system.ts](file:///d:/www/admin-web/web/src/router/routes/modules/system.ts)
-
-| 路径 | 路由名 | 页面 | 说明 |
-|------|--------|------|------|
-| `/system` | `System` | 布局容器 | 父级菜单 |
-| `/system/user` | `SystemUser` | `views/system/user/index.vue` | 用户管理 |
-| `/system/third-party-user` | `SystemThirdPartyUser` | `views/system/third-party-user/index.vue` | 第三方用户 |
-| `/system/role` | `SystemRole` | `views/system/role/index.vue` | 角色管理 |
-| `/system/permission` | `SystemPermission` | `views/system/permission/index.vue` | 权限管理 |
-| `/system/attachment` | `SystemAttachment` | `views/system/attachment/index.vue` | 附件管理 |
-| `/system/cron-job` | `SystemCronJob` | `views/system/cron-job/index.vue` | 定时任务 |
-| `/system/operation-log` | `SystemOperationLog` | `views/system/operation-log/index.vue` | 操作日志 |
-| `/system/dict-data` | `SystemDictData` | `views/system/dict-data/index.vue` | 字典数据 |
-| `/system/admin` | `SystemAdmin` | `views/system/admin/index.vue` | 管理员管理 |
-| `/system/config` | `SystemConfig` | `views/system/config/index.vue` | 系统配置 |
-| `/system/plugin` | `SystemPlugin` | `views/system/plugin/index.vue` | 插件管理 |
-
-### 5.4 路由守卫
-
-守卫注册入口：[src/router/guard/index.ts](file:///d:/www/admin-web/web/src/router/guard/index.ts)
-
-共设置 3 个守卫：
-
-1. **页面守卫（route change emitter）** — 触发路由变更事件，供菜单高亮使用
-2. **用户登录信息守卫（userLoginInfo.ts）** — 检查 Token、加载用户信息与权限
-3. **权限守卫（permission.ts）** — 检查目标路由的访问权限
-
-#### 5.4.1 用户登录信息守卫
-
-文件：[src/router/guard/userLoginInfo.ts](file:///d:/www/admin-web/web/src/router/guard/userLoginInfo.ts)
-
-逻辑流程图：
-
-```
-进入 beforeEach 守卫
-    │
-    ├── 已登录 && 目标是 login 页 → 重定向到 /dashboard/workplace
-    │
-    ├── 已登录 && userStore.role 已存在 → 放行（加载缓存权限）
-    │
-    ├── 已登录 && userStore.role 为空 → 请求 /auth/user 获取用户信息
-    │                                 → 请求 /menu-permissions + /button-permissions
-    │                                 → 成功则放行
-    │
-    └── 未登录 → 清除本地状态并重定向到 login（带 redirect 参数）
-```
-
-#### 5.4.2 权限守卫
-
-文件：[src/router/guard/permission.ts](file:///d:/www/admin-web/web/src/router/guard/permission.ts)
-
-逻辑流程图：
-
-```
-进入 beforeEach 守卫
-    │
-    ├── 路由在 WHITE_LIST 中（login / notFound） → 直接放行
-    │
-    ├── 未登录 → 清除状态，跳转到 login 页
-    │
-    ├── 已登录 && 权限正在加载 → 等待（最多 3 秒）
-    │
-    ├── 已登录 && userStore.role === 'admin' → 直接放行（超管）
-    │
-    └── 已登录 && 普通用户 → 检查三重条件：
-            1. roles 是否包含当前用户角色（或 '*'）
-            2. permissionCode（单/多个）是否匹配用户菜单权限
-            3. 若未配置 permissionCode，则按路由名检查菜单权限
-                → 通过 → 放行
-                → 不通过 → 跳转到 notFound
-```
+| 字段 | 含义 |
+| --- | --- |
+| `requiresAuth` | 是否需要登录，`false` 时守卫直接放行 |
+| `roles` | 允许的角色；含 `'*'` 表示不限制 |
+| `permissionCode` | `string \| string[]`，命中任一即可访问 |
+| `locale` | 菜单/面包屑 i18n key |
+| `icon` | 菜单图标名（`icon-*`） |
+| `hideInMenu` / `hideChildrenInMenu` | 自身/子级不出现在菜单 |
+| `order` | 菜单排序（升序） |
+| `activeMenu` | 指定高亮的菜单 key |
+| `noAffix` | 不固定为 TabBar 首页签 |
+| `ignoreCache` | 不进入 `keep-alive` 缓存 |
 
 ---
 
 ## 6. 菜单系统
 
-### 6.1 菜单组件
+### 6.1 数据来源
 
-文件：[src/components/menu/index.vue](file:///d:/www/admin-web/web/src/components/menu/index.vue)
+`src/components/menu/use-menu-tree.ts` 组装菜单：
 
-核心功能：
-
-- 使用 `useMenuTree()` 获取有权限的菜单树
-- 递归渲染子菜单（`a-sub-menu` → `a-menu-item`）
-- 点击菜单项触发 `router.push({ name })` 导航
-- 监听路由变更，自动高亮当前选中菜单并展开父级
-- 支持外部链接检测（`regexUrl` 校验）
-- 桌面端支持折叠/展开按钮（通过 `appStore.menuCollapse`）
-
-### 6.2 菜单树生成逻辑
-
-文件：[src/components/menu/use-menu-tree.ts](file:///d:/www/admin-web/web/src/components/menu/use-menu-tree.ts)
-
-核心函数 `useMenuTree()` 返回值：
-
-```
-menuTree = computed(() => {
-  1. 根据 appStore.menuFromServer 选择数据源：
-     - true  →  appStore.appAsyncMenus（服务端返回）
-     - false →  appClientMenus（前端静态路由）
-
-  2. 按 meta.order 升序排序
-
-  3. 递归遍历路由：
-     - 对每个路由判断是否可访问（canAccessMenu）：
-        · role === 'admin' → 通过
-        · 否则检查 permissionCode / roles / requiresAuth
-     - 过滤掉 meta.hideInMenu === true 的子路由
-     - 只保留有子节点或自身可访问的节点
-})
+```text
+appStore.menuFromServer ? appStore.appAsyncMenus : appClientMenus
+  + appStore.sourceAppMenus
 ```
 
-前端静态菜单数据源：[src/router/app-menus/index.ts](file:///d:/www/admin-web/web/src/router/app-menus/index.ts)
+- `appClientMenus`：静态路由拍平（`src/router/app-menus/index.ts`），只保留 `name/path/meta/redirect/children`。
+- `appAsyncMenus`：全局设置开启「服务端菜单」后，由 `fetchServerMenuRoutes()` 拉取并 `setServerMenu(routes)`。
+- `sourceAppMenus`：功能集动态菜单，登录/刷新权限时写入，登出时清空。
 
-它本质是对 `appRoutes` 和 `appExternalRoutes` 的浅拷贝，仅作为菜单渲染的输入。
+### 6.2 过滤、排序与层级
 
-### 6.3 服务端菜单（动态菜单）
+- 排序：顶层及递归子级按 `meta.order` 升序。
+- 可见性 `canAccessMenu`：`role === 'admin'` 全通过 → `roles` 校验 → `permissionCode` 校验 → `roles.includes('*')` → `requiresAuth && name` 时用 `route.name` 当权限码 → 默认可见。
+- 空 `children: []` 视为叶子节点（功能集单页菜单依赖此规则，否则会被丢弃）。
+- `hideInMenu` 的节点自身不显示；`hideChildrenInMenu` 只显示父级条目；父级保留条件为「自身可见」或「存在可见子级」。
 
-当 `appStore.menuFromServer === true` 时：
+### 6.3 渲染
 
-1. 应用启动时调用 `appStore.fetchServerMenuConfig()`
-2. 通过 `getUserMenuPermissions()` API 从服务端拉取权限列表
-3. 调用 `transformToMenuRoutes()` 将权限对象转换为路由结构
-4. 转换结果存入 `appStore.serverMenu`，菜单渲染时使用该数据
+`src/components/menu/index.vue`（TSX）：
 
-权限 → 路由 的转换逻辑见 [第 8.2 节](#82-权限到路由的映射)。
+- 递归渲染 `a-sub-menu` / `a-menu-item`；图标用 `h(compile('<icon-x/>'))` 运行时编译 `meta.icon`。
+- 文案 `t(meta.locale)`；静态页用 `menu.<module>.<page>`，功能集用 `menu.app.<code 冒号转点>`。
+- `mode` 由 `appStore.topMenu` 决定横向/纵向；折叠状态回写 `appStore.updateSettings({ menuCollapse })`。
+- 外链通过 `regexUrl` 识别，使用 `openWindow` 打开而不走 router。
+- 路由变化时 `listenerRouteChange` 结合 `findMenuOpenKeys` 自动展开祖先链，`selectedKey = activeMenu || name`。
+
+### 6.4 服务端菜单模式
+
+`src/router/routes/server-menu.ts` 的 `fetchServerMenuRoutes()`：
+
+1. 取 `/api/v1/admin/auth/user/permissions` → `PermissionTransformer.normalizePermissions`；
+2. 只保留 `type === 'menu'` 的节点；
+3. `src/utils/permission-to-route.ts` 通过 `OBJECT_TO_PATH_MAP`（仅覆盖 `system:*`、`dashboard:*`）与别名表把权限对象映射成路由，并按用户权限过滤；
+4. 结果写入 `appStore.setServerMenu(routes)`。
+
+该能力默认关闭（`settings.json` 的 `menuFromServer: false`），仅在全局设置抽屉里开启时触发；功能集菜单不受该开关影响。
 
 ---
 
-## 7. 导航栏（Navbar）
+## 7. 权限系统
 
-文件：[src/components/navbar/index.vue](file:///d:/www/admin-web/web/src/components/navbar/index.vue)
+### 7.1 权限树获取与存储
 
-顶部导航栏从左到右包含以下按钮与功能：
+- 接口：`GET /api/v1/admin/auth/user/permissions`（`src/api/permission.ts`、`src/api/user.ts` 各有一份实现），返回 `ApiResponse<SysPermissionTreeNode[]>`。
+- 存储位置：`src/store/modules/user/index.ts`
 
-| 元素 | 功能 | 相关 Hook / Store |
-|------|------|-------------------|
-| Logo + 标题 | 品牌展示 | — |
-| 移动端菜单按钮 | 切换侧边抽屉菜单 | `inject('toggleDrawerMenu')` |
-| 🔍 搜索按钮 | 占位功能（预留） | — |
-| 🌐 语言切换 | 中文 / English | `useLocale()` |
-| 🌙/☀️ 主题切换 | 明/暗模式切换 | `useDark()` + `appStore.toggleTheme()` |
-| 🔔 消息通知 | 弹出消息中心面板，显示未读数量红点 | `useMessageStore()`、`useSseMessage()` |
-| ⛶ 全屏按钮 | 浏览器全屏切换 | `useFullscreen()` |
-| 👤 用户头像 | 下拉菜单：消息偏好设置 / 退出登录 | `userStore`、`useUser().logout()` |
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `permissionTree` | `SysPermissionTreeNode[]` | 原始混合权限树（菜单/按钮/API） |
+| `permissions` | `PermissionResponse[]` | 归一化后的权限列表，按 `type:action:object` 去重 |
+| `permissionCodes` | `string[]` | 由 `PermissionTransformer.extractPermissionCodes` 展开的可用 code 集合（**数组，非 Set**） |
+| `permissionsLoading` | `boolean` | 加载中标记，权限守卫会等待其结束 |
+| `role` / `isAdmin` / `isSuperAdmin` | — | 角色与管理员标记 |
 
-消息推送机制：`useSseMessage()` Hook 在 NavBar 加载时启动 SSE 长连接，实时接收服务端消息并更新未读计数。
+`SysPermissionTreeNode`（`src/types/api.ts`）关键字段：
 
----
+| 字段 | 说明 |
+| --- | --- |
+| `id` / `parent_id` | 树结构 |
+| `name` | 展示名 |
+| `code` | 权限码，如 `esports:orders`、`system:user` |
+| `type` | `'menu' \| 'button' \| 'api'` |
+| `domain` | 业务域（请求时传 `default`） |
+| `path` + `method` | API 型节点 |
+| `menu_path` + `component` + `icon` | 菜单型节点 |
+| `sort_order` | 排序 |
+| `status` | `1` 启用，`0` 禁用（动态路由只接受 `1`） |
+| `is_common` | 通用权限 |
+| `children` | 子节点 |
 
-## 8. 权限系统
+### 7.2 `PermissionTransformer`
 
-权限系统采用 **权限码（Permission Code）** 机制，支持两种粒度：
+`src/utils/permission-transformer.ts` 承担三件事：
 
-- **菜单权限**：控制侧边栏菜单项是否显示
-- **按钮权限**：控制页面内按钮是否可点击/可见
+1. **归一化**：`normalizePermissions` 支持「树节点数组」「字符串数组」「`{ data / permissions }` 包裹」三种输入；字符串会转成 `{ object, action: 'access', type: 'button' }`。
+2. **code 变体展开**：同一权限同时登记 `system:user`、`system/user`、`/system/user`、`systemuser`（末段去 `-`）等形式，兼容历史数据。
+3. **别名注册**：`registerRouteAliases(routes)` 把路由 `meta.permissionCode`、路径段、路由 `name` 互相登记为别名；`router/routes/index.ts` 启动时执行，并额外注册 `unknown → /system`。
 
-权限码格式示例：
-- `system:user`（菜单权限）
-- `system:user:add`（按钮权限）
-- `dashboard:workplace`（页面访问权限）
+### 7.3 判定 API
 
-### 8.1 权限转换
+`user store` 提供，`src/hooks/permission.ts` 仅做转发：
 
-文件：[src/utils/permission-transformer.ts](file:///d:/www/admin-web/web/src/utils/permission-transformer.ts)
+| 方法 | 规则 |
+| --- | --- |
+| `hasPermissionByType(code, type?)` | `role === 'admin'` 直接 true；否则查 `permissionCodes`，再按类型过滤 |
+| `hasMenuPermission(code)` | 上述 + 要求存在菜单型权限 |
+| `hasButtonPermission(code)` | 上述 + 要求存在按钮型权限 |
+| `hasAnyPermission(codes[])` | 任一命中 |
+| `hasAllPermissions(codes[])` | 全部命中 |
 
-`PermissionTransformer` 类负责将服务端返回的各种权限数据格式统一标准化：
+### 7.4 `v-permission` 指令
 
-| 方法 | 作用 |
-|------|------|
-| `extractPermissionCodes(raw)` | 提取权限码数组（支持字符串数组、对象数组、嵌套对象） |
-| `normalizePermissions(raw)` | 将权限数据标准化为 `{ role_name, domain, object, action, type }` 结构 |
-| `expandPermissionCodes(codes)` | 展开权限码别名（如 `user` → `system:user`） |
-| `addPermissionCodeVariants(set, code)` | 为同一个权限码生成多种格式变体（如 `system:user`、`system/user`、`systemuser`），增加容错 |
-
-**权限码别名映射表（PERMISSION_CODE_ALIAS_MAP）**：
-
-| 别名 | 展开路径 |
-|------|----------|
-| `system` | `/system` |
-| `dashboard` | `/dashboard` |
-| `workplace` | `/dashboard/workplace` |
-| `user` | `/system/user` |
-| `admin` | `/system/admin` |
-| `role` | `/system/role` |
-| `permission` | `/system/permission` |
-| `attachment` | `/system/attachment` |
-| `cronjob` | `/system/cron-job` |
-| `operationlog` | `/system/operation-log` |
-| `dictdata` | `/system/dict-data` |
-| `config` | `/system/config` |
-| `plugin` | `/system/plugin` |
-| `message` | `/message` |
-| `messagecenter` | `/message/center` |
-| `messagemanage` | `/message/manage` |
-| `messagebroadcast` | `/message/broadcast` |
-| `messagepreference` | `/message/preference` |
-
-### 8.2 权限到路由的映射
-
-文件：[src/utils/permission-to-route.ts](file:///d:/www/admin-web/web/src/utils/permission-to-route.ts)
-
-核心函数 `transformPermissionsToRoutes()`：
-
-1. 过滤出 `type === 'menu'` 的权限
-2. 按模块（`object` 的第一段如 `system`、`dashboard`）分组
-3. 根据 `PARENT_ROUTE_MAP` 生成父路由（如 `/system`、`/dashboard`）
-4. 根据 `OBJECT_TO_PATH_MAP` 生成子路由并匹配对应页面组件
-5. 应用 `permissionCode`、`roles`、`locale` 等元信息
-
-**OBJECT_TO_PATH_MAP（权限对象 → 路由与组件）**：
-
-| 权限对象 | 路径 | 路由名 | 组件 |
-|----------|------|--------|------|
-| `system:user` | `/system/user` | `SystemUser` | user/index.vue |
-| `system:thirdpartyuser` | `/system/third-party-user` | `SystemThirdPartyUser` | third-party-user/index.vue |
-| `system:role` | `/system/role` | `SystemRole` | role/index.vue |
-| `system:permission` | `/system/permission` | `SystemPermission` | permission/index.vue |
-| `system:attachment` | `/system/attachment` | `SystemAttachment` | attachment/index.vue |
-| `system:cronjob` | `/system/cron-job` | `SystemCronJob` | cron-job/index.vue |
-| `system:operationlog` | `/system/operation-log` | `SystemOperationLog` | operation-log/index.vue |
-| `system:dictdata` | `/system/dict-data` | `SystemDictData` | dict-data/index.vue |
-| `system:admin` | `/system/admin` | `SystemAdmin` | admin/index.vue |
-| `system:config` | `/system/config` | `SystemConfig` | config/index.vue |
-| `system:plugin` | `/system/plugin` | `SystemPlugin` | plugin/index.vue |
-| `dashboard:workplace` | `/dashboard/workplace` | `Workplace` | dashboard/workplace/index.vue |
-
-辅助函数：
-
-- `hasPathInPermissions(path, permissions)` — 检查某路径是否在用户权限中（精确匹配 + 前缀匹配）
-- `isPathPermitted(path, permissions)` — 对外暴露的路径权限判断函数
-
-### 8.3 权限 Hook
-
-文件：[src/hooks/permission.ts](file:///d:/www/admin-web/web/src/hooks/permission.ts)
-
-`usePermission()` 返回以下方法：
-
-| 方法 | 作用 |
-|------|------|
-| `accessRouter(route)` | 检查路由 meta.roles 是否包含当前用户角色（或 '*'） |
-| `findFirstPermissionRoute(routers, role)` | 查找用户角色能访问的第一个路由 |
-| `hasMenuPermission(code)` | 检查单个菜单权限 |
-| `hasButtonPermission(code)` | 检查单个按钮权限 |
-| `hasAnyPermission(codes[])` | 检查是否拥有任一权限 |
-| `hasAllPermissions(codes[])` | 检查是否拥有所有权限 |
-| `async refreshPermissions()` | 重新拉取并刷新用户权限 |
-
-> 所有方法内部都先判断 `userStore.role === 'admin'`，admin 拥有全部权限。
-
-### 8.4 权限指令 v-permission
-
-文件：[src/directive/permission/index.ts](file:///d:/www/admin-web/web/src/directive/permission/index.ts)
-
-在模板中直接使用指令控制元素可见/可用性：
+`src/directive/permission/index.ts`，支持三种绑定值：
 
 ```vue
-<!-- 单个权限码，无权限隐藏 -->
-<a-button v-permission="'system:user:add'">新增用户</a-button>
-
-<!-- 多个权限码（满足任意一个） -->
-<a-button v-permission="['system:user:edit', 'system:user:add']">编辑</a-button>
-
-<!-- 无权限时禁用而非隐藏 -->
-<a-button v-permission.disable="'system:user:delete'">删除</a-button>
-
-<!-- 完整配置对象 -->
-<a-button v-permission="{
-  permission: 'system:user:export',
-  mode: 'all',
-  strategy: 'disable'
-}">导出</a-button>
+<a-button v-permission="'esports:orders:reprice'">改价</a-button>
+<a-button v-permission="['esports:orders:reprice','esports:orders:cancel']">操作</a-button>
+<a-button v-permission="{ permission: 'esports:orders:cancel', mode: 'all', strategy: 'disable' }">取消</a-button>
 ```
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `permission` | `string \| string[]` | 必填 | 权限码 |
-| `mode` | `'any' \| 'all'` | `'any'` | 多个权限码时的匹配策略 |
-| `strategy` | `'hide' \| 'disable'` | `'hide'` | 无权限时的处理 |
+- `mode`：`any`（默认）/ `all`；
+- `strategy`：`hide`（默认，移除 DOM）或 `disable`（加 `disabled` / `is-disabled` / `pointer-events:none`，并禁用内部表单控件），`v-permission.disable` 修饰符等价于 `strategy: 'disable'`；
+- `admin` 角色恒为有权限；`mounted` 与 `updated` 均会重新判定。
+
+### 7.5 功能集动态路由（`source-apps.ts`）
+
+`src/router/source-apps.ts` 把权限树中的菜单节点映射成路由：
+
+**节点准入条件**
+
+1. `type === 'menu'` 且 `status === 1`；
+2. `code` 以 `:` 前缀段作为 `appCode`，须匹配 `^[a-z][a-z0-9]*$`，且不在保留字 `admin/public/user/plugin/attachments/auth` 中；
+3. `code` 必须以 `${appCode}:` 开头；
+4. `menu_path` 必须匹配 `^/${appCode}(?:/[a-z0-9][a-z0-9-]*)*$`；
+5. 声明了 `component` 时，必须能解析到构建期收录的 `src/apps/<appCode>/views/<rest>.vue`（`import.meta.glob('../apps/*/views/**/*.vue')`），否则整条菜单丢弃。
+
+**生成结果**
+
+- 每个 appCode 一条 `/{appCode}` 的 `DEFAULT_LAYOUT` 壳路由 + 扁平子路由（path 去掉 appCode 前缀）；
+- 菜单节点 `name` 为 `SourceApp:<code>` / `SourceAppMenu:<code>`，`meta.locale = menu.app.<code 冒号转点>`，`icon` 仅接受 `^icon-[a-z0-9-]+$`，`order = sort_order`，`permissionCode = menu_path`；
+- 父子关系按 `parent_id` 组装，跨 appCode 时提升为根节点；
+- 无页面且无子菜单的节点会被递归剪除。
+
+**同步与清理**
+
+- `syncSourceAppRoutes(router, tree)`：用 `JSON.stringify(tree)` 做签名比对，未变化直接复用；变化时先 `clearSourceAppRoutes()`，再用现有路由 path 集合过滤冲突项后 `router.addRoute`，返回 `{ menus, changed }`。
+- `refreshSourceAppRoutes(tree)`：权限刷新后调用（`user store` 的 `refreshPermissions`）。
+- `clearSourceAppRoutes()`：登出时调用，逐个执行路由移除函数。
+
+> 安全约束：`component` 只是本地页面标识，前端只解析构建期收录的 `.vue` 文件，不执行服务端提供的任意代码。
 
 ---
 
-## 9. 状态管理（Pinia）
+## 8. 状态管理（Pinia）
 
-Store 聚合导出：[src/store/index.ts](file:///d:/www/admin-web/web/src/store/index.ts)
+### 8.1 模块一览
 
-### 9.1 User Store（用户状态）
+`src/store/index.ts` 创建 `pinia` 并命名导出 9 个 store：
 
-文件：[src/store/modules/user/index.ts](file:///d:/www/admin-web/web/src/store/modules/user/index.ts)
+`useAppStore`、`useUserStore`、`useTabBarStore`、`useRoleStore`、`usePermissionStore`、`useUserManagementStore`、`useAdminManagementStore`、`useMessageStore`、`useOAuthStore`。
 
-**State 字段**：
+未聚合的模块（`attachment`、`config`、`cron-job`、`dict-data`、`operation-log`、`sys-permission`）由页面按 `@/store/modules/<name>` 深层引入。
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `name` | `string` | 用户名 |
-| `avatar` | `string` | 头像 URL |
-| `email` | `string` | 邮箱 |
-| `phone` | `string` | 手机号 |
-| `accountId` | `string` | 用户/管理员 ID |
-| `role` | `string` | 当前用户角色（如 `'admin'`、`'user'`） |
-| `menuPermissions` | `string[]` | 用户拥有的菜单权限码列表 |
-| `buttonPermissions` | `string[]` | 用户拥有的按钮权限码列表 |
-| `permissionsLoading` | `boolean` | 权限是否正在加载中 |
-| `isAdmin` | `boolean` | 是否管理员登录 |
-| `isSuperAdmin` | `boolean` | 是否超级管理员 |
+| 模块 | 职责与关键状态 |
+| --- | --- |
+| `app` | 全局 UI 设置（展开自 `settings.json`）：`theme/navbar/menu/topMenu/hideMenu/menuCollapse/footer/tabBar/menuWidth/themeColor/device/globalSettings/menuFromServer/serverMenu/sourceAppMenus`；`updateSettings/toggleTheme/toggleDevice/toggleMenu/setServerMenu/setSourceAppMenus` |
+| `user` | 当前会话身份与权限（见 8.2） |
+| `tab-bar` | `tagList: TagProps[]`、`cacheTabList: Set<string>`；`updateTabList/deleteTag/freshTabList/resetTabList` |
+| `permission` | 权限**管理后台**数据（非当前用户）：`permissions/allPermissions/userPermissions/total/permissionTree`，`cache` 为 `Map` + 5 分钟 TTL，`buildPermissionTree/updateTreeCheckState` |
+| `role` | 角色 CRUD、启停、`saveRolePermissions`、`fetchAllRoles` |
+| `user-management` | 前台用户 CRUD、启停、黑名单、角色分配、导出、第三方用户 |
+| `admin-management` | 管理员 CRUD（手写，未用 mixin）、启停、角色分配 |
+| `message` | 消息列表/未读统计/偏好；`pushIncoming` 供 SSE 写入 |
+| `oauth` | OAuth providers、当前身份；getter `adminGithubProvider` |
+| `attachment` / `config` / `cron-job` / `dict-data` / `operation-log` | 对应业务域的列表与 CRUD 状态 |
+| `sys-permission` | 后端权限树编辑（`SysPermissionTreeNode`），节点 key、勾选态计算 |
 
-**核心 Getters**：
+`src/store/mixins/crud.ts` 提供 `createCrudActions` 等工厂，统一 `items/total/currentItem/loading` 与 `fetchList/fetchDetail/create/update/delete`，多数业务模块复用它。
 
-| Getter | 作用 |
-|--------|------|
-| `userInfo` | 返回完整用户信息对象 |
-| `hasMenuPermission(code)` | 检查菜单权限（admin 直接通过） |
-| `hasButtonPermission(code)` | 检查按钮权限（admin 直接通过） |
-| `hasAnyPermission(codes[])` | 任一权限匹配 |
-| `hasAllPermissions(codes[])` | 所有权限匹配 |
+### 8.2 user store
 
-**核心 Actions**：
+- 普通登录 `login()`：`userLogin` → 写 token/refresh_token → `setAdminLogin(false)` → `info()` → `loadPermissions()`，异常时清空凭证。
+- 管理员登录 `adminLogin(form, captchaToken)`：`POST /api/v1/admin/public/login`（带 `X-Captcha-Token`）→ `initAdminSession(tokenData)`：写 token/refresh_token、`setAdminLogin(true)`、`loadAdminInfo()`、`loadPermissions()`。
+- 角色归一化 `processUserRole`：`roles` 含 `admin`（忽略大小写）即视为超管角色。
+- 权限加载 `loadPermissions()`：`getUserPermissions({ domain: 'default' })` → `permissionTree` → `normalizePermissions` 去重 → `permissionCodes`；失败时清空三项。
+- 权限刷新 `refreshPermissions()`：重新加载权限树，并 `refreshSourceAppRoutes` + `appStore.setSourceAppMenus`。
+- 登出 `logoutCallBack()`：重置用户信息与权限、清 token、`setAdminLogin(false)`、移除路由监听、清服务端菜单与功能集菜单、`clearSourceAppRoutes()`、断开 SSE、重置消息 store。
 
-| Action | 作用 |
-|--------|------|
-| `setInfo(partial)` | 部分更新用户信息 |
-| `resetInfo()` | 清空用户信息 |
-| `processUserRole(roles, defaultRole)` | 从服务端返回的 roles 数组中处理当前角色（包含 `admin` 字符串则为 admin） |
-| `async info()` | 调用 `/api/v1/admin/auth/user` 获取用户信息 |
-| `async loadPermissions()` | 并行调用 `menu-permissions` 和 `button-permissions` API，通过 `PermissionTransformer` 标准化后存入 state |
-| `async refreshPermissions()` | 重新加载权限 |
-| `clearPermissions()` | 清空权限数据 |
-| `async login(form)` | 用户登录（设置 Token + 加载信息 + 加载权限） |
-| `async adminLogin(form)` | 管理员登录（使用 `/admin/public/login` 路径） |
-| `async logout()` | 调用登出 API + 清空本地 Token + 移除路由监听 + 清空服务端菜单 + 断开 SSE |
-| `logoutCallBack()` | 登出时的本地清理工作（无需调用 API） |
+### 8.3 app store 与设置持久化
 
-### 9.2 App Store（应用状态）
+- state 是 `src/config/settings.json` 的浅拷贝，改设置只影响当前会话；**项目没有引入 pinia 持久化插件**。
+- 实际会被持久化到 `localStorage` 的只有：`token` / `refresh_token` / `is_admin_login`（`utils/auth.ts`）、`arco-locale`（语言）、`arco-theme`（暗色，vueuse `useDark` 写入）、`sse_last_event_id`（SSE 断点续传）。
+- 想在默认配置中固化设置，应修改 `src/config/settings.json`（全局设置抽屉的「复制配置」就是为此准备的）。
 
-文件：[src/store/modules/app/index.ts](file:///d:/www/admin-web/web/src/store/modules/app/index.ts)
+### 8.4 TabBar 与缓存
 
-管理应用的全局设置（菜单模式、主题、布局、设备类型等）。
-
-核心字段（默认值读取自 `src/config/settings.json`）：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `theme` | `'light' \| 'dark'` | 主题 |
-| `device` | `'desktop' \| 'mobile'` | 设备类型 |
-| `menu` | `boolean` | 是否显示侧边菜单 |
-| `topMenu` | `boolean` | 是否使用顶部菜单模式 |
-| `hideMenu` | `boolean` | 是否隐藏菜单（移动端） |
-| `menuCollapse` | `boolean` | 菜单是否折叠 |
-| `menuWidth` | `number` | 菜单宽度（px） |
-| `navbar` | `boolean` | 是否显示导航栏 |
-| `footer` | `boolean` | 是否显示页脚 |
-| `tabBar` | `boolean` | 是否启用多标签页 |
-| `menuFromServer` | `boolean` | 是否从服务端加载菜单 |
-| `serverMenu` | `RouteRecordNormalized[]` | 服务端菜单数据缓存 |
-
-核心 Actions：
-
-| Action | 作用 |
-|--------|------|
-| `updateSettings(partial)` | 部分更新配置 |
-| `toggleTheme(dark)` | 切换主题（同时设置 body 的 `arco-theme` 属性） |
-| `toggleDevice(device)` | 切换设备标识 |
-| `toggleMenu(value)` | 切换菜单显示 |
-| `async fetchServerMenuConfig()` | 从服务端拉取菜单权限并转换为路由 |
-| `clearServerMenu()` | 清空服务端菜单缓存 |
-
-### 9.3 TabBar Store（标签页状态）
-
-文件：[src/store/modules/tab-bar/index.ts](file:///d:/www/admin-web/web/src/store/modules/tab-bar/index.ts)
-
-管理浏览器顶部的多标签页（类似浏览器标签）。
-
-| State 字段 | 类型 | 说明 |
-|------------|------|------|
-| `cacheTabList` | `Set<string>` | 需要缓存的路由名集合（keep-alive） |
-| `tagList` | `TagProps[]` | 当前打开的标签页数组（每项含 title、name、fullPath、query） |
-
-核心 Actions：
-
-| Action | 作用 |
-|--------|------|
-| `updateTabList(route)` | 打开新标签页（根据路由信息自动生成） |
-| `deleteTag(idx, tag)` | 关闭指定标签页（同时移除 keep-alive 缓存） |
-| `addCache(name)` / `deleteCache(tag)` | 单独操作缓存集合 |
-| `freshTabList(tags)` | 批量更新标签页 |
-| `resetTabList()` | 重置为默认状态（仅保留 Workplace） |
-
-**注意**：`REDIRECT_ROUTE_NAME`（即 `Redirect` 路由）不会被加入标签页列表（黑名单机制）。
-
-### 9.4 其他 Store 模块
-
-| Store | 文件 | 职责 |
-|-------|------|------|
-| `useRoleStore` | `modules/role/index.ts` | 角色 CRUD、角色-权限分配 |
-| `usePermissionStore` | `modules/permission/index.ts` | 权限 CRUD、权限树管理 |
-| `useUserManagementStore` | `modules/user-management/index.ts` | 用户列表、用户搜索、用户状态管理 |
-| `useAdminManagementStore` | `modules/admin-management/index.ts` | 管理员列表、增删改、状态切换 |
-| `useMessageStore` | `modules/message/index.ts` | 消息列表、已读/未读状态、未读总数统计 |
-| `useConfigStore` | `modules/config/index.ts` | 系统配置项管理 |
-| `useDictDataStore` | `modules/dict-data/index.ts` | 字典数据 CRUD |
-| `useAttachmentStore` | `modules/attachment/index.ts` | 附件上传/下载/分组管理 |
-| `useCronJobStore` | `modules/cron-job/index.ts` | 定时任务列表、启停、日志查看 |
-| `useOperationLogStore` | `modules/operation-log/index.ts` | 操作日志查询与详情 |
-
-各业务 Store 大量复用 `store/mixins/crud.ts` 中定义的通用 CRUD 操作（分页列表、详情、创建、更新、删除、批量删除等）。
+- 默认关闭（`settings.json` 的 `tabBar: false`）；`default-layout.vue` 以 `v-if="appStore.tabBar"` 渲染。
+- `components/tab-bar/index.vue` 监听路由变更，非 `noAffix` 且未存在的路径会 `updateTabList(route)`；`name === 'Redirect'` 不加入页签。
+- `meta.ignoreCache` 为真的页面不进入 `cacheTabList`（不缓存）；其余页面由 `layout/page-layout.vue` 的 `<keep-alive :include="tabBarStore.getCacheList">` 缓存。
+- 右键菜单支持：重新加载、关闭当前、关闭左侧、关闭右侧、关闭其它、关闭全部。
 
 ---
 
-## 10. API 层与请求拦截
+## 9. API 层与请求拦截
 
-### 10.1 HTTP 请求拦截器
+### 9.1 请求拦截（`src/api/interceptor.ts`）
 
-文件：[src/api/interceptor.ts](file:///d:/www/admin-web/web/src/api/interceptor.ts)
+| 项目 | 实现 |
+| --- | --- |
+| baseURL | 仅当 `VITE_API_BASE_URL` 非空时设置，否则使用同源相对路径（开发期走 Vite 代理） |
+| 超时 | `axios.defaults.timeout = 300_000`（5 分钟，兼顾大文件上传） |
+| 鉴权 | 每次请求从 `localStorage` 读取 token，写入 `Authorization: Bearer <token>` |
+| 进度条 | `NProgress` + 模块级 `activeRequestCount`，并发请求只在首个开始、末个结束 |
+| SSE 排除 | URL 命中 `/admin/sse/connect`、`/admin/auth/sse/ticket`、`/admin/auth/sse/` 时不启动进度条（避免长连接导致进度条卡死） |
 
-请求拦截逻辑：
+### 9.2 响应拦截
 
-1. **顶部进度条启动**：非 SSE 请求调用 `NProgress.start()`
-2. **Token 注入**：从 `getToken()` 读取 Token，写入请求头 `Authorization: Bearer <token>`
-3. **SSE 请求排除**：URL 包含 `/admin/sse/connect` 或 `/admin/auth/sse/ticket` 的请求不触发进度条（避免长连接卡死进度条）
+- **成功判定**：HTTP 2xx 且业务 `code` 为 `1` 或 `2`；其它数值 code 视为业务失败，弹 `Message.error`（`silentError: true` 的请求静默）并 `reject`。非数字 code（如部分裸结构响应）不会被拦截。
+- **返回值**：返回**完整 `AxiosResponse`**，不解包。业务代码统一取 `res.data.data`，或按接口实际结构取 `res.data`。
+- **HTTP 401**：弹 `Modal.error`，确认后 `userStore.logout()` 并 `window.location.reload()`；`/api/v1/admin/auth/user`（用于探测登录态）被排除。
+- **其它错误**：`Message.error({ content: res.message || error.message })`。
+- **`silentError`**：`src/types/axios.d.ts` 扩展的自定义配置项，attachment / captcha / oauth 部分接口使用。
 
-全局超时设置：`axios.defaults.timeout = 300_000`（5 分钟）
+### 9.3 API 文件清单
 
-### 10.2 HTTP 响应拦截器
+所有接口以 `/api/v1` 开头（`api/dashboard.ts` 为模板遗留例外）。
 
-成功响应（HTTP 2xx）：
+| 文件 | 业务域与代表接口 |
+| --- | --- |
+| `user.ts` | 登录/登出、token、当前用户与管理员、改密、公钥、用户 CRUD/启停/导出、角色分配、黑名单、第三方用户 |
+| `permission.ts` | Casbin 权限 CRUD、全部权限、用户权限树 |
+| `sys-permission.ts` | 系统权限元数据（菜单/按钮/API）CRUD 与树查询 |
+| `role.ts` | 角色 CRUD/启停、角色权限查询与覆盖式保存 |
+| `department.ts` | 部门树与 CRUD |
+| `dict-data.ts` | 字典 CRUD、按 type 取值 |
+| `config.ts` | 配置 CRUD、按 key/group 查询、分组列表 |
+| `cron-job.ts` | 定时任务 CRUD/启停/立即执行/日志（含 tail） |
+| `queue-job.ts` | 队列能力与概览、暂停/恢复、任务入队/重试/取消/删除、原始消息 |
+| `attachment.ts` | 附件列表/上传/分片上传/分片状态/取消、访问 URL、移动、批量删除、分组 CRUD |
+| `message.ts` | 消息列表/详情/已读/未读/批量删除/清空、未读数、偏好、广播、SSE ticket |
+| `login-log.ts` / `operation-log.ts` | 登录日志、操作日志（只读） |
+| `plugin.ts` | 插件列表/详情/安装/启停/卸载 |
+| `slides.ts` | 轮播图 CRUD |
+| `oauth.ts` | 公共 OAuth providers、code 换取登录态、当前身份绑定/解绑、管理员身份、provider 配置 |
+| `captcha.ts` | 验证码挑战/校验、验证码设置、provider 测试与更新、场景更新 |
+| `dashboard.ts` | 模板遗留的工作台假数据接口（`/api/content-data`、`/api/popular/list`） |
+| `interceptor.ts` | axios 拦截器与进度条 |
 
-1. 结束顶部进度条
-2. 检查业务状态码 `res.code`：
-   - `1` 或 `2` → 视为成功，返回完整响应
-   - 其他值 → 使用 Arco 的 `Message.error()` 提示，并 reject Promise
+### 9.4 核心类型（`src/types/api.ts`）
 
-失败响应（非 2xx）：
+| 类型 | 结构 |
+| --- | --- |
+| `ApiResponse<T>` | `{ code: number; message: string; data: T }` |
+| `PaginatedResponse<T>` | `{ data: T[]; page: number; total: number }` |
+| `TokenResponse` | `{ access_token, refresh_token, token_type, expires_in }` |
+| `LoginRequest` / `AdminLoginRequest` | 明文 `username/password` 或 RSA 加密字段 `encrypted_username/encrypted_password/key_id/nonce/timestamp` |
+| `PublicKeyResponse` | `{ key_id, public_key, rotate_cycle }` |
+| `SysPermissionTreeNode` | 见 7.1 |
+| `PermissionResponse` | Casbin 四元组 `{ role_name, domain, object, action, type }` |
+| `AttachmentAccessUrlResponse` | `{ url, expires_in, mode?, public?, disk?, driver? }` |
+| `QueueCapabilities` / `QueueOverview` / `QueueTaskResponse` | 队列任务中心相关结构 |
 
-1. 结束顶部进度条
-2. **401 未授权**：弹出确认对话框，点击后自动登出并刷新页面（排除 `/auth/user` 接口，避免循环）
-3. 其他错误：显示错误消息并 reject
+### 9.5 关于 Token 刷新
 
-业务成功码约定：`code === 1` 或 `code === 2` 表示成功（服务端可能使用两种不同约定，前端统一兼容）。
-
-### 10.3 用户认证 API
-
-文件：[src/api/user.ts](file:///d:/www/admin-web/web/src/api/user.ts)
-
-**用户端 API（普通用户）**：
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/public/login` | 登录 |
-| GET | `/api/v1/admin/auth/user` | 获取当前用户信息 |
-| PUT | `/api/v1/admin/auth/user` | 更新当前用户信息 |
-| PUT | `/api/v1/admin/auth/password` | 修改密码 |
-| GET | `/api/v1/admin/auth/user/permissions` | 获取所有权限 |
-| GET | `/api/v1/admin/auth/user/menu-permissions` | 获取菜单权限 |
-| GET | `/api/v1/admin/auth/user/button-permissions` | 获取按钮权限 |
-| POST | `/api/v1/admin/auth/logout` | 登出 |
-| GET | `/api/v1/public/public-key` | 获取加密公钥 |
-
-**管理端 API（管理员）**：
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/admin/public/login` | 管理员登录 |
-| GET | `/api/v1/admin/auth/user` | 获取当前管理员信息 |
-| PUT | `/api/v1/admin/auth/user` | 更新当前管理员信息 |
-| PUT | `/api/v1/admin/auth/password` | 修改管理员密码 |
-| POST | `/api/v1/admin/auth/logout` | 管理员登出 |
-
-**用户管理 API（管理员操作）**：
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/admin/auth/users` | 用户列表（分页 + 搜索 + 排序） |
-| GET | `/api/v1/admin/auth/users/:id` | 用户详情 |
-| POST | `/api/v1/admin/auth/users` | 创建用户 |
-| PUT | `/api/v1/admin/auth/users/:id` | 更新用户 |
-| DELETE | `/api/v1/admin/auth/users/:id` | 删除用户 |
-| POST | `/api/v1/admin/auth/users/export` | 导出用户列表 |
-| PUT | `/api/v1/admin/auth/users/:id/activate` | 激活用户 |
-| PUT | `/api/v1/admin/auth/users/:id/deactivate` | 停用用户 |
-| POST | `/api/v1/admin/auth/users/:id/blacklist` | 加入黑名单 |
-| DELETE | `/api/v1/admin/auth/users/:id/blacklist` | 移出黑名单 |
-| GET | `/api/v1/admin/auth/blacklist` | 黑名单列表 |
-| GET | `/api/v1/admin/auth/users/:id/roles` | 查看用户角色 |
-| PUT | `/api/v1/admin/auth/users/:id/roles` | 分配用户角色 |
-| GET | `/api/v1/admin/auth/users/:id/third-party` | 第三方账号列表 |
-
-**管理员管理 API**：
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/admin/auth/admins` | 管理员列表 |
-| GET | `/api/v1/admin/auth/admins/:id` | 管理员详情 |
-| POST | `/api/v1/admin/auth/admins` | 创建管理员 |
-| PUT | `/api/v1/admin/auth/admins/:id` | 更新管理员 |
-| DELETE | `/api/v1/admin/auth/admins/:id` | 删除管理员 |
-| PUT | `/api/v1/admin/auth/admins/:id/activate` | 激活 |
-| PUT | `/api/v1/admin/auth/admins/:id/deactivate` | 停用 |
-| GET | `/api/v1/admin/auth/admins/:id/roles` | 查看角色 |
-| PUT | `/api/v1/admin/auth/admins/:id/roles` | 分配角色 |
-
-**第三方用户管理 API**：
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/admin/auth/third-party-users` | 列表 |
-| DELETE | `/api/v1/admin/auth/third-party-users/:id` | 解绑 |
-
-### 10.4 其他 API 模块
-
-| 模块 | 文件 | 主要接口 |
-|------|------|----------|
-| 仪表板 | `api/dashboard.ts` | 工作台数据、统计图表数据 |
-| 角色 | `api/role.ts` | 角色 CRUD、角色-权限分配 |
-| 权限 | `api/permission.ts` | 权限列表、权限树、权限 CRUD |
-| 消息 | `api/message.ts` | 消息列表、已读/未读、标记已读、广播 |
-| 系统配置 | `api/config.ts` | 配置项列表、增删改查 |
-| 字典数据 | `api/dict-data.ts` | 字典 CRUD、字典项管理 |
-| 附件管理 | `api/attachment.ts` | 文件上传/下载/删除、分组管理 |
-| 定时任务 | `api/cron-job.ts` | 任务 CRUD、启停、手动执行、日志查询 |
-| 操作日志 | `api/operation-log.ts` | 日志列表、详情、按模块筛选 |
-| 插件 | `api/plugin.ts` | 插件列表、安装/卸载/启用/禁用 |
-
-所有 API 模块遵循统一的响应格式：
-
-```typescript
-interface HttpResponse<T> {
-  status: number;    // HTTP 状态
-  message: string;   // 消息
-  code: number;      // 业务状态码（1/2 = 成功）
-  data: T;           // 业务数据
-}
-```
-
-分页响应格式（约定）：
-
-```typescript
-interface PaginatedResponse<T> {
-  items: T[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-}
-```
+`refreshToken()`、`adminRefreshToken()` 与 `getRefreshToken()` 均已定义，`refresh_token` 在登录时写入、登出时清除，但**拦截器与业务代码中没有自动刷新逻辑**：遇到 401 一律走强制登出弹窗。改动认证行为时需同步评估后端契约。
 
 ---
 
-## 11. 工具函数
+## 10. 服务层
 
-### 11.1 认证工具（auth.ts）
+### 10.1 SSE 消息服务（`src/services/sse.service.ts`）
 
-文件：[src/utils/auth.ts](file:///d:/www/admin-web/web/src/utils/auth.ts)
+- 单例 `sseService`，状态机 `idle | connecting | open | reconnecting | closed`。
+- 连接流程：`POST /api/v1/admin/auth/sse/ticket` 取一次性 ticket（5 分钟有效）→ `new EventSource('/api/v1/admin/sse/connect?ticket=...&lastEventId=...')`。
+- 事件类型：`message`、`system`、`unread_count`、`message_deleted`、`ready`、`heartbeat`、`error`；`ready`/`heartbeat` 只用于内部维护，不向业务监听器分发。
+- 断线重连：指数退避 `[1s, 2s, 4s, 8s, 16s, 30s]`；主动 `disconnect()` 后不再重连。
+- 心跳超时：40s（服务端 25s 心跳），收到任意事件即重置计时器，超时按断线处理。
+- 断点续传：最近事件 ID 存 `localStorage['sse_last_event_id']`，重连时作为 `lastEventId` 传入。
+- HMR 时自动断开连接。
+- 调用方：`src/hooks/sse-message.ts`（navbar 内启动），订阅后写入 `useMessageStore` 并弹 `Notification`。
 
-负责 **Token 存储与校验** 与 **登录模式标识**：
+### 10.2 附件访问服务（`src/services/attachment-access.service.ts`）
 
-| 函数 | 作用 |
-|------|------|
-| `getToken()` | 从 localStorage 读取 `token` |
-| `setToken(token)` | 写入 `token` 到 localStorage |
-| `clearToken()` | 清除 `token` |
-| `getRefreshToken()` / `setRefreshToken()` / `clearRefreshToken()` | 刷新 Token 的读写 |
-| `isAdminLogin()` | 读取 `is_admin_login` 标志，判断当前是否管理员模式 |
-| `setAdminLogin(bool)` | 写入/清除管理员登录标志 |
-| `isLogin()` | **核心**：先尝试 JWT exp 校验，若 Token 非 JWT 格式则回退到存在性检查，返回布尔值 |
+- 负责把附件 id 换成可访问 URL：`getAttachmentAccessInfo` / `resolveAttachmentAccessUrl`。
+- 内存缓存 + 并发请求去重（同一附件同时只发一次请求）；过期前 30s 提前刷新，公开资源永久缓存。
+- URL 归一化：绝对地址原样返回，相对路径按 `window.location.origin` 补全。
+- 错误语义：401 → 「登录或访问凭证过期」，404 → 「文件不存在」。
 
-**Token 校验细节**：`isTokenValid()` 会解析 JWT payload 中的 `exp` 字段与当前时间比较，确保 Token 未过期。若解析失败（如纯随机字符串 token）则降级为"只要 token 存在即视为登录"的兼容模式。
+### 10.3 配置服务（`src/services/config.service.ts`）
 
-### 11.2 路由监听器（route-listener.ts）
-
-文件：[src/utils/route-listener.ts](file:///d:/www/admin-web/web/src/utils/route-listener.ts)
-
-基于 **mitt** 事件总线实现路由变更广播：
-
-- `setRouteEmitter(route)` — 在路由守卫中调用，发出 `route-change` 事件
-- `listenerRouteChange(callback, immediate?)` — 在组件中订阅路由变更，用于菜单高亮、面包屑刷新等
-- `removeRouteListener()` — 登出时清理事件总线
+- 读取后端动态配置并带默认值兜底，模块级缓存 `configCache`。
+- 分片上传相关默认值：`attachment.chunk_threshold = 10MB`、`attachment.chunk_size = 5MB`；接口失败或类型校验不通过时回落到默认值。
 
 ---
 
-## 12. 页面（Views）
+## 11. 认证与登录
 
-### 12.1 登录页
+### 11.1 凭证存储（`src/utils/auth.ts`）
 
-路径：[src/views/login/index.vue](file:///d:/www/admin-web/web/src/views/login/index.vue)
+| key | 用途 |
+| --- | --- |
+| `token` | access token |
+| `refresh_token` | refresh token（当前只存取，无自动刷新） |
+| `is_admin_login` | 当前会话是否为管理员（`'1'` 表示是） |
 
-组件：
-- `components/login-form.vue` — 登录表单（用户名/密码，支持记住我）
-- `components/banner.vue` — 左侧品牌宣传横幅
+- `isLogin()`：优先解析 JWT `exp` 判断过期；非 JWT 格式时只要有 token 即视为已登录。
+- `isAdminLogin()`：与 token 无关，仅看 `is_admin_login`。
 
-功能：
-- 提交表单 → `userStore.login(form)` 或 `userStore.adminLogin(form)`
-- 成功后根据 `redirect` query 参数或默认 `/dashboard/workplace` 跳转
-- 支持获取公钥加密密码（若后端启用 RSA 加密）
+### 11.2 管理员登录流程
 
-### 12.2 仪表板（Dashboard）
+1. 页面挂载时 `fetchProviders('admin', true)`（OAuth 入口）与 `refreshCaptcha()`（按需拉取验证码）。
+2. 提交表单：`verifyCurrentCaptcha()` 得到 `captcha_token`。
+3. `getPublicKey()` 取后端公钥，用 WebCrypto `RSA-OAEP/SHA-256` 加密用户名与密码，提交 `encrypted_username/encrypted_password/key_id/nonce/timestamp`；取公钥失败时降级明文 `username/password`。
+4. `adminLogin(data, captchaToken)` → `POST /api/v1/admin/public/login`，`captcha_token` 通过 `X-Captcha-Token` 头传递。
+5. 成功后 `initAdminSession()`：写 token、标记管理员会话、`loadAdminInfo()`、`loadPermissions()`。
+6. 跳转 `route.query.redirect`（须以 `/` 开头），否则回 `/dashboard/workplace`。
 
-路径：[src/views/dashboard/workplace/index.vue](file:///d:/www/admin-web/web/src/views/dashboard/workplace/index.vue)
+### 11.3 验证码
 
-包含子组件：
-- `components/banner.vue` — 欢迎横幅
-- `components/carousel.vue` — 轮播图
-- `components/data-panel.vue` — 数据统计面板（卡片式）
-- `components/categories-percent.vue` — 分类占比图表
-- `components/content-chart.vue` — 内容趋势图表
-- `components/popular-content.vue` — 热门内容列表
-- `components/recently-visited.vue` — 最近访问记录
-- `components/announcement.vue` — 公告/通知
-- `components/quick-operation.vue` — 快捷操作入口
-- `components/docs.vue` — 帮助文档链接
+`src/api/captcha.ts`（场景常量 `admin_login`）：
 
-该页面主要展示运营数据与快捷入口。
+- `createCaptchaChallenge()` → `POST /api/v1/public/captcha/challenges`；
+- `resolveCaptchaChallenge()` 归一化为三种挑战：`image_text`（输入答案）、`image_click`（归一化坐标点选）、`geetest_gt4`（极验 v4）；
+- `verifyCaptchaChallenge(id, response)` → `POST /api/v1/public/captcha/verifications`，返回 `captcha_token`；
+- `src/views/login/captcha.ts` 负责懒加载 `gt4.js`（幂等）、初始化极验实例、把点击坐标换算为 0~1 比例。
+
+后端未开启验证码时（`required = false`）不渲染验证码区域；验证码接口异常时按「需要验证码」处理并提示不可用。
+
+### 11.4 OAuth（GitHub）
+
+- 登录页按钮仅在 `shouldShowProviderLogin()` 为真时展示，当前实现只接受 `github`。
+- 跳转前把回跳路径写入 `sessionStorage['oauth_redirect_path']`，然后整页跳转 `/api/v1/public/oauth/admin/{provider}/authorize`。
+- 回调落地页 `/oauth/callback`（无需登录）：
+  1. `parseOAuthCallbackQuery` 解析出 `login`（带一次性 code）、`bound`、`error` 三类结果；
+  2. 立即用 `history.replaceState` 清除 URL 中的敏感 query；
+  3. `login` → `POST /api/v1/public/oauth/exchange` 换取 token → `initAdminSession()` → 跳回安全回跳路径；
+  4. `bound` 只提示绑定成功，不建立会话；`error` 使用 `OAUTH_ERROR_MESSAGES` 映射中文文案展示。
+- 回跳路径安全校验：必须以 `/` 开头、不能是 `//` 或 `scheme:` 形式，默认 `/dashboard/workplace`。
+
+### 11.5 登出
+
+`src/hooks/user.ts` 按 `isAdminLogin()` 分流 `adminLogout()` / `logout()`，最终都进入 `logoutCallBack()`（见 8.2），同时清理路由、菜单、SSE 与消息状态。
+
+---
+
+## 12. 页面（views）
+
+### 12.1 登录
+
+- `views/login/index.vue`：布局壳（品牌区 + 登录卡片 + 版权），业务在 `components/login-form.vue`。
+- 交互：账号密码登录、可选 OAuth 按钮、记住账号（`useStorage('login-config')`）、失败提示、验证码自动刷新。
+- 同目录 `captcha.ts` + `*.test.ts`（验证码工具与登录表单的单测）。
+
+### 12.2 工作台
+
+`/dashboard/workplace`：`index.vue` 目前仅保留容器与组件 `name`；`components/` 下的 announcement、banner、carousel、categories-percent、content-chart、data-panel、docs、popular-content、quick-operation、recently-visited 为模板遗留组件，当前未被引用。
+`api/dashboard.ts` 对应的 `/api/content-data`、`/api/popular/list` 也不是本项目后端接口。
 
 ### 12.3 消息中心
 
-路径及文件：[src/views/message/](file:///d:/www/admin-web/web/src/views/message/)
+| 页面 | 路径 | 功能 |
+| --- | --- | --- |
+| 消息中心 | `/message/center` | 全部/系统/业务/任务 Tab，关键字、级别、已读状态、时间范围筛选，批量已读/未读/删除、全部已读、条件清空、未读统计 |
+| 消息管理 | `/message/manage` | 管理视角的表格、详情弹窗、单条/批量删除、条件清空 |
+| 广播 | `/message/broadcast` | 类型/级别/标题/正文/富文本、目标范围 `all/users/roles`，提交后显示投递人数 |
+| 订阅偏好 | `/message/preference` | 桌面通知与声音、三类订阅、免打扰时段（`hideInMenu`，从消息中心入口进入） |
 
-| 页面 | 文件 | 功能 |
-|------|------|------|
-| 消息中心 | `index.vue` | 个人消息列表（通知/私信/待办），支持已读/全部筛选 |
-| 消息管理 | `manage.vue` | 管理员视角管理消息（CRUD） |
-| 广播消息 | `broadcast.vue` | 发布系统广播消息 |
-| 消息偏好 | `preference.vue` | 配置消息推送渠道（站内信/邮件/短信等） |
+实时消息由 SSE 推送，写入 `useMessageStore` 并触发 `Notification`；navbar 铃铛展示未读数。
 
-**消息推送机制**：Nav 中通过 `useSseMessage()` Hook 启动 SSE 长连接，服务端 `sse.service.ts` 负责连接管理与消息分发。到达新消息时更新 `useMessageStore()` 的未读数，驱动 NavBar 红点更新。
+### 12.4 系统管理（16 个模块）
 
-### 12.4 系统管理页面
+| 目录 | 职责 |
+| --- | --- |
+| `admin` | 管理员账号：列表/详情/新增/编辑/启停/分配角色、GitHub 身份查看与解绑 |
+| `user` | 前台用户：列表/详情/新增/编辑/启停/导出、黑名单、角色分配 |
+| `third-party-user` | 第三方（OAuth）账号列表与解绑 |
+| `role` | 角色 CRUD/启停、按权限树分配权限与数据范围 |
+| `permission` | 系统权限树维护（code、menu_path、component、icon、排序、状态） |
+| `department` | 部门树的新增/编辑/删除 |
+| `attachment` | 附件库：上传、分片上传（状态/取消）、访问地址、移动分组、批量删除、分组 CRUD |
+| `cron-job` | 定时任务 CRUD/启停/立即执行/运行日志 |
+| `queue-job` | 队列能力与概览、暂停/恢复、任务入队/重试/取消/删除、原始消息 |
+| `config` | 配置中心（按 group 分组，字符串/数组/二维表三种结构），内嵌 OAuth provider 配置 |
+| `captcha` | 人机验证配置：provider 参数、连通性测试、场景开关与 TTL |
+| `plugin` | 插件安装/启停/卸载/详情 |
+| `slide` | 轮播图 CRUD（图片、跳转、排序、状态） |
+| `dict-data` | 数据字典 CRUD 与按类型取值 |
+| `login-log` | 登录日志（只读） |
+| `operation-log` | 操作日志（只读） |
 
-`src/views/system/` 下共 **11 个页面**，每个页面都是一个独立的业务管理单元。通用结构通常为：**顶部工具栏（搜索/筛选/新增按钮）+ 数据表格（分页）+ 抽屉/弹窗表单 + 详情页**。
+> 当前没有「重置他人密码」功能，只有自助改密（`changePassword` / `changeAdminPassword`）。
 
-#### 12.4.1 用户管理（user）
+### 12.5 其它
 
-文件：[src/views/system/user/index.vue](file:///d:/www/admin-web/web/src/views/system/user/index.vue)
-表单：`components/UserForm.vue`
-角色分配：`components/RoleAssign.vue`
-
-**功能与按钮**：
-
-| 按钮/功能 | 说明 | 建议权限码 |
-|----------|------|------------|
-| 搜索栏 | 按用户名、邮箱、状态、注册时间范围筛选 | — |
-| 刷新 | 重新加载列表 | — |
-| 新增用户 | 弹出表单，填写基本信息并分配角色 | `system:user:add` |
-| 编辑 | 修改用户信息 | `system:user:edit` |
-| 启用/停用 | 切换用户 active 状态 | `system:user:toggle` |
-| 加入黑名单 | 将用户加入黑名单（禁止登录） | `system:user:blacklist` |
-| 移出黑名单 | 解除黑名单限制 | `system:user:unblacklist` |
-| 分配角色 | 为用户分配角色集合 | `system:user:assign-role` |
-| 删除 | 软删除/硬删除用户 | `system:user:delete` |
-| 导出 | 导出用户列表为 Excel | `system:user:export` |
-
-#### 12.4.2 管理员管理（admin）
-
-文件：[src/views/system/admin/index.vue](file:///d:/www/admin-web/web/src/views/system/admin/index.vue)
-表单：`components/AdminForm.vue`
-角色分配：`components/RoleAssign.vue`
-
-**功能与按钮**：
-
-| 按钮/功能 | 说明 | 建议权限码 |
-|----------|------|------------|
-| 搜索栏 | 按用户名、状态筛选 | — |
-| 新增管理员 | 创建管理员账号 | `system:admin:add` |
-| 编辑 | 修改管理员信息 | `system:admin:edit` |
-| 启用/停用 | 切换管理员状态 | `system:admin:toggle` |
-| 分配角色 | 为管理员分配角色 | `system:admin:assign-role` |
-| 重置密码 | 生成新密码并下发 | `system:admin:reset-password` |
-| 删除 | 删除管理员 | `system:admin:delete` |
-
-> 注意：超级管理员（`isSuperAdmin === true`）不允许被停用或删除。
-
-#### 12.4.3 角色管理（role）
-
-文件：[src/views/system/role/index.vue](file:///d:/www/admin-web/web/src/views/system/role/index.vue)
-表单：`components/RoleForm.vue`
-权限分配：`components/PermissionAssign.vue`
-
-**功能与按钮**：
-
-| 按钮/功能 | 说明 | 建议权限码 |
-|----------|------|------------|
-| 搜索栏 | 按角色名、编码筛选 | — |
-| 新增角色 | 创建新角色 | `system:role:add` |
-| 编辑 | 修改角色信息 | `system:role:edit` |
-| 分配权限 | 树状结构勾选权限，保存到角色 | `system:role:assign-permission` |
-| 删除 | 删除角色（需确认未被使用） | `system:role:delete` |
-
-#### 12.4.4 权限管理（permission）
-
-文件：[src/views/system/permission/index.vue](file:///d:/www/admin-web/web/src/views/system/permission/index.vue)
-表单：`components/PermissionForm.vue`
-
-**功能与按钮**：
-
-| 按钮/功能 | 说明 | 建议权限码 |
-|----------|------|------------|
-| 权限树 | 左侧树状结构展示所有权限（菜单/按钮/API） | — |
-| 新增权限 | 创建子权限节点 | `system:permission:add` |
-| 编辑 | 修改权限码、描述、类型 | `system:permission:edit` |
-| 删除 | 删除权限节点（需级联确认） | `system:permission:delete` |
-| 刷新权限缓存 | 通知所有在线用户刷新本地权限缓存 | `system:permission:refresh` |
-
-权限类型三选一：`menu`（菜单）/ `button`（按钮）/ `api`（接口）。
-
-#### 12.4.5 字典数据（dict-data）
-
-文件：[src/views/system/dict-data/index.vue](file:///d:/www/admin-web/web/src/views/system/dict-data/index.vue)
-表单：`components/DictDataForm.vue`
-
-**功能**：
-- 左侧字典类型列表（如 "性别"、"状态"、"优先级"）
-- 右侧字典项管理（新增/编辑/删除字典项及对应 label/value/sort）
-- 支持按字典类型快速筛选
-
-#### 12.4.6 系统配置（config）
-
-文件：[src/views/system/config/index.vue](file:///d:/www/admin-web/web/src/views/system/config/index.vue)
-表单：`components/ConfigForm.vue`
-
-**功能**：
-- 配置项列表（key-value 结构）
-- 支持按分类筛选（系统配置、安全配置、邮件配置、存储配置等）
-- 新增/编辑配置项（key 唯一）
-- 批量导入/导出配置
-
-#### 12.4.7 附件管理（attachment）
-
-文件：[src/views/system/attachment/index.vue](file:///d:/www/admin-web/web/src/views/system/attachment/index.vue)
-组件：`components/FileUpload.vue`、`components/GroupManager.vue`、`components/AttachmentPreview.vue`
-
-**功能**：
-- 文件列表：按分组/类型/时间筛选，展示文件大小、MIME、引用次数
-- 文件上传：拖拽上传、分片上传、大文件支持
-- 文件预览：图片/PDF/视频在线预览
-- 分组管理：创建/重命名/删除分组
-- 文件下载/删除/移动到分组
-
-#### 12.4.8 定时任务（cron-job）
-
-文件：[src/views/system/cron-job/index.vue](file:///d:/www/admin-web/web/src/views/system/cron-job/index.vue)
-组件：`components/CronJobForm.vue`、`components/LogViewer.vue`
-
-**功能**：
-- 任务列表：任务名、Cron 表达式、状态（运行/暂停）、最近一次运行时间、下次运行时间
-- 新增/编辑任务：配置任务类、Cron 表达式、参数
-- 启动/暂停任务：切换任务调度状态
-- 手动执行：立即触发一次任务
-- 查看日志：显示任务执行历史日志（开始/结束/耗时/输出）
-
-#### 12.4.9 操作日志（operation-log）
-
-文件：[src/views/system/operation-log/index.vue](file:///d:/www/admin-web/web/src/views/system/operation-log/index.vue)
-组件：`components/LogDetail.vue`
-
-**功能**：
-- 日志列表：操作人、操作类型、模块、IP、时间、结果
-- 按时间范围、模块、操作类型筛选
-- 查看详情：请求参数、响应结果、异常堆栈（失败时）
-- 导出日志
-
-#### 12.4.10 插件管理（plugin）
-
-文件：[src/views/system/plugin/index.vue](file:///d:/www/admin-web/web/src/views/system/plugin/index.vue)
-组件：`components/PluginInstallModal.vue`、`components/PluginDetailDrawer.vue`
-
-**功能**：
-- 插件列表：名称、版本、作者、状态（已安装/未安装/已启用/已禁用）
-- 安装插件：上传插件包或从市场安装
-- 启用/禁用：切换插件运行状态
-- 卸载插件：清理插件数据
-- 查看详情：插件描述、依赖、配置项
-
-#### 12.4.11 第三方用户（third-party-user）
-
-文件：[src/views/system/third-party-user/index.vue](file:///d:/www/admin-web/web/src/views/system/third-party-user/index.vue)
-
-**功能**：
-- 列出所有绑定过的第三方账号（OAuth 来源：如 GitHub/Google/微信等）
-- 显示与本地账号的关联关系
-- 解绑第三方账号
+- `views/oauth/callback.vue`：OAuth 回调落地页（见 11.4）。
+- `views/redirect/index.vue`：TabBar「重新加载」使用的中间页，触发组件重建。
+- `views/not-found/index.vue`：404 页，权限不足也跳转到这里。
 
 ---
 
-## 13. 布局系统
+## 13. 业务功能集（apps）
 
-### 13.1 默认布局（Default Layout）
+### 13.1 结构与契约
 
-文件：[src/layout/default-layout.vue](file:///d:/www/admin-web/web/src/layout/default-layout.vue)
-
-布局结构（从上到下、从左到右）：
-
-```
-┌──────────────────────────────────────┐
-│         NavBar（顶部导航栏）           │
-├────────┬─────────────────────────────┤
-│ 侧菜单  │  TabBar（多标签页，可选）    │
-│ (Sidebar)├─────────────────────────────┤
-│         │  PageLayout（页面内容容器）   │
-│         ├─────────────────────────────┤
-│         │  Footer（页脚，可选）          │
-└─────────┴─────────────────────────────┘
+```text
+src/apps/<code>/
+├── api.ts              # 该功能集的接口封装与类型
+├── views/<page>.vue    # 页面，路径与后端 Component: "<code>/<page>" 对应
+├── components/         # 功能集内部组件（可选）
+└── locale/zh-CN.ts     # 菜单与页面文案，键 menu.app.<code 冒号转点>
+    locale/en-US.ts
 ```
 
-**关键响应式逻辑**：
-- 桌面端：左侧固定菜单，可折叠（宽度由 `appStore.menuWidth` 控制）
-- 移动端：默认隐藏菜单，通过 NavBar 中的 `toggleDrawerMenu` 打开抽屉式菜单
-- 通过 `@vueuse/core` 的响应式工具检测设备尺寸变化，自动切换 `appStore.device`
+规则要点（完整契约见 [docs/source-apps.md](docs/source-apps.md)）：
 
-**关键样式变量**（Less）：
-- `@nav-size-height: 60px` — 顶部导航高度
-- 菜单折叠状态：`menuCollapse === true` 时宽度 `48px`，否则 `menuWidth`（默认 220px）
+- 目录名必须与后端 `App.Code` 完全一致；
+- 页面只从构建期 `import.meta.glob` 收录的本地文件加载；
+- `menu_path` 必须是 `/<code>` 或其子路径；`icon` 只接受 `icon-` 前缀；
+- 菜单文案由前端语言包提供，后端只给 `code`、`icon`、`sort_order`、`parent_id`；
+- 新增页面需重新构建发布，并重新编译后端才能生效。
 
-### 13.2 页面布局（Page Layout）
+### 13.2 esports（电竞陪玩业务）
 
-文件：[src/layout/page-layout.vue](file:///d:/www/admin-web/web/src/layout/page-layout.vue)
+入口：`src/apps/esports/api.ts`（约 150 个类型、440+ 导出函数）、`views/` 下 19 个页面、`components/close-condition-designer`（结单条件设计器）、`components/page-designer`（页面装修设计器与预览）。
 
-包裹路由出口（`<router-view>`），配合 `<keep-alive>` 实现标签页缓存。
+| 页面目录 | 业务范围 |
+| --- | --- |
+| `products` | 商品分类与 SKU（等级要求、服务时长、库存配额、结单规则） |
+| `orders` | 订单中心：改价与报价预览、调价审批、改约、取消/恢复、渠道成本、协作者、结单审批 |
+| `reports` | 报单录单：选/建客户、选 SKU、下单、年龄校验与复核 |
+| `wallets` | 钱包账户与流水、充值（含活动充值）、人工调账、分账明细 |
+| `dispatch` | 排单：派单板与席位、抢单大厅、转单/撤座/组队派单、优先级授权、席位转移、催单 |
+| `players` | 陪玩账号：CRUD、在线状态、等级与资质 |
+| `aftersales` | 售后工单、售后方案、执行/驳回/撤回、履约补单 |
+| `settlements` | 结算单、结算周期、佣金规则与回滚、客服佣金、提现审核与打款、陪玩追回 |
+| `campaigns` | 充值活动：活动 CRUD、类型/人群/叠加规则/阶梯 |
+| `members` | 会员等级、成长值、客户等级查询与手动设定 |
+| `gifts` | 礼物配置与启停、礼物订单与退款、送礼/争议审核、礼物意向、榜单 |
+| `assessments` | 考核单与打分、考核规则与权重、陪玩评分、申诉审核、玩家评价 |
+| `stats` | 报表：老板概览、财务、客服绩效、派单效率、售后质量，支持导出 |
+| `pages` | 页面装修：草稿、预览、发布与审核、版本回滚、素材管理 |
+| `cs` | 客服工作台：总览、客户画像、跟进记录、话术库、企微客户接入 |
+| `stored-value` | 储值卡：套餐 CRUD、卡查询、退款申请与审批、支付结果核验 |
+| `close-forms` | 结单表单：模板/字段/版本、提交规则、结单审批流 |
+| `risk-customers` | 风险客户名单与风险等级标记（`normal/watch/restricted`） |
+| `payments` | 支付渠道与收款账户、线下支付凭证审核、就绪检查 |
 
-核心逻辑：
-- 使用 `transition` 包裹路由切换动画
-- 根据 `tabBarStore.cacheTabList` 决定哪些路由被 keep-alive 缓存
-- 支持页面刷新（redirect 到 `/redirect/:path` 再跳转回来，清空缓存）
+> `payments` 在 `esports` 语言包中暂无对应菜单文案键，是否显示取决于后端权限树是否下发该菜单。
+
+### 13.3 cms 与 demo
+
+| 功能集 | 页面 | API |
+| --- | --- | --- |
+| `cms` | 单页三 Tab：文章 / 单页 / 分类；支持搜索、筛选、分页、内容与分类增删改 | `/api/v1/cms/admin` 下的内容与分类接口 |
+| `demo` | 最小示例：ID + 标题表格 + 刷新按钮 | `GET /api/v1/demo/items` |
+
+### 13.4 views 与 apps 的差异
+
+| 维度 | `src/views`（静态路由） | `src/apps`（功能集） |
+| --- | --- | --- |
+| 注册时机 | 应用启动时写死在 `routes/modules` | 登录后按权限树 `router.addRoute` 动态注册 |
+| 菜单来源 | `appClientMenus`（静态路由拍平） | `sourceAppMenus`（权限树生成） |
+| 访问控制 | `meta.permissionCode` / `meta.roles` | 节点 `status`、`code` 前缀、`menu_path`、`component` |
+| 文案 | `src/locale` 汇总 | 各功能集自带 `locale/*.ts`，glob 自动合并 |
+| 生命周期 | 常驻 | 权限变化时重建，登出时移除 |
 
 ---
 
-## 14. 国际化（i18n）
+## 14. 布局与全局组件
 
-入口：[src/locale/index.ts](file:///d:/www/admin-web/web/src/locale/index.ts)
+### 14.1 布局
 
-支持语言：
-- **简体中文**（`zh-CN`）— 资源在 `locale/zh-CN/settings.ts`
-- **English**（`en-US`）— 资源在 `locale/en-US/settings.ts`
+`src/layout/default-layout.vue`：
 
-语言切换入口：NavBar 中的「🌐」下拉按钮 → `useLocale().changeLocale(locale)`
-
-**使用方式**：
-
-```vue
-<!-- 模板中 -->
-<a-button>{{ $t('menu.dashboard.workplace') }}</a-button>
-
-<!-- 组合式 API 中 -->
-<script setup>
-  import { useI18n } from 'vue-i18n';
-  const { t } = useI18n();
-  const title = t('menu.dashboard');
-</script>
+```text
+a-layout.layout
+├─ NavBar                          v-if="navbar"
+└─ a-layout
+   ├─ a-layout-sider → Menu       v-if="menu && !topMenu"，v-show="!hideMenu"
+   ├─ a-drawer → Menu             移动端（hideMenu）
+   └─ a-layout-content
+      ├─ TabBar                   v-if="tabBar"
+      ├─ PageLayout               内容区
+      └─ Footer                   v-if="footer"
 ```
 
-**常用翻译 key 结构**：
+- 菜单宽度：折叠 48px，展开取 `appStore.menuWidth`（默认 220）。
+- 依据 navbar/sider 是否存在动态计算内容区内边距；sider `breakpoint="xl"`。
+- `useResponsive(true)` 初始化设备类型；监听 `userStore.role` 变化，若新角色无权访问当前路由则跳 404。
 
-| 前缀 | 用途 | 示例 |
-|------|------|------|
-| `menu.*` | 菜单项 | `menu.dashboard.workplace` |
-| `settings.*` | 设置界面 | `settings.navbar.theme.toDark` |
-| `messageBox.*` | 消息中心 | `messageBox.logout` |
-| `login.*` | 登录页 | `login.form.userName` |
+`src/layout/page-layout.vue`：`router-view` + 淡入过渡；`meta.ignoreCache` 的页面用 `:key="route.fullPath"` 强制重建，其余页面用 `<keep-alive :include="tabBarStore.getCacheList">`。
+
+### 14.2 组件
+
+**手动全局注册**（`src/components/index.ts`，`main.ts` 中 `app.use`）：
+
+| 组件 | 说明 |
+| --- | --- |
+| `Chart` | `vue-echarts` 封装，`nextTick` 后渲染 |
+| `Breadcrumb` | 接收 `items: string[]`，走 `$t` |
+| `AttachmentSelector` | 附件选择器 |
+| `RichTextEditor` | 富文本编辑器 |
+
+该文件同时按需注册 ECharts 模块（CanvasRenderer、Bar/Line/Pie/Radar Chart、Grid/Tooltip/Legend/DataZoom/Graphic）。
+
+**布局级组件**（在 `default-layout.vue` 中显式引入）：`navbar`、`menu`、`tab-bar`、`footer`、`breadcrumb`、`message-box`、`global-setting`。
+
+- `navbar`：logo、顶部菜单、语言切换、暗色切换、消息铃铛（未读数 + 消息盒 popover）、全屏、用户下拉（个人信息、修改密码、消息偏好、退出登录）；内部启动 `useSseMessage()`。
+- `message-box`：`system/business/task` 三个 Tab，点击条目 `markRead`，支持全部已读。
+- `global-setting`：可调整 `navbar/menu/topMenu/footer/tabBar/menuFromServer/menuWidth/colorWeak`，支持复制当前配置到剪贴板以便写入 `settings.json`。**该组件当前未被 `default-layout.vue` 引用**，属于可独立挂载的设置能力。
 
 ---
 
-## 15. 构建与环境配置
+## 15. 国际化
 
-### 15.1 环境变量
-
-`.env.development`（开发）与 `.env.production`（生产）中可配置：
-
-| 变量 | 说明 |
-|------|------|
-| `VITE_API_BASE_URL` | API 基础 URL（如 `http://localhost:3000`） |
-| `VITE_APP_TITLE` | 页面标题（可选） |
-
-在代码中通过 `import.meta.env.VITE_API_BASE_URL` 访问。
-
-### 15.2 Vite 配置
-
-- `config/vite.config.base.ts` — 基础配置（别名、插件、TSX）
-- `config/vite.config.dev.ts` — 开发配置（代理、HMR、sourcemap）
-- `config/vite.config.prod.ts` — 生产配置（压缩、分包、gzip、Bundle 可视化）
-
-插件：
-- `@vitejs/plugin-vue` — Vue SFC 支持
-- `@vitejs/plugin-vue-jsx` — JSX/TSX 支持
-- `unplugin-vue-components` — 自动按需引入 Arco 组件
-- `vite-plugin-compression` — gzip 压缩
-- `vite-plugin-eslint` — 开发时 ESLint 检查
-- `rollup-plugin-visualizer` — 生产包大小分析
-
-### 15.3 代码规范
-
-- **ESLint**：`eslint-config-airbnb-base` + TypeScript 插件 + Vue 3 插件
-- **Prettier**：统一代码格式，保存时自动格式化
-- **Stylelint**：Less/CSS 规范检查
-- **Husky + lint-staged**：Git commit 前自动对暂存文件执行 lint/format
-- **Commitlint**：遵循 Conventional Commits 规范（如 `feat:`、`fix:`、`docs:`）
+- 入口 `src/locale/index.ts`：`createI18n({ locale: localStorage['arco-locale'] || 'zh-CN', fallbackLocale: 'en-US', legacy: false })`，导出 `LOCALE_OPTIONS`。
+- 语言包合并：`src/locale/zh-CN.ts` / `en-US.ts` 把全局 `menu.*`、`navbar.*`、各页面与组件的 `locale/*.ts`，以及 `import.meta.glob('../apps/*/locale/zh-CN.ts', { eager: true })` 收集的功能集文案合并为一个**扁平 key 对象**。
+- 新增词条：
+  - 页面级：同目录 `locale/zh-CN.ts` 与 `en-US.ts` 各加 key，并在 `src/locale/zh-CN.ts`、`en-US.ts` 中 import + 展开；
+  - 功能集：写入 `src/apps/<code>/locale/*.ts`，由 glob 自动收集；
+  - 全局通用：直接加在 `src/locale/zh-CN.ts` 顶层。
+- 切换与持久化：`hooks/locale.ts` 的 `changeLocale` 更新 i18n 实例并写 `localStorage['arco-locale']`。
+- Arco 组件语言由 `App.vue` 的 `<a-config-provider :locale>` 映射。
 
 ---
 
-## 16. 常用命令
+## 16. 主题
 
-```bash
-# 安装依赖（推荐 pnpm，也支持 npm/yarn）
-pnpm install
-
-# 启动开发服务器
-npm run dev
-
-# 生产构建（含 TypeScript 检查）
-npm run build
-
-# 生产构建 + 生成 Bundle 分析报告（report.html）
-npm run report
-
-# 本地预览生产构建
-npm run preview
-
-# 仅运行 TypeScript 类型检查
-npm run type:check
-```
+- 切换入口在 navbar：vueuse `useDark({ selector: 'body', attribute: 'arco-theme', valueDark: 'dark', valueLight: 'light', storageKey: 'arco-theme' })`，回调里同步 `appStore.toggleTheme(dark)`。
+- `app` store 的 `theme` 字段是镜像值；暗色实际通过 `body[arco-theme='dark']` 生效。
+- 暗色持久化依赖 `localStorage['arco-theme']`；其余设置项不持久化（见 8.3）。
+- 样式约定：暗色样式集中写在 `src/assets/style/design-system.less` 的 `body[arco-theme='dark']` 作用域，页面内使用 `body[arco-theme='dark'] &`。
+- `hooks/chart-option.ts` 把 `isDark` 注入 ECharts option，图表随主题切换。
+- `themeColor` 存在于设置中，但当前没有运行时写入 CSS 变量的实现。
 
 ---
 
-## 17. 登录与鉴权完整流程
+## 17. 构建与环境配置
 
-以下是一个用户从打开页面到访问受保护页面的完整数据流：
+### 17.1 环境变量
 
+| 变量 | 作用 |
+| --- | --- |
+| `VITE_API_BASE_URL` | axios baseURL；留空则同源相对路径，开发期由 Vite 代理转发 |
+
+`.env.development` 为空值，`.env.production` 为空文件。
+
+### 17.2 Vite 配置
+
+`config/vite.config.base.ts`：
+
+- 别名：`@` → `src`，`assets` → `src/assets`，`vue-i18n` 指向 cjs 构建，`vue` 指向 `vue/dist/vue.esm-bundler.js`；
+- `vite-svg-loader`、`@vitejs/plugin-vue`、`@vitejs/plugin-vue-jsx`；
+- Less `modifyVars` 注入 `src/assets/style/breakpoint.less`；
+- Arco 样式按需：`config/plugin/arcoStyleImport.ts`。
+
+`config/vite.config.dev.ts`：
+
+- `vite-plugin-eslint`（include `src/**/*.{ts,tsx,vue}`）；
+- 代理 `/api` → `http://127.0.0.1:9501`，超时 5 分钟；
+- 代理 `/api/v1/admin/sse` → 同地址，`proxyTimeout: 0`、`timeout: 0`，并移除 `content-length`、设置 `no-cache` / `x-accel-buffering: no`，保证事件实时下发。
+
+`config/vite.config.prod.ts`：
+
+- `gzip` 压缩、`imagemin`、`rollup-plugin-visualizer`（`REPORT=true` 时生成报告）；
+- `manualChunks`：`arco`（Arco 组件库）、`chart`（echarts/vue-echarts）、`vue`（vue/router/pinia/vueuse/i18n）；
+- `chunkSizeWarningLimit: 2000`。
+
+### 17.3 代码规范与 Git 钩子
+
+| 配置文件 | 内容 |
+| --- | --- |
+| `.eslintrc.js` | airbnb-base + `@typescript-eslint` + `vue3-recommended` + `prettier`；`prettier/prettier` 为 warning |
+| `.prettierrc.js` | 2 空格、单引号、`printWidth: 80`、`endOfLine: lf`、`vueIndentScriptAndStyle: true` |
+| `.stylelintrc.js` | standard + rational-order + recommended-vue |
+| `commitlint.config.js` | `@commitlint/config-conventional` |
+| `.husky/pre-commit` | `npm run lint-staged`（stylelint → prettier → eslint 按文件类型） |
+| `.husky/commit-msg` | `pnpm commitlint --edit` |
+
+`package.json` 的 `lint-staged`：`*.{js,ts,jsx,tsx}` → prettier + eslint；`*.vue` → stylelint + prettier + eslint；`*.{less,css}` → stylelint + prettier。
+
+---
+
+## 18. 测试
+
+- 配置：`vitest.config.ts`，`environment: 'node'`、`globals: false`、`include: ['src/**/*.{test,spec}.{ts,tsx}']`，别名 `@` → `src`。
+- 测试文件分布在：`src/api/*.test.ts`（attachment、captcha、oauth、queue-job、third-party-user、user）、`src/router/source-apps.test.ts`、`src/utils/oauth*.test.ts`、`src/views/login/*.test.ts`。
+- 约定：显式 `import { describe, it, expect, vi } from 'vitest'`（`globals: false`）；以纯逻辑测试为主（接口封装、权限转换、OAuth 流程、路由构造、登录表单）。
+- 命令：`npm run test:unit`，或 `npm run test:unit -- src/router/source-apps.test.ts`。
+
+> `source-apps.test.ts` 只覆盖路由构造，不覆盖侧边栏菜单过滤；单页功能集的菜单可见性需要浏览器实测。
+
+---
+
+## 19. 常用命令
+
+| 命令 | 说明 |
+| --- | --- |
+| `npm run dev` | 开发服务器（`config/vite.config.dev.ts`，默认端口 5173，自动打开浏览器） |
+| `npm run build` | `vue-tsc --noEmit` + 生产构建，产物 `dist/` |
+| `npm run preview` | 构建后本地预览（`--host`） |
+| `npm run report` | 构建 + 依赖体积报告 |
+| `npm run report:skip-check` | 跳过类型检查，仅构建 + 报告 |
+| `npm run type:check` | `vue-tsc --noEmit --skipLibCheck` |
+| `npm run test:unit` | Vitest 单测 |
+| `npm run lint-staged` | 对暂存文件执行 lint-staged |
+
+---
+
+## 20. 关键流程时序
+
+### 20.1 管理员登录
+
+```text
+LoginForm
+  → createCaptchaChallenge / verifyCaptchaChallenge   （按需）
+  → getPublicKey → RSA-OAEP 加密用户名密码
+  → POST /api/v1/admin/public/login（X-Captcha-Token）
+  → initAdminSession：setToken / setRefreshToken / setAdminLogin(true)
+  → loadAdminInfo()（GET /admin/auth/user）
+  → loadPermissions()（GET /admin/auth/user/permissions）
+  → router.replace(redirect || /dashboard/workplace)
 ```
-用户打开首页 /
-  │
-  ├── router/index.ts 路由初始化
-  │     → 匹配根路由 /，redirect → /login
-  │
-  ├── 守卫 userLoginInfo.ts 触发
-  │     → isLogin() 检查 localStorage token → false
-  │     → 停留在 /login
-  │
-  ├── 用户填写用户名 + 密码 → 提交登录表单
-  │     │
-  │     ├── userStore.login(form) 被调用
-  │     │     → POST /api/v1/public/login
-  │     │     → 响应 data.data 中拿到 access_token + refresh_token
-  │     │     → setToken() / setRefreshToken() 存入 localStorage
-  │     │     → setAdminLogin(false) 标记为普通用户模式
-  │     │     → 调用 info() 拉取用户信息（name, email, roles）
-  │     │     → 调用 loadPermissions() 拉取 menu + button 权限
-  │     │           ├── GET /auth/user/menu-permissions → PermissionTransformer → menuPermissions
-  │     │           └── GET /auth/user/button-permissions → PermissionTransformer → buttonPermissions
-  │     │
-  │     └── 成功 → router.push('/dashboard/workplace')
-  │
-  ├── 跳转 /dashboard/workplace
-  │
-  ├── 守卫 permission.ts 触发
-  │     → isLogin() → true
-  │     → userStore.role !== 'admin'，检查路由 meta.roles + permissionCode
-  │     → /dashboard/workplace 的 permissionCode 命中 menuPermissions
-  │     → 放行
-  │
-  ├── Layout 渲染
-  │     → NavBar 渲染（欢迎信息 + 用户头像 + 登出按钮）
-  │     → Menu 组件通过 useMenuTree() 生成有权限的菜单树
-  │     → TabBar 记录当前打开的标签
-  │     → PageLayout 包裹 <router-view> 渲染 workplace 页面
-  │
-  └── 首次访问系统管理页面时（如 /system/user）
-        → 守卫再次检查 permissionCode 是否包含 'system:user'
-        → 无权限 → 跳转到 NOT_FOUND 或默认页面
-        → 有权限 → 渲染用户管理页面
-        → 页面内的按钮（如"新增用户"）通过 v-permission 指令检查
-           buttonPermissions
 
+### 20.2 一次受保护导航
+
+```text
+router.beforeEach
+  ① setRouteEmitter(to)
+  ② userLoginInfo 守卫
+      未登录 → /login?redirect=...
+      已登录 → 确保用户信息 + 权限树就绪
+             → syncSourceAppRoutes(router, permissionTree)   // 变化时 addRoute
+             → appStore.setSourceAppMenus(menus)
+             → 若路由匹配变化 → next({ path, replace: true })
+  ③ permission 守卫
+      白名单 / requiresAuth:false → 放行
+      role === 'admin' → 放行
+      roles 校验 → permissionCode 校验 → 不通过跳 notFound
 ```
 
-### 17.1 Token 过期与刷新流程
+### 20.3 SSE 消息
 
-```
-Token 即将过期或已过期（HTTP 401）
-  │
-  ├── Axios 响应拦截器识别 401
-  │     → 排除 /auth/user 接口（避免循环）
-  │     → 显示确认对话框："你已被登出，是否重新登录？"
-  │
-  ├── 用户确认 → userStore.logout()
-  │     → 清除 localStorage token
-  │     → userStore.resetInfo() / clearPermissions()
-  │     → 移除路由监听器，清空服务端菜单缓存
-  │     → 断开 SSE 长连接（如果存在）
-  │     → window.location.reload() 强制刷新
-  │
-  └── 用户取消 → 留在当前页面（但后续 API 请求仍会失败）
+```text
+navbar 挂载 → useSseMessage()
+  → sseService.connect()
+      → POST /admin/auth/sse/ticket
+      → EventSource(/admin/sse/connect?ticket=...&lastEventId=...)
+  → 事件分发：
+      message / system      → messageStore.pushIncoming + Notification
+      unread_count          → 更新未读统计
+      message_deleted       → 本地移除并扣减未读数
+      heartbeat / ready     → 仅维护连接状态
+  → 断线 → 退避重连（1s→30s），lastEventId 续传
+  → 登出 / 卸载 → disconnect()
 ```
 
-### 17.2 权限刷新流程（热更新）
+### 20.4 权限热更新
 
-```
-管理员修改了当前用户的角色/权限
-  │
-  ├── 触发方式
-  │     ├── 用户主动点击"刷新权限"按钮 → usePermission().refreshPermissions()
-  │     └── SSE 推送"权限已变更"事件 → 自动触发 loadPermissions()
-  │
-  ├── userStore.loadPermissions()
-  │     → 并行拉取 menu-permissions 和 button-permissions
-  │     → 经 PermissionTransformer 标准化后更新 state
-  │
-  └── 响应式更新
-        → Pinia 响应式自动触发 useMenuTree() 重新计算
-        → 侧边栏菜单即时刷新（隐藏/新增菜单项）
-        → 页面内按钮的 v-permission 指令自动重新评估
-        → 无需刷新页面
+```text
+userStore.refreshPermissions()
+  → loadPermissions()
+  → refreshSourceAppRoutes(permissionTree)   // 重建功能集路由
+  → appStore.setSourceAppMenus(menus)        // 侧边栏同步
 ```
 
 ---
 
-## 18. 核心模块依赖关系图
+## 21. 现状与注意事项
 
-```
-┌────────────────────────────────────────────────────────────┐
-│                          Views（页面）                      │
-│  dashboard/workplace  message/*  system/*  login  not-found│
-└────────────┬────────────────────────────────────┬──────────┘
-             │                                    │
-             ▼                                    ▼
-┌──────────────────────┐               ┌──────────────────────┐
-│     Pinia Store      │               │    Vue Router        │
-│  user  app  tab-bar  │               │ routes + guards      │
-│  role  permission    │◄──────────────┤ userLoginInfo.ts      │
-│  message  config ... │               │ permission.ts        │
-└───────┬──────────────┘               └──────────┬───────────┘
-        │                                         │
-        │                                         ▼
-        │                               ┌──────────────────────┐
-        │                               │   app-menus +        │
-        │                               │   route-listener     │
-        │                               └──────────┬───────────┘
-        │                                          │
-        ▼                                          ▼
-┌──────────────────────┐               ┌──────────────────────┐
-│      Hooks           │               │      Components      │
-│  permission.ts       │               │  menu + navbar       │
-│  user.ts             │               │  tab-bar + messageBox│
-│  sse-message.ts      │               │  breadcrumb ...      │
-│  dict.ts / loading.ts│               └──────────┬───────────┘
-└───────┬──────────────┘                          │
-        │                                          │
-        ▼                                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                         Utils                              │
-│  auth.ts (Token)  permission-transformer.ts               │
-│  permission-to-route.ts  route-listener.ts  event.ts      │
-└───────┬─────────────────────────────────────────────┬──────┘
-        │                                              │
-        ▼                                              ▼
-┌──────────────────────┐                    ┌────────────────────┐
-│         API          │                    │  Axios Interceptor │
-│  user.ts  role.ts   │◄──────────────────►│  request + response │
-│  permission.ts ...  │                    │  NProgress + Token  │
-└──────────────────────┘                    └────────────────────┘
-```
+以下均为当前代码事实，改动相关逻辑时需一并评估：
 
-### 18.1 关键模块职责总结
-
-| 模块 | 主要职责 | 不应该做的事 |
-|------|----------|--------------|
-| **Views** | 页面渲染、表单收集、触发 action、展示数据 | 直接写 axios 调用、硬编码权限码逻辑、操作 localStorage |
-| **Store** | 集中管理状态、定义业务 actions、提供 getters | 直接操作 DOM、管理 UI 样式细节 |
-| **Hooks** | 组合式函数，封装可复用逻辑（权限检查、SSE、字典等） | 不应该直接访问原生 API |
-| **API** | 仅定义接口请求函数、类型定义 | 不应该写业务判断、不操作全局状态 |
-| **Router** | 路由声明、守卫逻辑（鉴权、重定向） | 不应该直接获取和处理业务数据 |
-| **Utils** | 纯函数/工具类（Token 读写、权限转换、事件总线等） | 不应依赖 Vue 组件或 Pinia store |
-| **Components** | 通用 UI 组件（菜单、导航栏、标签页等） | 不应包含业务 API 逻辑，通过 props 传参 |
+1. **没有自动刷新 Token**：`refreshToken` / `adminRefreshToken` 与 `refresh_token` 存取已具备，但没有 401 静默刷新与请求重放；401 直接弹强制登出。
+2. **响应不解包**：拦截器返回完整 `AxiosResponse`，业务层自行取 `res.data.data`；新增 API 时保持一致。
+3. **业务码约定**：`code === 1` 或 `2` 视为成功，其余数值为失败；非数字 code 的响应不会被拦截（如 `api/message.ts`、`api/dashboard.ts` 的部分裸结构）。
+4. **成功码与 HTTP 状态双重依赖**：后端返回 2xx 但业务码失败时，前端会 `reject` 并弹提示，调用方需要 `try/catch`。
+5. **`getUserPermissions` 重复定义**：`api/user.ts` 与 `api/permission.ts` 各有一份实现，路径相同。
+6. **`global-setting` 未挂载**：组件完整但未被 `default-layout.vue` 引用。
+7. **工作台为模板遗留**：页面容器为空，子组件与 `api/dashboard.ts` 的接口均未接入真实后端。
+8. **`appExternalRoutes` 恒为空**：`src/router/routes/externalModules/` 目录不存在。
+9. **`components.d.ts` 为生成文件**：由 unplugin-vue-components 生成，不应手工编辑；`config/plugin/arcoResolver.ts` 当前未被 base 配置引用。
+10. **设置不持久化**：除主题与语言外，布局设置刷新后回到 `settings.json`。
+11. **TabBar 默认关闭**：需在设置中开启后才会渲染与缓存页面。
+12. **无重置他人密码**：只有自助改密接口。
+13. **功能集页面需重新构建**：`import.meta.glob` 在构建期固定页面表，新增/删除 `.vue` 后必须重新构建，并重新编译后端产物。
+14. **SSE 排除依赖字符串匹配**：后端调整 SSE 路径时需同步修改 `src/api/interceptor.ts`。
 
 ---
 
-## 19. 快速参考
+## 22. 快速参考
 
-### 19.1 新增一个业务页面的步骤
+### 22.1 新增一个静态业务页面
 
-以新增"部门管理（department）"为例：
+1. `src/views/<module>/index.vue` 新建页面；
+2. `src/api/<module>.ts` 增加接口，类型写入 `src/types/api.ts`；
+3. `src/router/routes/modules/system.ts` 增加子路由（`meta.locale`、`meta.icon`、`meta.permissionCode`、`requiresAuth`）；
+4. `src/locale/zh-CN.ts` 与 `en-US.ts` 补文案（页面内文案放 `locale/zh-CN.ts` 并在顶层 import + 展开）；
+5. 需要状态复用时在 `src/store/modules/` 增加模块并在 `store/index.ts` 导出。
 
-1. **路由配置** — `src/router/routes/modules/system.ts` 中添加：
-   ```typescript
-   {
-     path: 'department',
-     name: 'SystemDepartment',
-     component: () => import('@/views/system/department/index.vue'),
-     meta: {
-       locale: 'menu.system.department',
-       requiresAuth: true,
-       permissionCode: ['system:department', 'department'],
-     }
-   }
-   ```
+### 22.2 新增一个功能集
 
-2. **页面组件** — 创建 `src/views/system/department/index.vue`
+1. 创建 `src/apps/<code>/`（`api.ts`、`views/*.vue`、`locale/*.ts`）；
+2. 后端 `internal/apps/<code>` 播种菜单权限：`Code = <code>:xxx`、`MenuPath = /<code>/...`、`Component = <code>/<page>`；
+3. `locale` 中补齐 `menu.app.<code 冒号转点>` 文案；
+4. 运行 `npm run type:check`、`npm run test:unit`、`npm run build`；
+5. 浏览器验证：有权限、无权限、`status=0`、单页功能集菜单可见、直接访问页面路径。
 
-3. **API 定义** — （如需要）在 `src/api/` 下新增 `department.ts`
+### 22.3 权限码命名
 
-4. **权限码映射** — 在 `src/utils/permission-transformer.ts` 的
-   `PERMISSION_CODE_ALIAS_MAP` 中添加：
-   ```typescript
-   department: ['system:department']
-   ```
-   在 `src/utils/permission-to-route.ts` 的 `OBJECT_TO_PATH_MAP` 中添加：
-   ```typescript
-   'system:department': {
-     path: '/system/department',
-     name: 'SystemDepartment',
-     component: () => import('@/views/system/department/index.vue'),
-   }
-   ```
+- 功能集：`<appCode>:<模块>[:<动作>]`，例如 `esports:orders:reprice`；
+- 系统模块：`system:<模块>` 或历史短码 `user` / `role`；
+- 菜单节点通过 `menu_path` 与 `component` 关联页面；按钮节点只用于 `v-permission` / `usePermission` 判断；
+- 前端隐藏按钮不构成安全边界，接口鉴权仍在后端。
 
-5. **i18n 文案** — 在 `locale/zh-CN/settings.ts` 中添加
-   `menu.system.department: '部门管理'`
+### 22.4 关键文件速查
 
-### 19.2 权限码命名规范
-
-- **菜单权限**：`{模块}:{页面}` 如 `system:user`
-- **按钮权限**：`{模块}:{页面}:{操作}` 如 `system:user:add`
-- **API 权限**：`{模块}:{页面}:{接口}` 如 `system:user:list`
-- **别名兼容**：简写如 `user` → 自动展开为 `system:user`；路径式如
-  `system/user` → 自动标准化为 `system:user`
-
-### 19.3 关键文件速查
-
-| 文件 | 作用 |
-|------|------|
-| `src/main.ts` | 应用入口 |
-| `src/router/index.ts` | 路由实例与基础路由 |
-| `src/router/routes/modules/*.ts` | 业务路由（重点关注 `system.ts`） |
-| `src/router/guard/permission.ts` | 权限守卫（新增/修改鉴权逻辑） |
-| `src/router/guard/userLoginInfo.ts` | 登录状态守卫（token + 用户信息） |
-| `src/store/modules/user/index.ts` | 用户状态 + 权限 state |
-| `src/store/modules/app/index.ts` | 应用设置 + 服务端菜单逻辑 |
-| `src/utils/auth.ts` | Token 读写与校验 |
-| `src/utils/permission-transformer.ts` | 权限码标准化 |
-| `src/utils/permission-to-route.ts` | 权限 → 路由转换 |
-| `src/hooks/permission.ts` | 组合式权限检查函数 |
-| `src/directive/permission/index.ts` | v-permission 指令实现 |
-| `src/api/interceptor.ts` | Axios 全局拦截器 |
-| `src/api/user.ts` | 用户与管理员认证 API |
-| `src/components/menu/` | 菜单组件与菜单树生成 |
-| `src/components/navbar/index.vue` | 顶部导航栏 |
-| `src/layout/default-layout.vue` | 主布局 |
-
----
-
-> **Code Wiki 版本信息**：基于当前项目代码库生成，涵盖路由系统、菜单系统、权限模型、状态管理、API 层、页面组件结构等核心内容。当路由、权限码、store 结构发生变化时，请同步更新本文档以保证一致性。
+| 关注点 | 文件 |
+| --- | --- |
+| 应用装配 | `src/main.ts`、`src/App.vue` |
+| 请求/响应/进度条 | `src/api/interceptor.ts` |
+| 登录态存储 | `src/utils/auth.ts` |
+| 路由注册与守卫 | `src/router/index.ts`、`src/router/guard/*` |
+| 静态路由 | `src/router/routes/modules/*.ts` |
+| 动态路由/菜单 | `src/router/source-apps.ts`、`src/components/menu/use-menu-tree.ts` |
+| 权限判定 | `src/store/modules/user/index.ts`、`src/hooks/permission.ts`、`src/utils/permission-transformer.ts` |
+| 按钮权限 | `src/directive/permission/index.ts` |
+| 全局设置 | `src/config/settings.json`、`src/store/modules/app/index.ts` |
+| 消息与 SSE | `src/api/message.ts`、`src/services/sse.service.ts`、`src/hooks/sse-message.ts` |
+| 业务功能集 | `src/apps/esports/api.ts`、`src/apps/esports/views/*` |
+| 国际化 | `src/locale/index.ts`、`src/locale/zh-CN.ts`、`src/apps/*/locale/*.ts` |
+| 构建配置 | `config/vite.config.base.ts`、`config/vite.config.dev.ts`、`config/vite.config.prod.ts` |
