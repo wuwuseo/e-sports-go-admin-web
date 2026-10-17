@@ -14,20 +14,26 @@
         <a-button :loading="saving" type="primary" @click="saveDraft"
           >保存草稿</a-button
         >
-        <!-- 发布审核（待后端）：后端 page_handlers.go 暂无发布审核接口，
-             后续若新增「发布申请/审核」能力，在此补「发布申请」按钮，
-             并依据版本状态展示审核中 / 已通过 / 已驳回。当前仅透出后端发布校验错误。 -->
-        <a-button :loading="publishing" @click="publishNow">发布</a-button>
+        <a-button @click="previewVisible = true">预览</a-button>
+        <!-- 发布申请 → 异人审核（§16.4 / §16.5）：运营提交申请，有发布权限者审核，回滚同权限。 -->
+        <a-button v-if="canSubmit" :loading="publishing" @click="publishNow"
+          >提交发布</a-button
+        >
         <a-date-picker
+          v-if="canSubmit"
           v-model="scheduledAt"
           show-time
           placeholder="定时发布时间"
           :style="{ width: '200px' }"
         />
-        <a-button :loading="publishing" @click="publishScheduled"
+        <a-button
+          v-if="canSubmit"
+          :loading="publishing"
+          @click="publishScheduled"
           >定时发布</a-button
         >
         <a-select
+          v-if="canRollback"
           v-model="rollbackVersion"
           placeholder="回滚到版本"
           allow-clear
@@ -42,7 +48,9 @@
             }}）</a-option
           >
         </a-select>
-        <a-button :loading="publishing" @click="rollback">回滚</a-button>
+        <a-button v-if="canRollback" :loading="publishing" @click="rollback"
+          >回滚</a-button
+        >
       </a-space>
 
       <a-tabs v-model:active-key="activeTab">
@@ -62,7 +70,7 @@
 
             <div class="canvas">
               <div class="section-title"
-                >手机画布（{{ components.length }}）</div
+                >手机画布（{{ components.length }}）· 拖拽排序</div
               >
               <a-empty
                 v-if="!components.length"
@@ -72,9 +80,18 @@
                 v-for="(component, index) in components"
                 :key="index"
                 class="canvas-item"
-                :class="{ active: index === selectedIndex }"
+                :class="{
+                  'active': index === selectedIndex,
+                  'drag-over': index === dragOverIndex,
+                }"
+                draggable="true"
+                @dragstart="onDragStart(index, $event)"
+                @dragover.prevent="dragOverIndex = index"
+                @drop.prevent="onDrop(index)"
+                @dragend="onDragEnd"
                 @click="selectComponent(index)"
               >
+                <span class="drag-handle">⠿</span>
                 <span class="canvas-label">{{
                   componentLabel(component.type)
                 }}</span>
@@ -118,19 +135,132 @@
                     componentLabel(components[selectedIndex].type)
                   }}</a-descriptions-item>
                 </a-descriptions>
-                <div class="section-title">组件属性（JSON）</div>
-                <a-textarea
-                  v-model="propsText"
-                  :auto-size="{ minRows: 8, maxRows: 16 }"
-                  placeholder='例如 {"title":"精选推荐","limit":6}'
+                <a-empty
+                  v-if="!currentSchema.length"
+                  description="该组件无自由属性"
                 />
-                <a-button
-                  class="apply"
-                  type="primary"
-                  size="small"
-                  @click="applyProps"
-                  >应用属性</a-button
+                <div
+                  v-for="field in currentSchema"
+                  :key="field.key"
+                  class="prop-field"
                 >
+                  <label class="prop-label">{{ field.label }}</label>
+
+                  <a-input
+                    v-if="field.kind === 'text'"
+                    :model-value="stringField(field.key)"
+                    :placeholder="field.placeholder"
+                    @update:model-value="(v) => setField(field.key, v)"
+                  />
+
+                  <a-textarea
+                    v-else-if="field.kind === 'textarea'"
+                    :model-value="stringField(field.key)"
+                    :placeholder="field.placeholder"
+                    :auto-size="{ minRows: 2, maxRows: 5 }"
+                    @update:model-value="(v) => setField(field.key, v)"
+                  />
+
+                  <a-input-number
+                    v-else-if="field.kind === 'number'"
+                    :model-value="numberField(field.key)"
+                    :min="field.min"
+                    :max="field.max"
+                    @update:model-value="(v) => setField(field.key, v)"
+                  />
+
+                  <input
+                    v-else-if="field.kind === 'color'"
+                    type="color"
+                    class="prop-color"
+                    :value="stringField(field.key) || '#165dff'"
+                    @input="onColorInput(field.key, $event)"
+                  />
+
+                  <a-input
+                    v-else-if="field.kind === 'numberList'"
+                    :model-value="stringField(field.key)"
+                    placeholder="例如 1,2,3"
+                    @update:model-value="(v) => setField(field.key, v)"
+                  />
+
+                  <div v-else-if="field.kind === 'images'" class="prop-images">
+                    <div
+                      v-for="(url, i) in imageList()"
+                      :key="i"
+                      class="prop-image-row"
+                    >
+                      <a-input
+                        :model-value="url"
+                        placeholder="https:// 或站内 /path"
+                        @update:model-value="(v) => updateImage(i, v)"
+                      />
+                      <a-button size="mini" @click="openCropperForImages(i)"
+                        >裁剪</a-button
+                      >
+                      <a-button
+                        size="mini"
+                        status="danger"
+                        @click="removeImage(i)"
+                        >删</a-button
+                      >
+                    </div>
+                    <a-space>
+                      <a-button size="mini" type="outline" @click="addImage"
+                        >添加图片</a-button
+                      >
+                      <a-button
+                        size="mini"
+                        type="outline"
+                        @click="openCropperForImages(-1)"
+                        >上传裁剪</a-button
+                      >
+                    </a-space>
+                  </div>
+
+                  <div v-else-if="field.kind === 'navItems'" class="prop-nav">
+                    <div
+                      v-for="(item, i) in navItemList()"
+                      :key="i"
+                      class="prop-nav-row"
+                    >
+                      <a-input
+                        :model-value="item.name"
+                        placeholder="名称"
+                        @update:model-value="(v) => updateNavItem(i, 'name', v)"
+                      />
+                      <a-select
+                        :model-value="item.target"
+                        :style="{ width: '120px' }"
+                        @update:model-value="
+                          (v) =>
+                            updateNavItem(
+                              i,
+                              'target',
+                              typeof v === 'string' ? v : ''
+                            )
+                        "
+                      >
+                        <a-option
+                          v-for="opt in navTargetOptions"
+                          :key="opt.value"
+                          :value="opt.value"
+                          >{{ opt.label }}</a-option
+                        >
+                      </a-select>
+                      <a-button
+                        size="mini"
+                        status="danger"
+                        @click="removeNavItem(i)"
+                        >删</a-button
+                      >
+                    </div>
+                    <a-button size="mini" type="outline" @click="addNavItem"
+                      >添加导航项</a-button
+                    >
+                  </div>
+                </div>
+                <div class="prop-hint">属性实时写入草稿，保存草稿后生效</div>
               </template>
             </div>
           </div>
@@ -172,6 +302,30 @@
                   fmtTime(record.created_at)
                 }}</template>
               </a-table-column>
+              <a-table-column title="操作">
+                <template #cell="{ record }">
+                  <template v-if="record.status === 'pending_review'">
+                    <a-space v-if="canReview">
+                      <a-button
+                        size="mini"
+                        type="primary"
+                        :loading="publishing"
+                        @click="approvePublish(record.id)"
+                        >通过</a-button
+                      >
+                      <a-button
+                        size="mini"
+                        status="danger"
+                        :loading="publishing"
+                        @click="rejectPublish(record.id)"
+                        >驳回</a-button
+                      >
+                    </a-space>
+                    <span v-else>-</span>
+                  </template>
+                  <span v-else>-</span>
+                </template>
+              </a-table-column>
             </template>
           </a-table>
         </a-tab-pane>
@@ -203,6 +357,7 @@
               :style="{ width: '100px' }"
             />
             <a-button type="primary" @click="createAsset">新增素材</a-button>
+            <a-button @click="openCropperForAsset">上传并裁剪</a-button>
           </a-space>
           <a-table :data="assets" row-key="id" :pagination="{ pageSize: 10 }">
             <template #columns>
@@ -228,12 +383,32 @@
         </a-tab-pane>
       </a-tabs>
     </a-card>
+
+    <!-- 真实预览（手机画布，复用客户端渲染规则） -->
+    <a-modal
+      v-model:visible="previewVisible"
+      :footer="false"
+      :width="420"
+      title="手机端预览"
+    >
+      <PagePreview :components="components" />
+    </a-modal>
+
+    <!-- 图片上传裁剪 -->
+    <ImageCropper
+      :visible="cropperVisible"
+      @confirm="onCropperConfirm"
+      @cancel="cropperVisible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-  import { onMounted, reactive, ref } from 'vue';
+  import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
+  import usePermission from '@/hooks/permission';
+  import { uploadAttachment } from '@/api/attachment';
+  import { getAttachmentAccessInfo } from '@/services/attachment-access.service';
   import {
     PAGE_CHANNEL_CUSTOMER_HOME,
     createEsportsPageAsset,
@@ -242,6 +417,7 @@
     getEsportsPageAssets,
     getEsportsPageVersions,
     publishEsportsPage,
+    reviewEsportsPagePublish,
     rollbackEsportsPage,
     saveEsportsPageDraft,
   } from '../../api';
@@ -252,12 +428,106 @@
     PageDocument,
     PageVersion,
   } from '../../api';
+  import ImageCropper from '../../components/page-designer/ImageCropper.vue';
+  import PagePreview from '../../components/page-designer/PagePreview.vue';
+
+  // ── 可视化属性面板 schema（§16.2） ──
+  type PropFieldKind =
+    | 'text'
+    | 'textarea'
+    | 'number'
+    | 'color'
+    | 'numberList'
+    | 'images'
+    | 'navItems';
+
+  interface PropField {
+    key: string;
+    label: string;
+    kind: PropFieldKind;
+    placeholder?: string;
+    min?: number;
+    max?: number;
+  }
+
+  interface NavItemDraft {
+    name: string;
+    target: string;
+  }
+
+  const navTargetOptions: { label: string; value: string }[] = [
+    { label: '商品分类', value: 'category' },
+    { label: '我的订单', value: 'orders' },
+    { label: '储值卡', value: 'prepay_card' },
+    { label: '会员', value: 'member' },
+    { label: '联系客服', value: 'support' },
+  ];
+
+  const propSchemas: Record<PageComponentType, PropField[]> = {
+    search: [{ key: 'placeholder', label: '搜索占位文案', kind: 'text' }],
+    carousel: [
+      { key: 'images', label: '轮播图片', kind: 'images' },
+      {
+        key: 'interval',
+        label: '轮播间隔（毫秒）',
+        kind: 'number',
+        min: 1000,
+        max: 30000,
+      },
+    ],
+    notice: [
+      { key: 'text', label: '公告文本', kind: 'textarea' },
+      { key: 'color', label: '文字颜色', kind: 'color' },
+    ],
+    quick_nav: [{ key: 'items', label: '导航项', kind: 'navItems' }],
+    category: [
+      { key: 'title', label: '标题', kind: 'text' },
+      { key: 'items', label: '分类项', kind: 'navItems' },
+    ],
+    product_list: [
+      { key: 'title', label: '标题', kind: 'text' },
+      {
+        key: 'limit',
+        label: '展示数量（0 不限）',
+        kind: 'number',
+        min: 0,
+        max: 50,
+      },
+      { key: 'sku_ids', label: '指定 SKU（逗号分隔）', kind: 'numberList' },
+      { key: 'empty_text', label: '空数据兜底文案', kind: 'text' },
+    ],
+    player_recommend: [
+      { key: 'title', label: '标题', kind: 'text' },
+      { key: 'empty_text', label: '空数据兜底文案', kind: 'textarea' },
+    ],
+    activity: [
+      { key: 'title', label: '标题', kind: 'text' },
+      { key: 'campaign_id', label: '关联活动 ID', kind: 'number', min: 1 },
+      { key: 'empty_text', label: '空数据兜底文案', kind: 'textarea' },
+    ],
+    member_entry: [{ key: 'title', label: '标题', kind: 'text' }],
+    support_entry: [],
+  };
 
   const channel = PAGE_CHANNEL_CUSTOMER_HOME;
   const loading = ref(false);
   const saving = ref(false);
   const publishing = ref(false);
   const activeTab = ref('design');
+  const previewVisible = ref(false);
+  const cropperVisible = ref(false);
+
+  // 发布权限（§16.5）：运营提交发布申请，有发布权限者（异人）审核发布，回滚同权限。
+  const { hasButtonPermission } = usePermission();
+  const canSubmit = computed(() =>
+    hasButtonPermission('esports:pages:publish_submit')
+  );
+  const canReview = computed(() =>
+    hasButtonPermission('esports:pages:publish_review')
+  );
+  const canRollback = computed(() =>
+    hasButtonPermission('esports:pages:rollback_btn')
+  );
 
   const doc = ref<PageDocument>({
     channel,
@@ -270,7 +540,6 @@
   const versions = ref<PageVersion[]>([]);
   const assets = ref<PageAsset[]>([]);
   const selectedIndex = ref(-1);
-  const propsText = ref('{}');
   const scheduledAt = ref<number>();
   const rollbackVersion = ref<number>();
 
@@ -292,6 +561,7 @@
   const statusLabels: Record<string, string> = {
     draft: '草稿',
     pending: '待发布',
+    pending_review: '待审核',
     published: '已发布',
     scheduled: '定时待发布',
     history: '历史版本',
@@ -300,13 +570,13 @@
   const statusColors: Record<string, string> = {
     published: 'green',
     pending: 'orange',
+    pending_review: 'arcoblue',
     scheduled: 'orange',
   };
   const statusColor = (value: string) => statusColors[value] || 'gray';
 
   const fmtTime = (value?: string | null) =>
     value ? new Date(value).toLocaleString() : '-';
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
   const errorText = (err: unknown, fallback: string) => {
     const { response } = err as { response?: { data?: { message?: string } } };
     return response?.data?.message || fallback;
@@ -314,6 +584,266 @@
 
   const assetForm = reactive({ name: '', url: '', width: 0, height: 0 });
 
+  // ── 可视化属性表单（就地编辑，提交时组装为 props） ──
+  const form = reactive<Record<string, unknown>>({});
+
+  const currentSchema = computed<PropField[]>(() => {
+    if (selectedIndex.value < 0) return [];
+    return propSchemas[components.value[selectedIndex.value].type] || [];
+  });
+
+  function deserializeField(field: PropField, raw: unknown): unknown {
+    switch (field.kind) {
+      case 'number':
+        return typeof raw === 'number' ? raw : undefined;
+      case 'images':
+        return Array.isArray(raw)
+          ? raw.filter((v): v is string => typeof v === 'string')
+          : [];
+      case 'navItems':
+        return Array.isArray(raw)
+          ? raw.map((v) => {
+              const o = (v ?? {}) as Record<string, unknown>;
+              return {
+                name: typeof o.name === 'string' ? o.name : '',
+                target: typeof o.target === 'string' ? o.target : '',
+              };
+            })
+          : [];
+      case 'numberList':
+        return Array.isArray(raw) ? raw.map((v) => String(v)).join(',') : '';
+      default:
+        return typeof raw === 'string' ? raw : '';
+    }
+  }
+
+  function serializeField(field: PropField, value: unknown): unknown {
+    switch (field.kind) {
+      case 'text':
+      case 'textarea':
+      case 'color': {
+        const s = typeof value === 'string' ? value.trim() : '';
+        return s === '' ? undefined : s;
+      }
+      case 'number': {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        return undefined;
+      }
+      case 'numberList': {
+        const s = typeof value === 'string' ? value : '';
+        const nums = s
+          .split(/[,，\s]+/)
+          .map((p) => parseInt(p, 10))
+          .filter((n) => Number.isInteger(n) && n > 0);
+        return nums.length ? nums : undefined;
+      }
+      case 'images': {
+        const list = (Array.isArray(value) ? value : []).filter(
+          (v): v is string => typeof v === 'string' && v !== ''
+        );
+        return list.length ? list : undefined;
+      }
+      case 'navItems': {
+        const list = (Array.isArray(value) ? value : [])
+          .map((v) => (v ?? {}) as NavItemDraft)
+          .filter((v) => typeof v.name === 'string' && v.name.trim() !== '');
+        return list.length
+          ? list.map((v) => ({ name: v.name.trim(), target: v.target || '' }))
+          : undefined;
+      }
+      default:
+        return undefined;
+    }
+  }
+
+  function loadForm(index: number) {
+    const comp = components.value[index];
+    const props = comp.props || {};
+    Object.keys(form).forEach((k) => delete form[k]);
+    (propSchemas[comp.type] || []).forEach((field) => {
+      form[field.key] = deserializeField(field, props[field.key]);
+    });
+  }
+
+  function syncForm() {
+    if (selectedIndex.value < 0) return;
+    const comp = components.value[selectedIndex.value];
+    const props: Record<string, unknown> = {};
+    currentSchema.value.forEach((field) => {
+      const serialized = serializeField(field, form[field.key]);
+      if (serialized !== undefined) props[field.key] = serialized;
+    });
+    components.value[selectedIndex.value] = { ...comp, props };
+  }
+
+  function stringField(key: string): string {
+    const v = form[key];
+    return typeof v === 'string' ? v : '';
+  }
+  function numberField(key: string): number | undefined {
+    const v = form[key];
+    return typeof v === 'number' ? v : undefined;
+  }
+  function setField(key: string, value: unknown) {
+    form[key] = value;
+    syncForm();
+  }
+  function onColorInput(key: string, event: Event) {
+    setField(key, (event.target as HTMLInputElement).value);
+  }
+
+  function imageList(): string[] {
+    const v = form.images;
+    return Array.isArray(v) ? (v as string[]) : [];
+  }
+  function setImages(list: string[]) {
+    form.images = list;
+    syncForm();
+  }
+  function addImage() {
+    setImages([...imageList(), '']);
+  }
+  function updateImage(index: number, url: string) {
+    const list = imageList();
+    list[index] = url;
+    setImages(list);
+  }
+  function removeImage(index: number) {
+    const list = imageList();
+    list.splice(index, 1);
+    setImages(list);
+  }
+
+  function navItemList(): NavItemDraft[] {
+    const v = form.items;
+    return Array.isArray(v) ? (v as NavItemDraft[]) : [];
+  }
+  function setNavItems(list: NavItemDraft[]) {
+    form.items = list;
+    syncForm();
+  }
+  function addNavItem() {
+    setNavItems([...navItemList(), { name: '', target: 'orders' }]);
+  }
+  function updateNavItem(index: number, key: 'name' | 'target', value: string) {
+    const list = navItemList();
+    list[index] = { ...list[index], [key]: value };
+    setNavItems(list);
+  }
+  function removeNavItem(index: number) {
+    const list = navItemList();
+    list.splice(index, 1);
+    setNavItems(list);
+  }
+
+  // ── 拖拽排序（HTML5 原生 drag，纵向模块编排） ──
+  const dragOverIndex = ref(-1);
+  let dragIndex = -1;
+
+  function onDragStart(index: number, event: DragEvent) {
+    dragIndex = index;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+    }
+  }
+  function onDrop(target: number) {
+    if (dragIndex < 0 || dragIndex === target) {
+      dragOverIndex.value = -1;
+      return;
+    }
+    const list = components.value;
+    const [item] = list.splice(dragIndex, 1);
+    list.splice(target, 0, item);
+    selectedIndex.value = target;
+    dragOverIndex.value = -1;
+  }
+  function onDragEnd() {
+    dragIndex = -1;
+    dragOverIndex.value = -1;
+  }
+
+  // ── 图片上传裁剪（复用附件上传 + canvas 裁剪） ──
+  let cropperCallback: ((blob: Blob) => void) | null = null;
+  function openCropper(callback: (blob: Blob) => void) {
+    cropperCallback = callback;
+    cropperVisible.value = true;
+  }
+  function onCropperConfirm(blob: Blob) {
+    cropperVisible.value = false;
+    cropperCallback?.(blob);
+  }
+
+  async function uploadImageBlob(
+    blob: Blob,
+    name: string
+  ): Promise<string | null> {
+    try {
+      const file = new File([blob], name, {
+        type: blob.type || 'image/png',
+      });
+      const res = await uploadAttachment(file, undefined, 'esports-page');
+      const { attachment } = res.data.data;
+      if (!attachment) {
+        Message.error('上传失败，未返回附件');
+        return null;
+      }
+      const access = await getAttachmentAccessInfo(attachment.id);
+      if (access.public === false) {
+        Message.warning('素材为私有文件，访问地址有时效，建议使用公开目录');
+      }
+      return access.url;
+    } catch (err) {
+      Message.error(errorText(err, '图片上传失败'));
+      return null;
+    }
+  }
+
+  function blobDimensions(
+    blob: Blob
+  ): Promise<{ width: number; height: number }> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => {
+        resolve({ width: 0, height: 0 });
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    });
+  }
+
+  function openCropperForImages(index: number) {
+    openCropper(async (blob) => {
+      const url = await uploadImageBlob(blob, `carousel-${Date.now()}.png`);
+      if (!url) return;
+      const list = imageList();
+      if (index >= 0 && index < list.length) {
+        list[index] = url;
+        setImages(list);
+      } else {
+        setImages([...list, url]);
+      }
+    });
+  }
+
+  function openCropperForAsset() {
+    openCropper(async (blob) => {
+      const name = `素材-${Date.now()}.png`;
+      const url = await uploadImageBlob(blob, name);
+      if (!url) return;
+      const dims = await blobDimensions(blob);
+      assetForm.name = name;
+      assetForm.url = url;
+      assetForm.width = dims.width || 1;
+      assetForm.height = dims.height || 1;
+    });
+  }
+
+  // ── 加载与组件操作 ──
   const load = async () => {
     loading.value = true;
     try {
@@ -336,11 +866,7 @@
 
   const selectComponent = (index: number) => {
     selectedIndex.value = index;
-    propsText.value = JSON.stringify(
-      components.value[index].props || {},
-      null,
-      2
-    );
+    loadForm(index);
   };
   const addComponent = (type: PageComponentType) => {
     components.value.push({ type, visible: true });
@@ -362,22 +888,6 @@
   const remove = (index: number) => {
     components.value.splice(index, 1);
     selectedIndex.value = -1;
-  };
-  const applyProps = () => {
-    try {
-      const parsed = JSON.parse(propsText.value || '{}');
-      if (typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('属性须为对象');
-      }
-      const current = components.value[selectedIndex.value];
-      components.value[selectedIndex.value] = {
-        ...current,
-        props: parsed as Record<string, unknown>,
-      };
-      Message.success('属性已应用，保存草稿后生效');
-    } catch {
-      Message.error('属性 JSON 格式无效，需为对象');
-    }
   };
 
   const saveDraft = async () => {
@@ -401,7 +911,7 @@
     publishing.value = true;
     try {
       await publishEsportsPage(channel, { mode: 'immediate' });
-      Message.success('已发布');
+      Message.success('已提交发布申请，待审核');
       await load();
     } catch (err) {
       Message.error(errorText(err, '发布失败'));
@@ -421,7 +931,7 @@
         mode: 'scheduled',
         scheduled_at: new Date(scheduledAt.value).toISOString(),
       });
-      Message.success('已排定时发布');
+      Message.success('已提交定时发布申请，待审核');
       await load();
     } catch (err) {
       Message.error(errorText(err, '定时发布失败'));
@@ -448,6 +958,36 @@
     }
   };
 
+  const approvePublish = async (versionId: number) => {
+    publishing.value = true;
+    try {
+      await reviewEsportsPagePublish(channel, versionId, true);
+      Message.success('已通过发布');
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '审核失败'));
+    } finally {
+      publishing.value = false;
+    }
+  };
+  const rejectPublish = async (versionId: number) => {
+    publishing.value = true;
+    try {
+      await reviewEsportsPagePublish(
+        channel,
+        versionId,
+        false,
+        '不符合发布规范'
+      );
+      Message.success('已驳回发布申请');
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '驳回失败'));
+    } finally {
+      publishing.value = false;
+    }
+  };
+
   const createAsset = async () => {
     const name = assetForm.name.trim();
     const url = assetForm.url.trim();
@@ -459,8 +999,6 @@
       Message.warning('请填写素材地址');
       return;
     }
-    // 前端基础校验（§16 素材）：外部链接仅 https，或站内相对路径（以 / 开头），
-    // 尺寸 1~4096。与后端 savePageAsset 口径一致（https-only 或站内路径）。
     if (!/^https:\/\//i.test(url) && !url.startsWith('/')) {
       Message.warning('素材地址仅支持 https 链接或站内相对路径（以 / 开头）');
       return;
@@ -531,8 +1069,8 @@
 
   .canvas-item {
     display: flex;
+    gap: 8px;
     align-items: center;
-    justify-content: space-between;
     margin-bottom: 8px;
     padding: 8px 12px;
     border: 1px solid var(--color-border-2);
@@ -544,7 +1082,19 @@
     border-color: rgb(var(--primary-6));
   }
 
+  .canvas-item.drag-over {
+    background: var(--color-primary-light-1);
+    border-color: rgb(var(--primary-6));
+  }
+
+  .drag-handle {
+    color: var(--color-text-3);
+    cursor: grab;
+    user-select: none;
+  }
+
   .canvas-label {
+    flex: 1;
     font-weight: 500;
   }
 
@@ -559,7 +1109,49 @@
     font-weight: 500;
   }
 
-  .apply {
+  .prop-field {
+    margin-bottom: 10px;
+  }
+
+  .prop-label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--color-text-2);
+    font-size: 12px;
+  }
+
+  .prop-color {
+    width: 100%;
+    height: 32px;
+    padding: 2px;
+    background: none;
+    border: 1px solid var(--color-border-2);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .prop-images,
+  .prop-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .prop-image-row,
+  .prop-nav-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .prop-image-row .arco-input,
+  .prop-nav-row .arco-input {
+    flex: 1;
+  }
+
+  .prop-hint {
     margin-top: 8px;
+    color: var(--color-text-3);
+    font-size: 12px;
   }
 </style>

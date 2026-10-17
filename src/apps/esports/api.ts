@@ -2730,6 +2730,16 @@ export type EsportsReport =
 export const getEsportsReport = (type: ReportType, params: ReportQuery = {}) =>
   axios.get<ApiResponse<EsportsReport>>(`${base}/reports/${type}`, { params });
 
+// 导出报表 CSV（§17）：与查看接口同一组筛选参数，后端按同一数据边界与审计口径导出。
+export const exportEsportsReport = (
+  type: ReportType,
+  params: ReportQuery = {}
+) =>
+  axios.get<Blob>(`${base}/reports/${type}/export`, {
+    params,
+    responseType: 'blob',
+  });
+
 // ── §16 uni-app 客户自助端首页装修 ──
 export const PAGE_CHANNEL_CUSTOMER_HOME = 'uni_customer_home';
 
@@ -2768,7 +2778,11 @@ export interface PageDraftPayload {
   components: PageComponent[];
 }
 
-export type PageVersionStatus = 'scheduled' | 'published' | 'history';
+export type PageVersionStatus =
+  | 'scheduled'
+  | 'pending_review'
+  | 'published'
+  | 'history';
 export type PagePublishMode = 'immediate' | 'scheduled';
 
 export interface PageVersion {
@@ -2828,6 +2842,20 @@ export const rollbackEsportsPage = (channel: string, versionNo: number) =>
   axios.post<ApiResponse<PageVersion>>(`${base}/pages/${channel}/rollback`, {
     version_no: versionNo,
   });
+
+// 审核发布（§16.4 / §16.5）：approve=true 通过 / false 驳回（驳回须填原因）。
+export const reviewEsportsPagePublish = (
+  channel: string,
+  versionId: number,
+  approve: boolean,
+  reason = ''
+) =>
+  axios.post<ApiResponse<PageVersion>>(
+    `${base}/pages/${channel}/publish-review/${versionId}/${
+      approve ? 'approve' : 'reject'
+    }`,
+    { reason }
+  );
 
 export const getEsportsPageVersions = (channel: string) =>
   axios.get<ApiResponse<PageVersion[]>>(`${base}/pages/${channel}/versions`);

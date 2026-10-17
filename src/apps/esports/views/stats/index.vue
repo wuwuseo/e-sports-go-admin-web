@@ -120,6 +120,7 @@
           </a-select>
         </template>
         <a-button :loading="loading" @click="load">查询</a-button>
+        <a-button :loading="exporting" @click="handleExport">导出 CSV</a-button>
       </a-space>
 
       <a-tabs v-model:active-key="activeTab" @change="load">
@@ -427,7 +428,7 @@
   import { computed, onMounted, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
-  import { getEsportsReport } from '../../api';
+  import { exportEsportsReport, getEsportsReport } from '../../api';
   import type {
     AfterSaleQualityReport,
     CsPerformanceReport,
@@ -453,6 +454,7 @@
 
   const report = ref<EsportsReport | null>(null);
   const loading = ref(false);
+  const exporting = ref(false);
   const activeTab = ref<ReportType>('owner_overview');
 
   // 各报表类型的数据视图，用于模板中的类型收窄。
@@ -561,6 +563,33 @@
       Message.error('加载报表失败，请稍后重试');
     } finally {
       loading.value = false;
+    }
+  };
+
+  // 导出 CSV：与查看接口同一组筛选参数，由后端按同一数据边界与审计口径生成。
+  const handleExport = async () => {
+    exporting.value = true;
+    try {
+      const res = await exportEsportsReport(activeTab.value, buildParams());
+      const blob = res.data;
+      const disposition = res.headers['content-disposition'] as
+        | string
+        | undefined;
+      let fileName = `esports_${activeTab.value}.csv`;
+      const match = disposition?.match(/filename="?([^";]+)"?/i);
+      if (match?.[1]) fileName = decodeURIComponent(match[1]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      Message.error('导出失败，请稍后重试');
+    } finally {
+      exporting.value = false;
     }
   };
 

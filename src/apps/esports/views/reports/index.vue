@@ -15,6 +15,11 @@
           >报单</a-button
         >
         <a-button
+          v-if="activeTab === 'report' && canCreateOrder"
+          @click="openBatch"
+          >批量报单</a-button
+        >
+        <a-button
           v-if="activeTab === 'customers' && canCreateCustomer"
           type="primary"
           @click="customerVisible = true"
@@ -138,6 +143,106 @@
       </a-form>
     </a-modal>
     <a-modal
+      v-model:visible="batchVisible"
+      title="批量报单"
+      :footer="false"
+      width="820px"
+    >
+      <a-space direction="vertical" fill>
+        <a-textarea
+          v-model="batchImportText"
+          placeholder="粘贴导入（可选）：每行一条「客户ID, 商品ID, 份数」，支持逗号/空格/Tab 分隔"
+          :auto-size="{ minRows: 2, maxRows: 4 }"
+        />
+        <a-space>
+          <a-button @click="importBatchRows">解析导入</a-button>
+          <a-button @click="addBatchRow">添加一行</a-button>
+        </a-space>
+        <a-table
+          :data="batchRows"
+          row-key="key"
+          :pagination="false"
+          size="small"
+        >
+          <template #columns>
+            <a-table-column title="客户">
+              <template #cell="{ record }">
+                <a-select
+                  v-model="record.customer_id"
+                  :style="{ width: '180px' }"
+                  placeholder="选择客户"
+                >
+                  <a-option
+                    v-for="item in customers"
+                    :key="item.id"
+                    :value="item.id"
+                    >{{ item.display_name }}</a-option
+                  >
+                </a-select>
+              </template>
+            </a-table-column>
+            <a-table-column title="商品">
+              <template #cell="{ record }">
+                <a-select
+                  v-model="record.sku_id"
+                  :style="{ width: '220px' }"
+                  placeholder="选择商品"
+                >
+                  <a-option
+                    v-for="item in onSaleSkus"
+                    :key="item.id"
+                    :value="item.id"
+                    >{{ item.title }}</a-option
+                  >
+                </a-select>
+              </template>
+            </a-table-column>
+            <a-table-column title="份数" :width="120">
+              <template #cell="{ record }">
+                <a-input-number
+                  v-model="record.quantity"
+                  :min="1"
+                  :max="1000"
+                  :style="{ width: '100px' }"
+                />
+              </template>
+            </a-table-column>
+            <a-table-column title="操作" :width="90">
+              <template #cell="{ rowIndex }">
+                <a-button
+                  type="text"
+                  status="danger"
+                  @click="removeBatchRow(rowIndex)"
+                  >移除</a-button
+                >
+              </template>
+            </a-table-column>
+          </template>
+        </a-table>
+        <a-space>
+          <a-button
+            type="primary"
+            :loading="batchSubmitting"
+            @click="submitBatch"
+            >逐行提交</a-button
+          >
+          <a-button @click="batchVisible = false">关闭</a-button>
+        </a-space>
+        <a-alert v-if="batchResults.length" type="info">
+          <div
+            v-for="result in batchResults"
+            :key="result.key"
+            :class="result.ok ? 'batch-ok' : 'batch-fail'"
+          >
+            第 {{ result.row }} 行（客户 #{{ result.customerId }} / 商品 #{{
+              result.skuId
+            }}）：{{ result.ok ? '成功' : '失败' }} ——
+            {{ result.message }}
+          </div>
+        </a-alert>
+      </a-space>
+    </a-modal>
+    <a-modal
       v-model:visible="ageVisible"
       title="提交客户年龄核验"
       @ok="saveAgeCheck"
@@ -253,6 +358,97 @@
   // 指定陪玩（§5.4）：0 表示不指定，由客服指派。
   const preferredPlayerId = ref<number>(0);
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  // 透出后端返回的中文错误信息（如客户归属校验），取不到时回退默认文案。
+  const errorText = (err: unknown, fallback: string) => {
+    const { response } = err as { response?: { data?: { message?: string } } };
+    return response?.data?.message || fallback;
+  };
+
+  // ── 批量报单（复用 POST /admin/orders，逐行独立幂等键，失败行不阻塞成功行） ──
+  interface BatchRow {
+    key: string;
+    customer_id: number;
+    sku_id: number;
+    quantity: number;
+  }
+  interface BatchResult {
+    key: string;
+    row: number;
+    customerId: number;
+    skuId: number;
+    ok: boolean;
+    message: string;
+  }
+  const onSaleSkus = computed(() =>
+    skus.value.filter((sku) => sku.status === 'on_sale')
+  );
+  const batchVisible = ref(false);
+  const batchImportText = ref('');
+  const batchSubmitting = ref(false);
+  const batchResults = ref<BatchResult[]>([]);
+  const batchRows = ref<BatchRow[]>([]);
+  const newBatchRow = (): BatchRow => ({
+    key: crypto.randomUUID(),
+    customer_id: 0,
+    sku_id: 0,
+    quantity: 1,
+  });
+
+  function openBatch() {
+    batchRows.value = [newBatchRow()];
+    batchResults.value = [];
+    batchImportText.value = '';
+    batchVisible.value = true;
+  }
+
+  function addBatchRow() {
+    batchRows.value.push(newBatchRow());
+  }
+
+  function removeBatchRow(rowIndex: number) {
+    if (batchRows.value.length <= 1) {
+      batchRows.value = [newBatchRow()];
+      return;
+    }
+    batchRows.value.splice(rowIndex, 1);
+  }
+
+  function importBatchRows() {
+    const lines = batchImportText.value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    let imported = 0;
+    lines.forEach((line) => {
+      const parts = line.split(/[,，\s\t]+/).filter(Boolean);
+      if (parts.length < 3) {
+        Message.warning(`无法解析（需「客户ID 商品ID 份数」三列）：${line}`);
+        return;
+      }
+      const customerId = Number(parts[0]);
+      const skuId = Number(parts[1]);
+      const quantity = Number(parts[2]);
+      if (
+        !Number.isInteger(customerId) ||
+        customerId < 1 ||
+        !Number.isInteger(skuId) ||
+        skuId < 1 ||
+        !Number.isInteger(quantity) ||
+        quantity < 1
+      ) {
+        Message.warning(`无效数据（ID/份数须为正整数）：${line}`);
+        return;
+      }
+      batchRows.value.push({
+        key: crypto.randomUUID(),
+        customer_id: customerId,
+        sku_id: skuId,
+        quantity,
+      });
+      imported += 1;
+    });
+    if (imported > 0) batchImportText.value = '';
+  }
 
   async function loadActive() {
     loading.value = true;
@@ -276,6 +472,68 @@
     } finally {
       loading.value = false;
     }
+  }
+
+  async function submitBatch() {
+    const rows = batchRows.value;
+    if (rows.length === 0) {
+      Message.warning('请至少添加一行');
+      return;
+    }
+    const invalid = rows.some(
+      (row) => row.customer_id < 1 || row.sku_id < 1 || row.quantity < 1
+    );
+    if (invalid) {
+      Message.warning('存在未填写完整或份数无效的行，请检查后重试');
+      return;
+    }
+    batchSubmitting.value = true;
+    batchResults.value = [];
+    let success = 0;
+    let fail = 0;
+    // 逐行提交：每行独立幂等键，单行失败不阻塞其它行；后端对客户归属做校验。
+    const settled = await Promise.allSettled(
+      rows.map((row) =>
+        createOrder(
+          {
+            customer_id: row.customer_id,
+            sku_id: row.sku_id,
+            quantity: row.quantity,
+          },
+          crypto.randomUUID()
+        )
+      )
+    );
+    settled.forEach((res, i) => {
+      const row = rows[i];
+      if (res.status === 'fulfilled') {
+        success += 1;
+        batchResults.value.push({
+          key: row.key,
+          row: i + 1,
+          customerId: row.customer_id,
+          skuId: row.sku_id,
+          ok: true,
+          message: '报单成功',
+        });
+      } else {
+        fail += 1;
+        batchResults.value.push({
+          key: row.key,
+          row: i + 1,
+          customerId: row.customer_id,
+          skuId: row.sku_id,
+          ok: false,
+          message: errorText(
+            res.reason,
+            '报单失败，请检查支付时限、名额与客户归属'
+          ),
+        });
+      }
+    });
+    batchSubmitting.value = false;
+    Message.success(`批量报单完成：成功 ${success} 笔，失败 ${fail} 笔`);
+    await loadActive();
   }
 
   async function saveCustomer() {
@@ -380,5 +638,13 @@
 <style scoped>
   .toolbar {
     margin-bottom: 16px;
+  }
+
+  .batch-ok {
+    color: var(--color-success-6);
+  }
+
+  .batch-fail {
+    color: var(--color-danger-6);
   }
 </style>
