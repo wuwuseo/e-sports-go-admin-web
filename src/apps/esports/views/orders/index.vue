@@ -706,11 +706,10 @@
             <a-radio value="cancelled">已取消</a-radio>
           </a-radio-group>
         </a-form-item>
-        <a-form-item label="收款状态" required>
-          <a-radio-group v-model="backfillForm.paymentStatus">
-            <a-radio value="paid">已收款</a-radio>
-            <a-radio value="unpaid">未收款</a-radio>
-          </a-radio-group>
+        <a-form-item label="收款状态">
+          <a-typography-text type="secondary">
+            历史补录单一律按已收款登记；未收款的历史单请补录为「已取消」
+          </a-typography-text>
         </a-form-item>
         <a-form-item label="补录原因" required>
           <a-textarea
@@ -720,11 +719,14 @@
             placeholder="填写补录原因（4-255 字）"
           />
         </a-form-item>
-        <a-form-item label="计入当期业绩">
+        <a-form-item label="计入客服提成">
           <a-space>
-            <a-switch v-model="backfillForm.countCommission" />
+            <a-switch
+              v-model="backfillForm.countCsCommission"
+              :disabled="backfillForm.fulfillmentStatus !== 'completed'"
+            />
             <a-typography-text type="secondary">
-              关闭则不计提分成 / 提成 / 成长值
+              仅影响客服提成；陪玩分成与成长值始终按补录单计提
             </a-typography-text>
           </a-space>
         </a-form-item>
@@ -1529,9 +1531,8 @@
     unitPriceYuan: undefined as number | undefined,
     settledAt: '',
     fulfillmentStatus: 'completed' as 'completed' | 'cancelled',
-    paymentStatus: 'paid' as 'paid' | 'unpaid',
     reason: '',
-    countCommission: false,
+    countCsCommission: false,
   });
 
   function openBackfill() {
@@ -1541,11 +1542,18 @@
     backfillForm.unitPriceYuan = undefined;
     backfillForm.settledAt = '';
     backfillForm.fulfillmentStatus = 'completed';
-    backfillForm.paymentStatus = 'paid';
     backfillForm.reason = '';
-    backfillForm.countCommission = false;
+    backfillForm.countCsCommission = false;
     backfillVisible.value = true;
   }
+
+  // 已取消单不计提任何提成：切到已取消时同步关掉开关，避免开关显示与实际口径不一致。
+  watch(
+    () => backfillForm.fulfillmentStatus,
+    (status) => {
+      if (status !== 'completed') backfillForm.countCsCommission = false;
+    }
+  );
 
   async function submitBackfill() {
     if (
@@ -1575,14 +1583,10 @@
       Message.warning('补录原因须为 4-255 字');
       return;
     }
-    // 契约约束：completed 单必须 paid。
-    if (
+    // 已取消单不计提任何提成，开关对后端无意义：统一按 false 提交。
+    const countCsCommission =
       backfillForm.fulfillmentStatus === 'completed' &&
-      backfillForm.paymentStatus !== 'paid'
-    ) {
-      Message.warning('已完成订单必须已收款');
-      return;
-    }
+      backfillForm.countCsCommission;
     backfillSubmitting.value = true;
     try {
       await backfillOrder(
@@ -1596,9 +1600,9 @@
               : Math.round(backfillForm.unitPriceYuan * 100),
           settled_at: new Date(backfillForm.settledAt).toISOString(),
           fulfillment_status: backfillForm.fulfillmentStatus,
-          payment_status: backfillForm.paymentStatus,
+          payment_status: 'paid',
           reason,
-          count_commission: backfillForm.countCommission,
+          count_cs_commission: countCsCommission,
         },
         crypto.randomUUID()
       );

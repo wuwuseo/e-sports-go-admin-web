@@ -173,13 +173,14 @@ export interface BackfillOrderInput {
   unit_price_cents: number;
   // 实际成交时间（RFC3339）：不晚于当前、不早于 5 年前。
   settled_at: string;
-  // 已完成单必须已收款，后端事务内校验。
+  // 已完成单必须已收款：补录单一律按已收款登记，未收款的历史单应补录为「已取消」。
   fulfillment_status: 'completed' | 'cancelled';
-  payment_status: 'paid' | 'unpaid';
+  payment_status: 'paid';
   // 补录原因（4-255 字）。
   reason: string;
-  // 是否计入当期业绩：false 不计提分成 / 提成 / 成长值。
-  count_commission: boolean;
+  // 是否计入客服提成：false 只跳过客服提成，陪玩分成与成长值始终计提。
+  // 注意字段名须与后端 backfillOrderInput 的 count_cs_commission 一致。
+  count_cs_commission: boolean;
 }
 
 export interface RepriceInput {
