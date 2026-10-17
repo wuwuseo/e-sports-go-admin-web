@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosResponse } from 'axios';
 import type { ApiResponse } from '@/types/api';
 
 export interface EsportsProductCategory {
@@ -362,8 +363,41 @@ export const updateCategory = (id: number, input: CategoryInput) =>
 export const deleteCategory = (id: number) =>
   axios.delete<ApiResponse<{ id: number }>>(`${base}/categories/${id}`);
 
-export const listCustomers = () =>
-  axios.get<ApiResponse<EsportsCustomer[]>>(`${base}/customers`);
+// 分页响应封装：仅在调用方显式传 page / page_size 时出现。
+export interface PageResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// 客户列表查询参数：keyword 同时模糊匹配 display_name / phone。
+export interface EsportsCustomerListParams {
+  keyword?: string;
+  follow_status?: CustomerFollowStatus;
+  risk_status?: CustomerRiskStatus;
+  limit?: number;
+  offset?: number;
+  page?: number;
+  page_size?: number;
+}
+
+export function listCustomers(): Promise<
+  AxiosResponse<ApiResponse<EsportsCustomer[]>>
+>;
+export function listCustomers(
+  params: EsportsCustomerListParams & { page: number }
+): Promise<AxiosResponse<ApiResponse<PageResult<EsportsCustomer>>>>;
+export function listCustomers(
+  params?: EsportsCustomerListParams
+): Promise<
+  AxiosResponse<ApiResponse<EsportsCustomer[] | PageResult<EsportsCustomer>>>
+>;
+export function listCustomers(params?: EsportsCustomerListParams) {
+  return axios.get<
+    ApiResponse<EsportsCustomer[] | PageResult<EsportsCustomer>>
+  >(`${base}/customers`, params ? { params } : undefined);
+}
 
 export const createCustomer = (displayName: string) =>
   axios.post<ApiResponse<EsportsCustomer>>(`${base}/customers`, {
@@ -392,11 +426,64 @@ export const reviewAgeCheck = (checkId: number, input: AgeReviewInput) =>
     input
   );
 
-export const listOrders = () =>
-  axios.get<ApiResponse<EsportsOrder[]>>(`${base}/orders`);
+// 订单列表查询参数：不带 page / page_size 时后端仍返回数组（保持旧调用方兼容），
+// 带 page 时返回 { items, total, page, page_size }，两种形态都会带 X-Total-Count 响应头。
+export interface EsportsOrderListParams {
+  customer_id?: number;
+  keyword?: string;
+  fulfillment_status?: string;
+  payment_status?: string;
+  limit?: number;
+  offset?: number;
+  page?: number;
+  page_size?: number;
+}
+
+export function listOrders(): Promise<
+  AxiosResponse<ApiResponse<EsportsOrder[]>>
+>;
+export function listOrders(
+  params: EsportsOrderListParams & { page: number }
+): Promise<AxiosResponse<ApiResponse<PageResult<EsportsOrder>>>>;
+export function listOrders(
+  params?: EsportsOrderListParams
+): Promise<
+  AxiosResponse<ApiResponse<EsportsOrder[] | PageResult<EsportsOrder>>>
+>;
+export function listOrders(params?: EsportsOrderListParams) {
+  return axios.get<ApiResponse<EsportsOrder[] | PageResult<EsportsOrder>>>(
+    `${base}/orders`,
+    params ? { params } : undefined
+  );
+}
 
 export const getOrder = (id: number) =>
   axios.get<ApiResponse<EsportsOrder>>(`${base}/orders/${id}`);
+
+// 订单授权协作：负责人把订单的**查看**权限授予其他客服（不转移负责关系，写操作仍仅负责人可执行）。
+export interface EsportsOrderCollaborator {
+  id: number;
+  order_id: number;
+  admin_id: number;
+  granted_by_admin_id: number | null;
+  created_at: string;
+}
+
+export const listOrderCollaborators = (orderId: number) =>
+  axios.get<ApiResponse<EsportsOrderCollaborator[]>>(
+    `${base}/orders/${orderId}/collaborators`
+  );
+
+export const addOrderCollaborator = (orderId: number, adminId: number) =>
+  axios.post<ApiResponse<EsportsOrderCollaborator>>(
+    `${base}/orders/${orderId}/collaborators`,
+    { admin_id: adminId }
+  );
+
+export const removeOrderCollaborator = (orderId: number, adminId: number) =>
+  axios.delete<ApiResponse<{ order_id: number; admin_id: number }>>(
+    `${base}/orders/${orderId}/collaborators/${adminId}`
+  );
 
 export const createOrder = (input: OrderInput, idempotencyKey: string) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders`, input, {

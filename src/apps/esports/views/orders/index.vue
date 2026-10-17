@@ -296,6 +296,83 @@
           detail.payment_deadline
         }}</a-descriptions-item>
       </a-descriptions>
+      <!-- 授权协作订单：仅放开只读查看，不转移负责关系；授予/撤销仍由后端校验超管或负责人。 -->
+      <template v-if="detail && canViewCollaborators">
+        <a-divider>协作客服</a-divider>
+        <div v-if="canGrantCollaborator" class="collaborator-grant">
+          <a-select
+            v-if="!adminOptionsFailed"
+            v-model="collaboratorAdminId"
+            class="collaborator-select"
+            placeholder="选择客服"
+            allow-search
+            :loading="adminOptionsLoading"
+          >
+            <a-option
+              v-for="admin in collaboratorCandidates"
+              :key="admin.id"
+              :value="admin.id"
+              >{{ admin.username }}（#{{ admin.id }}）</a-option
+            >
+          </a-select>
+          <!-- 管理员列表接口不可用（如客服无管理员管理权限）时退化为手填 admin_id。 -->
+          <a-input-number
+            v-else
+            v-model="collaboratorAdminId"
+            class="collaborator-select"
+            :min="1"
+            :precision="0"
+            placeholder="客服管理员 ID"
+          />
+          <a-button
+            type="primary"
+            :loading="collaboratorSubmitting"
+            @click="submitCollaborator"
+            >添加协作</a-button
+          >
+        </div>
+        <a-table
+          :data="collaborators"
+          :loading="collaboratorLoading"
+          row-key="id"
+          :pagination="false"
+          size="small"
+        >
+          <template #columns>
+            <a-table-column title="客服">
+              <template #cell="{ record }">
+                <div>{{ adminLabel(record.admin_id) }}</div>
+                <a-typography-text type="secondary">
+                  授权人：{{
+                    record.granted_by_admin_id
+                      ? adminLabel(record.granted_by_admin_id)
+                      : '—'
+                  }}
+                </a-typography-text>
+              </template>
+            </a-table-column>
+            <a-table-column title="授权时间">
+              <template #cell="{ record }">{{
+                dateTimeText(record.created_at)
+              }}</template>
+            </a-table-column>
+            <a-table-column
+              v-if="canRemoveCollaborator"
+              title="操作"
+              :width="90"
+            >
+              <template #cell="{ record }">
+                <a-popconfirm
+                  content="确认移除该协作客服？移除后其将无法查看该订单。"
+                  @ok="removeCollaborator(record)"
+                >
+                  <a-button type="text" status="danger">移除</a-button>
+                </a-popconfirm>
+              </template>
+            </a-table-column>
+          </template>
+        </a-table>
+      </template>
     </a-modal>
 
     <a-modal
@@ -740,7 +817,9 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import useUserStore from '@/store/modules/user';
+  import { getAdmins } from '@/api/user';
   import {
+    addOrderCollaborator,
     approveCloseReview,
     backfillOrder,
     cancelOrder,
@@ -753,6 +832,7 @@
     getOrderCloseConditions,
     getOrderCloseForm,
     listOrderAddons,
+    listOrderCollaborators,
     listOrders,
     payEsportsOrderByStoredValueCard,
     payOrderAddonByBalance,
@@ -762,6 +842,7 @@
     listPriceAdjustments,
     decidePriceAdjustment,
     rejectCloseReview,
+    removeOrderCollaborator,
     repriceOrder,
     rescheduleOrder,
     restoreOrder,
@@ -776,6 +857,7 @@
     EsportsCloseFormField,
     EsportsOrder,
     EsportsOrderAddon,
+    EsportsOrderCollaborator,
     OrderCloseApprovalView,
     OrderCloseFormView,
     RepriceQuote,
@@ -797,6 +879,16 @@
   );
   // 补录订单复用「新增订单」权限码 esports:orders:add（语义为生成订单），后端无独立 backfill 权限码。
   const canBackfill = computed(() => hasButtonPermission('esports:orders:add'));
+  // 授权协作订单：查看 / 授予 / 撤销分别对应独立按钮权限码，超管与负责人校验由后端兜底。
+  const canViewCollaborators = computed(() =>
+    hasButtonPermission('esports:orders:collaborators')
+  );
+  const canGrantCollaborator = computed(() =>
+    hasButtonPermission('esports:orders:collaborator_add')
+  );
+  const canRemoveCollaborator = computed(() =>
+    hasButtonPermission('esports:orders:collaborator_remove')
+  );
 
   const loading = ref(false);
   const priceLoading = ref(false);
@@ -1225,6 +1317,112 @@
     )} + ${money(quote.manual_adjust_cents)} = ${money(quote.payable_cents)}`;
   });
 
+  // ── 授权协作客服：负责人把订单只读查看权限授予其他客服，不转移负责关系 ──
+  // 客服候选来自管理员列表（getAdmins），取不到名称时回落 #<admin_id>。
+  interface CollaboratorAdminOption {
+    id: number;
+    username: string;
+  }
+  const collaborators = ref<EsportsOrderCollaborator[]>([]);
+  const collaboratorLoading = ref(false);
+  const collaboratorSubmitting = ref(false);
+  const collaboratorOrderId = ref(0);
+  const collaboratorAdminId = ref<number | undefined>(undefined);
+  const adminOptions = ref<CollaboratorAdminOption[]>([]);
+  const adminOptionsLoading = ref(false);
+  // 管理员列表接口不可用时（客服通常无管理员管理权限），退化为手填 admin_id。
+  const adminOptionsFailed = ref(false);
+  const adminOptionsLoaded = ref(false);
+
+  const adminNameMap = computed(() => {
+    const map = new Map<number, string>();
+    adminOptions.value.forEach((admin) => map.set(admin.id, admin.username));
+    return map;
+  });
+  const adminLabel = (adminId: number) =>
+    adminNameMap.value.get(adminId) || `#${adminId}`;
+  const dateTimeText = (value: string) =>
+    value ? value.replace('T', ' ').slice(0, 19) : '—';
+  // 已在该订单协作中的客服不再出现在下拉候选中，避免重复提交。
+  const collaboratorCandidates = computed(() => {
+    const used = new Set(collaborators.value.map((item) => item.admin_id));
+    return adminOptions.value.filter((admin) => !used.has(admin.id));
+  });
+
+  async function loadAdminOptions() {
+    if (
+      adminOptionsLoaded.value ||
+      adminOptionsLoading.value ||
+      adminOptionsFailed.value
+    )
+      return;
+    adminOptionsLoading.value = true;
+    try {
+      const res = await getAdmins({
+        page: 1,
+        page_size: 200,
+        status: 'active',
+      });
+      adminOptions.value = res.data.data.data || [];
+      adminOptionsLoaded.value = true;
+    } catch {
+      // 名称仅用于展示，拿不到权限时静默降级为 #id + 手填 admin_id。
+      adminOptionsFailed.value = true;
+    } finally {
+      adminOptionsLoading.value = false;
+    }
+  }
+
+  async function loadCollaborators(orderId: number) {
+    collaboratorOrderId.value = orderId;
+    collaborators.value = [];
+    collaboratorAdminId.value = undefined;
+    if (!canViewCollaborators.value) return;
+    collaboratorLoading.value = true;
+    try {
+      const list = (await listOrderCollaborators(orderId)).data.data || [];
+      // 快速切换订单时丢弃过期响应，避免串单。
+      if (collaboratorOrderId.value === orderId) collaborators.value = list;
+    } catch (err) {
+      if (collaboratorOrderId.value === orderId) {
+        Message.error(errorText(err, '加载协作客服失败'));
+      }
+    } finally {
+      if (collaboratorOrderId.value === orderId) {
+        collaboratorLoading.value = false;
+      }
+    }
+  }
+
+  async function submitCollaborator() {
+    const adminId = collaboratorAdminId.value;
+    if (!adminId || !Number.isSafeInteger(adminId) || adminId <= 0) {
+      Message.warning('请选择客服');
+      return;
+    }
+    collaboratorSubmitting.value = true;
+    try {
+      // 后端对已存在的协作记录幂等返回，前端无需先查重。
+      await addOrderCollaborator(collaboratorOrderId.value, adminId);
+      Message.success('已添加协作客服');
+      await loadCollaborators(collaboratorOrderId.value);
+    } catch (err) {
+      Message.error(errorText(err, '添加失败：仅超级管理员或订单负责人可授予'));
+    } finally {
+      collaboratorSubmitting.value = false;
+    }
+  }
+
+  async function removeCollaborator(record: EsportsOrderCollaborator) {
+    try {
+      await removeOrderCollaborator(record.order_id, record.admin_id);
+      Message.success('已移除协作客服');
+      await loadCollaborators(record.order_id);
+    } catch (err) {
+      Message.error(errorText(err, '移除失败：仅超级管理员或订单负责人可撤销'));
+    }
+  }
+
   async function showDetail(id: number) {
     try {
       detail.value = (await getOrder(id)).data.data || null;
@@ -1236,6 +1434,9 @@
         detailApproval.value = null;
       }
       detailVisible.value = true;
+      // 详情打开后并行加载协作客服与候选客服名称，避免阻塞弹层展示。
+      loadCollaborators(id);
+      loadAdminOptions();
     } catch {
       Message.error('无法获取订单详情');
     }
@@ -1638,5 +1839,16 @@
   .close-btn:disabled {
     color: rgb(0 0 0 / 25%);
     cursor: not-allowed;
+  }
+
+  /* 协作客服：候选下拉与添加按钮同行，窄弹层内自适应撑满。 */
+  .collaborator-grant {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .collaborator-select {
+    flex: 1;
   }
 </style>
