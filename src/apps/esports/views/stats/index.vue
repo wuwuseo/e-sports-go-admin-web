@@ -20,12 +20,14 @@
           :style="{ width: '150px' }"
         />
         <a-input-number
+          v-if="activeTab !== 'finance'"
           v-model="responsibleAdminId"
           placeholder="负责客服 ID"
           :min="0"
           :style="{ width: '150px' }"
         />
         <a-input
+          v-if="activeTab !== 'finance'"
           v-model="game"
           placeholder="游戏"
           allow-clear
@@ -67,6 +69,7 @@
           </a-select>
         </a-tooltip>
         <a-select
+          v-if="activeTab !== 'finance'"
           v-model="appointmentType"
           placeholder="即时/预约"
           allow-clear
@@ -76,6 +79,7 @@
           <a-option value="request">预约</a-option>
         </a-select>
         <a-select
+          v-if="activeTab !== 'finance'"
           v-model="seatType"
           placeholder="单人/多人"
           allow-clear
@@ -370,21 +374,52 @@
       </template>
 
       <template v-else-if="activeTab === 'finance' && finance">
-        <a-descriptions :column="4" bordered size="small" title="客户余额资金">
-          <a-descriptions-item label="充值">{{
-            money(walletAmount(finance.wallet.customer_balance, 'recharge'))
-          }}</a-descriptions-item>
-          <a-descriptions-item label="消费">{{
-            money(walletAmount(finance.wallet.customer_balance, 'consume'))
-          }}</a-descriptions-item>
-          <a-descriptions-item label="退款返还">{{
-            money(
-              walletAmount(finance.wallet.customer_balance, 'refund_return')
-            )
-          }}</a-descriptions-item>
-          <a-descriptions-item label="调整">{{
-            money(walletAmount(finance.wallet.customer_balance, 'adjust'))
-          }}</a-descriptions-item>
+        <a-descriptions
+          v-if="customerWalletRows.length"
+          :column="4"
+          bordered
+          size="small"
+          title="客户余额资金（本金 + 赠送权益）"
+        >
+          <a-descriptions-item
+            v-for="row in customerWalletRows"
+            :key="row.key"
+            :label="walletEntryLabel(row.key)"
+          >
+            {{ money(row.amount) }}
+          </a-descriptions-item>
+        </a-descriptions>
+        <a-descriptions
+          v-if="catfoodWalletRows.length"
+          :column="4"
+          bordered
+          size="small"
+          title="陪玩猫粮（本金 + 赠送权益）"
+          :style="{ marginTop: '12px' }"
+        >
+          <a-descriptions-item
+            v-for="row in catfoodWalletRows"
+            :key="row.key"
+            :label="walletEntryLabel(row.key)"
+          >
+            {{ money(row.amount) }}
+          </a-descriptions-item>
+        </a-descriptions>
+        <a-descriptions
+          v-if="storedValueWalletRows.length"
+          :column="4"
+          bordered
+          size="small"
+          title="储值卡账户（本金 + 赠送权益）"
+          :style="{ marginTop: '12px' }"
+        >
+          <a-descriptions-item
+            v-for="row in storedValueWalletRows"
+            :key="row.key"
+            :label="walletEntryLabel(row.key)"
+          >
+            {{ money(row.amount) }}
+          </a-descriptions-item>
         </a-descriptions>
         <a-descriptions
           :column="4"
@@ -402,6 +437,13 @@
           <a-descriptions-item label="实结合计">{{
             money(finance.settlement.net_cents)
           }}</a-descriptions-item>
+          <a-descriptions-item
+            v-for="row in settlementStatusRows"
+            :key="row.key"
+            :label="settlementStatusLabel(row.key)"
+          >
+            {{ row.count }}
+          </a-descriptions-item>
         </a-descriptions>
         <a-table
           :data="finance.payment_channels"
@@ -531,22 +573,60 @@
     )
   );
 
-  const walletAmount = (record: Record<string, number>, key: string) =>
-    record[key] ?? 0;
+  // 后端财务汇总返回客户余额 / 陪玩猫粮 / 储值卡三类账户桶；
+  // API 类型暂只声明前两类，这里按动态桶读取，避免漏渲染储值卡。
+  const financeWallet = computed<Record<string, Record<string, number>>>(() =>
+    Object.fromEntries(Object.entries(finance.value?.wallet ?? {}))
+  );
+  const walletRows = (account: string) =>
+    Object.entries(financeWallet.value[account] ?? {}).map(([key, amount]) => ({
+      key,
+      amount,
+    }));
+  const customerWalletRows = computed(() => walletRows('customer_balance'));
+  const catfoodWalletRows = computed(() => walletRows('player_catfood'));
+  const storedValueWalletRows = computed(() => walletRows('stored_value_card'));
+
+  // 钱包流水类型与结算状态的中文标签（未知值原样展示，避免新增枚举时显示为空）。
+  const walletEntryLabels: Record<string, string> = {
+    recharge: '充值收入',
+    consume: '消费支出',
+    refund_return: '退款返还',
+    adjust: '调整',
+    expire: '到期作废',
+    withdraw: '提现支出',
+  };
+  const walletEntryLabel = (value: string) => walletEntryLabels[value] || value;
+
+  const settlementStatusLabels: Record<string, string> = {
+    draft: '结算草稿',
+    locked: '已锁定',
+    paid: '已打款',
+  };
+  const settlementStatusLabel = (value: string) =>
+    settlementStatusLabels[value] || value;
+  const settlementStatusRows = computed(() =>
+    Object.entries(finance.value?.settlement.by_status ?? {}).map(
+      ([key, count]) => ({ key, count })
+    )
+  );
 
   const buildParams = (): ReportQuery => {
     const params: ReportQuery = { period: period.value, limit: 100 };
+    const financeTab = activeTab.value === 'finance';
     if (startDate.value) params.start = startDate.value;
     if (endDate.value) params.end = endDate.value;
-    if (responsibleAdminId.value)
+    // 财务总表不具备逐订单归属，不发送游戏 / 负责客服 / 预约 / 席位等订单维度，
+    // 与后端 finance 的白名单口径保持一致（否则会返回参数错误）。
+    if (!financeTab && responsibleAdminId.value)
       params.responsible_admin_id = responsibleAdminId.value;
-    if (game.value) params.game = game.value;
-    if (activeTab.value !== 'finance' && channelSource.value)
+    if (!financeTab && game.value) params.game = game.value;
+    if (!financeTab && channelSource.value)
       params.channel_source = channelSource.value;
-    if (activeTab.value !== 'finance' && entryPoint.value)
-      params.entry_point = entryPoint.value;
-    if (appointmentType.value) params.appointment_type = appointmentType.value;
-    if (seatType.value) params.seat_type = seatType.value;
+    if (!financeTab && entryPoint.value) params.entry_point = entryPoint.value;
+    if (!financeTab && appointmentType.value)
+      params.appointment_type = appointmentType.value;
+    if (!financeTab && seatType.value) params.seat_type = seatType.value;
     if (paymentChannel.value) params.payment_channel = paymentChannel.value;
     if (kind.value) params.kind = kind.value;
     if (faultParty.value) params.fault_party = faultParty.value;

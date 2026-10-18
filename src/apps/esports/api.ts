@@ -72,6 +72,8 @@ export interface EsportsCustomer {
   source: CustomerSource;
   follow_status: CustomerFollowStatus;
   last_contact_at: string | null;
+  // 是否允许客户自助下单（§4.1 / §13.7）。
+  self_order_enabled: boolean;
   member_level_code: string;
   // 风险标记（§13.7）：normal 正常 / watch 疑似滥用复核（自动，不自动处罚）/ restricted 限制自助下单（人工）。
   risk_status: CustomerRiskStatus;
@@ -768,6 +770,30 @@ export const createPlayer = (input: PlayerInput) =>
 
 export const updatePlayer = (id: number, input: PlayerUpdateInput) =>
   axios.put<ApiResponse<EsportsPlayer>>(`${base}/players/${id}`, input);
+
+export interface PlayerIdentityView {
+  id: number;
+  player_id: number;
+  real_name: string;
+  id_number_masked: string;
+  status: 'pending_verification' | 'verified' | 'rejected' | '';
+  reject_reason: string;
+  reviewed_by_admin_id?: number | null;
+  reviewed_at?: string | null;
+  created_at?: string;
+}
+
+export const getPlayerIdentity = (id: number) =>
+  axios.get<ApiResponse<PlayerIdentityView>>(`${base}/players/${id}/identity`);
+
+export const reviewPlayerIdentity = (
+  id: number,
+  input: { approved: boolean; reject_reason?: string }
+) =>
+  axios.post<ApiResponse<{ id: number; status: string }>>(
+    `${base}/players/${id}/identity/review`,
+    input
+  );
 
 // 陪玩端自助接口供 uni-app 客户端使用，路由前缀为 /api/v1/esports/user。
 const userBase = '/api/v1/esports/user';
@@ -1593,6 +1619,38 @@ export interface EsportsWithdrawal {
   updated_at: string;
 }
 
+// 打款执行状态机（§11.2 补全）：approved → pay_requested → paid / pay_failed。
+// 提现单自身状态保持 approved，直到打款成功才置为 paid；失败可重新提交打款。
+export type WithdrawalPayoutStatus = 'pay_requested' | 'paid' | 'pay_failed';
+
+export interface EsportsWithdrawalPayout {
+  id: number;
+  payout_no: string;
+  withdrawal_id: number;
+  channel: WithdrawalChannel;
+  // 外部打款流水号（幂等键），同一流水号只能登记一次。
+  transaction_no: string;
+  // 实际打款金额（分），须等于提现单的 net_cents。
+  amount_cents: number;
+  // 完税凭证，打款成功时回填。
+  tax_ref: string;
+  status: WithdrawalPayoutStatus;
+  fail_reason: string;
+  submitted_by_admin_id: number | null;
+  paid_by_admin_id: number | null;
+  paid_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WithdrawalPayoutRequestInput {
+  channel: WithdrawalChannel;
+  transaction_no: string;
+  // 须等于提现单实际到账额，否则后端返回 400。
+  amount_cents: number;
+}
+
 export interface PlayerWithdrawalSummary {
   withdrawable_cents: number;
   pending_review_cents: number;
@@ -1615,11 +1673,46 @@ export const reviewWithdrawal = (id: number, approve: boolean, reason = '') =>
     { approve, reason }
   );
 
+// 旧版打款入口（兼容保留）：直接登记打款并置为 paid，主流程改用下方打款执行状态机。
 export const payWithdrawal = (id: number, payoutRef: string, taxRef = '') =>
   axios.post<ApiResponse<EsportsWithdrawal>>(`${base}/withdrawals/${id}/pay`, {
     payout_ref: payoutRef,
     tax_ref: taxRef,
   });
+
+// 提交打款执行（§11.2）：仅已审核通过的提现单可提交，落为 pay_requested。
+export const requestWithdrawalPayout = (
+  id: number,
+  input: WithdrawalPayoutRequestInput
+) =>
+  axios.post<ApiResponse<EsportsWithdrawalPayout>>(
+    `${base}/withdrawals/${id}/payout-request`,
+    input,
+    { silentError: true }
+  );
+
+// 查看某提现单的打款执行记录，按 ID 倒序（最新在前）。
+export const listWithdrawalPayouts = (withdrawalId: number, limit = 50) =>
+  axios.get<ApiResponse<EsportsWithdrawalPayout[]>>(
+    `${base}/withdrawals/${withdrawalId}/payouts`,
+    { params: { limit }, silentError: true }
+  );
+
+// 确认打款成功（§11.2）：回填完税凭证，提现单同步置为 paid。
+export const markWithdrawalPayoutPaid = (payoutId: number, taxRef = '') =>
+  axios.post<ApiResponse<EsportsWithdrawalPayout>>(
+    `${base}/withdrawal-payouts/${payoutId}/paid`,
+    { tax_ref: taxRef },
+    { silentError: true }
+  );
+
+// 标记打款失败（§11.2）：提现单保持 approved，可重新提交打款。
+export const markWithdrawalPayoutFailed = (payoutId: number, reason: string) =>
+  axios.post<ApiResponse<EsportsWithdrawalPayout>>(
+    `${base}/withdrawal-payouts/${payoutId}/failed`,
+    { reason },
+    { silentError: true }
+  );
 
 // 陪玩端自助：申请提现、我的提现单与提现概览（供 uni-app 客户端）。
 export const applyPlayerWithdrawal = (input: {
@@ -1970,6 +2063,10 @@ export interface MemberLevel {
   // 折扣基点：10000 = 原价，9500 = 9.5 折。
   discount_bps: number;
   priority_dispatch: boolean;
+  // 专属客服权益：客户绑定固定负责客服、不参与轮转（客服端/企微侧边栏展示标识）。
+  dedicated_cs: boolean;
+  // 优先预约权益：会员可提交预约意向并在客服工作台置顶处理。
+  priority_booking: boolean;
   // 储值卡赠送比例，基点（100 = 1%）。
   prepay_bonus_bps: number;
   sort_order: number;
@@ -1985,6 +2082,9 @@ export interface MemberLevelInput {
   growth_threshold: number;
   discount_bps: number;
   priority_dispatch: boolean;
+  // 编辑时可省略：后端仅在显式传值时更新，未传保持库中原权益。
+  dedicated_cs?: boolean;
+  priority_booking?: boolean;
   prepay_bonus_bps: number;
   sort_order: number;
 }
@@ -2821,6 +2921,7 @@ export interface FinanceReport {
   wallet: {
     customer_balance: Record<string, number>;
     player_catfood: Record<string, number>;
+    stored_value_card: Record<string, number>;
   };
   settlement: {
     count: number;
@@ -3010,6 +3111,7 @@ export interface CustomerProfileInput {
   consumption_preference: string;
   tags: string[];
   follow_status?: CustomerFollowStatus;
+  self_order_enabled?: boolean;
 }
 
 export type FollowChannel = 'pc' | 'mobile' | 'wecom' | 'phone' | 'other';

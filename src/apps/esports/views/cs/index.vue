@@ -268,6 +268,12 @@
               >
             </a-select>
           </a-form-item>
+          <a-form-item label="允许自助下单">
+            <a-switch v-model="profileForm.selfOrderEnabled" />
+            <a-typography-text type="secondary"
+              >关闭后客户无法自助下单/充值/购卡</a-typography-text
+            >
+          </a-form-item>
           <a-button
             v-if="canManage"
             type="primary"
@@ -532,6 +538,7 @@
     preference: '',
     tags: [] as string[],
     followStatus: 'new' as CustomerFollowStatus,
+    selfOrderEnabled: false,
   });
   const followForm = reactive({
     summary: '',
@@ -557,6 +564,7 @@
       profileForm.preference = detail.customer.consumption_preference;
       profileForm.tags = detail.customer.tags || [];
       profileForm.followStatus = detail.customer.follow_status;
+      profileForm.selfOrderEnabled = detail.customer.self_order_enabled;
       await loadFollowUps(customer.id);
     } catch (err) {
       Message.error(errorText(err, '加载客户档案失败'));
@@ -573,6 +581,7 @@
         consumption_preference: profileForm.preference,
         tags: profileForm.tags,
         follow_status: profileForm.followStatus,
+        self_order_enabled: profileForm.selfOrderEnabled,
       });
       Message.success('档案已保存');
       await loadCustomers();

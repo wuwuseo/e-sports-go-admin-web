@@ -32,6 +32,12 @@
               <a-button v-if="canManage" type="text" @click="openEdit(record)"
                 >编辑</a-button
               >
+              <a-button
+                v-if="canReviewIdentity"
+                type="text"
+                @click="openIdentity(record)"
+                >实名</a-button
+              >
             </template>
           </a-table-column>
         </template>
@@ -104,6 +110,58 @@
         </a-form-item>
       </a-form>
     </a-modal>
+    <a-modal
+      v-model:visible="identityVisible"
+      title="陪玩实名认证"
+      :footer="false"
+      @cancel="identityVisible = false"
+    >
+      <a-spin :loading="identityLoading" style="width: 100%">
+        <a-space direction="vertical" fill>
+          <div>
+            状态：
+            <a-tag v-if="identity?.status" :color="identityStatusColor">
+              {{ identityStatusText }}
+            </a-tag>
+            <a-tag v-else color="gray">未提交</a-tag>
+          </div>
+          <div>真实姓名：{{ identity?.real_name || '-' }}</div>
+          <div>身份证号：{{ identity?.id_number_masked || '-' }}</div>
+          <div>提交时间：{{ identity?.created_at || '-' }}</div>
+          <div v-if="identity?.reject_reason">
+            驳回原因：{{ identity.reject_reason }}
+          </div>
+          <a-form
+            v-if="identity?.status === 'pending_verification'"
+            :model="{ rejectReason }"
+            style="margin-top: 12px"
+          >
+            <a-form-item label="驳回原因">
+              <a-input
+                v-model="rejectReason"
+                placeholder="驳回时必填，最多 255 字"
+                :max-length="255"
+                allow-clear
+              />
+            </a-form-item>
+            <a-space>
+              <a-button
+                type="primary"
+                :loading="identitySubmitting"
+                @click="decideIdentity(true)"
+                >通过</a-button
+              >
+              <a-button
+                status="danger"
+                :loading="identitySubmitting"
+                @click="decideIdentity(false)"
+                >驳回</a-button
+              >
+            </a-space>
+          </a-form>
+        </a-space>
+      </a-spin>
+    </a-modal>
   </div>
 </template>
 
@@ -111,9 +169,16 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
-  import { createPlayer, listPlayers, updatePlayer } from '../../api';
+  import {
+    createPlayer,
+    getPlayerIdentity,
+    listPlayers,
+    reviewPlayerIdentity,
+    updatePlayer,
+  } from '../../api';
   import type {
     EsportsPlayer,
+    PlayerIdentityView,
     PlayerPresence,
     PlayerQualification,
   } from '../../api';
@@ -121,6 +186,9 @@
   const { hasButtonPermission } = usePermission();
   const canManage = computed(() =>
     hasButtonPermission('esports:players:manage')
+  );
+  const canReviewIdentity = computed(() =>
+    hasButtonPermission('esports:players:identity_review')
   );
 
   const loading = ref(false);
@@ -214,6 +282,76 @@
       await load();
     } catch {
       Message.error('更新失败：档案不存在或参数无效');
+    }
+  }
+
+  const identityVisible = ref(false);
+  const identityLoading = ref(false);
+  const identitySubmitting = ref(false);
+  const identityPlayer = ref<EsportsPlayer | null>(null);
+  const identity = ref<PlayerIdentityView | null>(null);
+  const rejectReason = ref('');
+
+  const identityStatusText = computed(() => {
+    switch (identity.value?.status) {
+      case 'pending_verification':
+        return '待审核';
+      case 'verified':
+        return '已通过';
+      case 'rejected':
+        return '已驳回';
+      default:
+        return '未提交';
+    }
+  });
+  const identityStatusColor = computed(() => {
+    switch (identity.value?.status) {
+      case 'verified':
+        return 'green';
+      case 'rejected':
+        return 'red';
+      case 'pending_verification':
+        return 'orange';
+      default:
+        return 'gray';
+    }
+  });
+
+  async function openIdentity(player: EsportsPlayer) {
+    identityPlayer.value = player;
+    identity.value = null;
+    rejectReason.value = '';
+    identityVisible.value = true;
+    identityLoading.value = true;
+    try {
+      identity.value = (await getPlayerIdentity(player.id)).data.data || null;
+    } catch {
+      Message.error('加载实名认证信息失败');
+    } finally {
+      identityLoading.value = false;
+    }
+  }
+
+  async function decideIdentity(approved: boolean) {
+    const player = identityPlayer.value;
+    if (!player) return;
+    if (!approved && !rejectReason.value.trim()) {
+      Message.warning('驳回时必须填写原因');
+      return;
+    }
+    identitySubmitting.value = true;
+    try {
+      await reviewPlayerIdentity(player.id, {
+        approved,
+        reject_reason: approved ? undefined : rejectReason.value.trim(),
+      });
+      Message.success(approved ? '实名认证已通过' : '实名认证已驳回');
+      await openIdentity(player);
+      await load();
+    } catch {
+      Message.error(approved ? '审核通过失败' : '审核驳回失败');
+    } finally {
+      identitySubmitting.value = false;
     }
   }
 

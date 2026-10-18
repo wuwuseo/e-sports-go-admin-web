@@ -536,7 +536,14 @@
                   record.payout_ref || '-'
                 }}</template>
               </a-table-column>
-              <a-table-column title="操作" :width="180">
+              <a-table-column title="打款执行" :width="130">
+                <template #cell="{ record }">
+                  <a-tag :color="payoutDisplay(record).color">{{
+                    payoutDisplay(record).label
+                  }}</a-tag>
+                </template>
+              </a-table-column>
+              <a-table-column title="操作" :width="280">
                 <template #cell="{ record }">
                   <template v-if="canOperate">
                     <template v-if="record.status === 'pending_review'">
@@ -553,12 +560,33 @@
                         >驳回</a-button
                       >
                     </template>
+                    <template v-else-if="record.status === 'approved'">
+                      <a-button
+                        type="text"
+                        status="success"
+                        @click="openWithdrawalPayoutRequest(record)"
+                        >提交打款</a-button
+                      >
+                      <a-button
+                        type="text"
+                        @click="openWithdrawalPayouts(record)"
+                        >打款记录</a-button
+                      >
+                      <!-- 旧版 /pay 入口保留兼容，主流程走打款执行状态机。 -->
+                      <a-dropdown trigger="click">
+                        <a-button type="text">旧版入口</a-button>
+                        <template #content>
+                          <a-doption @click="openWithdrawalPay(record)"
+                            >旧版登记打款（兼容）</a-doption
+                          >
+                        </template>
+                      </a-dropdown>
+                    </template>
                     <a-button
-                      v-else-if="record.status === 'approved'"
+                      v-else-if="record.status === 'paid'"
                       type="text"
-                      status="success"
-                      @click="openWithdrawalPay(record)"
-                      >登记打款</a-button
+                      @click="openWithdrawalPayouts(record)"
+                      >打款记录</a-button
                     >
                     <span v-else class="text-secondary">-</span>
                   </template>
@@ -1266,6 +1294,183 @@
         </a-form-item>
         <a-typography-text type="secondary">
           打款不再改动猫粮账户：申请时钱已离开猫粮，此处只登记到账凭证与时间。
+          旧版入口会直接置为已打款；建议改用「提交打款」走打款执行状态机。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <!-- 打款执行记录（§11.2）：pay_requested 可确认成功 / 标记失败，失败后可重新提交。 -->
+    <a-drawer
+      v-model:visible="withdrawalPayoutsVisible"
+      title="提现打款记录"
+      :width="760"
+      :footer="false"
+    >
+      <a-space class="toolbar">
+        <a-typography-text>
+          提现单：{{ withdrawalPayoutsTarget?.withdrawal_no || '-' }}（实际到账
+          {{ money(withdrawalPayoutsTarget?.net_cents || 0) }}）
+        </a-typography-text>
+        <a-button
+          size="small"
+          :loading="withdrawalPayoutsLoading"
+          @click="reloadWithdrawalPayouts"
+          >刷新</a-button
+        >
+      </a-space>
+      <a-table
+        :data="withdrawalPayouts"
+        :loading="withdrawalPayoutsLoading"
+        row-key="id"
+        :pagination="false"
+      >
+        <template #columns>
+          <a-table-column data-index="payout_no" title="打款单号" />
+          <a-table-column title="渠道" :width="90">
+            <template #cell="{ record }">{{
+              withdrawalChannelLabel(record.channel)
+            }}</template>
+          </a-table-column>
+          <a-table-column data-index="transaction_no" title="外部流水号" />
+          <a-table-column title="金额" :width="110">
+            <template #cell="{ record }">{{
+              money(record.amount_cents)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="状态" :width="120">
+            <template #cell="{ record }">
+              <a-tag :color="withdrawalPayoutStatusColor(record.status)">{{
+                withdrawalPayoutStatusLabel(record.status)
+              }}</a-tag>
+            </template>
+          </a-table-column>
+          <a-table-column title="完税凭证" :width="120">
+            <template #cell="{ record }">{{ record.tax_ref || '-' }}</template>
+          </a-table-column>
+          <a-table-column title="提交时间" :width="170">
+            <template #cell="{ record }">{{
+              record.created_at || '-'
+            }}</template>
+          </a-table-column>
+          <a-table-column title="操作" :width="190">
+            <template #cell="{ record }">
+              <template v-if="record.status === 'pay_requested'">
+                <a-button
+                  type="text"
+                  status="success"
+                  @click="openWithdrawalPayoutPaid(record)"
+                  >确认成功</a-button
+                >
+                <a-button
+                  type="text"
+                  status="danger"
+                  @click="openWithdrawalPayoutFailed(record)"
+                  >标记失败</a-button
+                >
+              </template>
+              <span v-else-if="record.status === 'paid'" class="text-secondary"
+                >已到账</span
+              >
+              <span v-else class="text-secondary">{{
+                record.fail_reason || '已失败'
+              }}</span>
+            </template>
+          </a-table-column>
+        </template>
+      </a-table>
+      <a-typography-text type="secondary" class="payout-tip">
+        打款执行分阶段落账：提交打款后为「待确认到账」，确认成功才把提现单置为已打款；
+        标记失败后提现单仍为已通过，可重新提交打款。同一外部流水号只能登记一次。
+      </a-typography-text>
+    </a-drawer>
+
+    <!-- 提交打款执行：金额固定为实际到账额，外部流水号幂等。 -->
+    <a-modal
+      v-model:visible="withdrawalPayoutRequestVisible"
+      title="提交提现打款"
+      @ok="submitWithdrawalPayoutRequest"
+      @cancel="withdrawalPayoutRequestVisible = false"
+    >
+      <a-form :model="withdrawalPayoutRequestForm">
+        <a-form-item label="提现单">
+          <a-typography-text>{{
+            withdrawalPayoutRequestForm.withdrawalNo
+          }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="实际到账金额">
+          <a-typography-text>{{
+            money(withdrawalPayoutRequestForm.amountCents)
+          }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="打款渠道" required>
+          <a-select v-model="withdrawalPayoutRequestForm.channel">
+            <a-option value="bank_card">银行卡</a-option>
+            <a-option value="wechat">微信</a-option>
+            <a-option value="alipay">支付宝</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="外部打款凭证号" required>
+          <a-input
+            v-model="withdrawalPayoutRequestForm.transactionNo"
+            :max-length="128"
+            placeholder="银行 / 微信 / 支付宝流水号，同一流水号只能登记一次"
+          />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          提交后提现单进入打款执行（待确认到账），打款金额须等于实际到账额；
+          随后在打款记录里确认成功或标记失败。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <!-- 确认打款成功：回填完税凭证，提现单置为已打款。 -->
+    <a-modal
+      v-model:visible="withdrawalPayoutPaidVisible"
+      title="确认打款成功"
+      @ok="submitWithdrawalPayoutPaid"
+      @cancel="withdrawalPayoutPaidVisible = false"
+    >
+      <a-form :model="withdrawalPayoutPaidForm">
+        <a-form-item label="打款执行单">
+          <a-typography-text>{{
+            withdrawalPayoutPaidForm.payoutNo
+          }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="完税凭证号">
+          <a-input
+            v-model="withdrawalPayoutPaidForm.taxRef"
+            :max-length="128"
+            placeholder="选填"
+          />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          确认成功后回填到账时间与打款人，并把提现单同步置为已打款。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <!-- 标记打款失败：提现单保持已通过，可重新提交打款。 -->
+    <a-modal
+      v-model:visible="withdrawalPayoutFailedVisible"
+      title="标记打款失败"
+      @ok="submitWithdrawalPayoutFailed"
+      @cancel="withdrawalPayoutFailedVisible = false"
+    >
+      <a-form :model="withdrawalPayoutFailedForm">
+        <a-form-item label="打款执行单">
+          <a-typography-text>{{
+            withdrawalPayoutFailedForm.payoutNo
+          }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="失败原因" required>
+          <a-textarea
+            v-model="withdrawalPayoutFailedForm.reason"
+            :max-length="255"
+            placeholder="如：收款账号有误 / 渠道退回"
+          />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          标记失败后提现单仍为已通过，可重新提交打款执行。
         </a-typography-text>
       </a-form>
     </a-modal>
@@ -1311,8 +1516,11 @@
     listCsCommissionRules,
     listSettlementCycles,
     listSettlements,
+    listWithdrawalPayouts,
     listWithdrawals,
     lockSettlement,
+    markWithdrawalPayoutFailed,
+    markWithdrawalPayoutPaid,
     approvePlayerRecovery,
     createSettlementCycle,
     executePlayerRecovery,
@@ -1320,6 +1528,7 @@
     paySettlement,
     payWithdrawal,
     rejectPlayerRecovery,
+    requestWithdrawalPayout,
     reviewWithdrawal,
     rollbackCloseRule,
     rollbackCommissionRule,
@@ -1349,7 +1558,9 @@
     CsCommissionRuleInput,
     CsCommissionSummary,
     EsportsWithdrawal,
+    EsportsWithdrawalPayout,
     WithdrawalChannel,
+    WithdrawalPayoutStatus,
     WithdrawalStatus,
   } from '../../api';
   import CloseConditionDesigner from '../../components/close-condition-designer/index.vue';
@@ -1369,6 +1580,17 @@
   // 透出后端返回的中文错误信息，取不到时回退默认文案。
   const errorText = (err: unknown, fallback: string) => {
     const { response } = err as { response?: { data?: { message?: string } } };
+    return response?.data?.message || fallback;
+  };
+  // 提现打款错误提示：后端对「审核人自打款 / 越权」返回 403，
+  // 通用 businessError 文案是「无权访问该客户或订单」，这里替换为可操作的中文提示。
+  const payoutErrorText = (err: unknown, fallback: string) => {
+    const { response } = err as {
+      response?: { status?: number; data?: { message?: string } };
+    };
+    if (response?.status === 403) {
+      return '无权操作：审核人不得自行登记打款，请由其他财务人员操作';
+    }
     return response?.data?.message || fallback;
   };
 
@@ -2356,6 +2578,215 @@
     }
   }
 
+  // ── 提现打款执行状态机（§11.2 补全） ──
+  const withdrawalPayoutStatusMap: Record<WithdrawalPayoutStatus, string> = {
+    pay_requested: '待确认到账',
+    paid: '已打款',
+    pay_failed: '打款失败',
+  };
+  const withdrawalPayoutStatusLabel = (value: WithdrawalPayoutStatus) =>
+    withdrawalPayoutStatusMap[value] || value;
+  const withdrawalPayoutStatusColor = (value: WithdrawalPayoutStatus) => {
+    if (value === 'paid') return 'green';
+    if (value === 'pay_failed') return 'red';
+    return 'orange';
+  };
+
+  // 打款记录缓存（按提现单 ID）：用于列表「打款执行」列与最新记录判定。
+  const payoutCache = ref<Record<number, EsportsWithdrawalPayout[]>>({});
+  const latestPayout = (withdrawalId: number) =>
+    payoutCache.value[withdrawalId]?.[0];
+
+  // 提现单列表展示的打款执行状态：未加载记录时回落到提现单状态。
+  const payoutDisplay = (record: EsportsWithdrawal) => {
+    const latest = latestPayout(record.id);
+    if (latest) {
+      return {
+        label: withdrawalPayoutStatusLabel(latest.status),
+        color: withdrawalPayoutStatusColor(latest.status),
+      };
+    }
+    if (record.status === 'approved') {
+      return { label: '待提交打款', color: 'orange' };
+    }
+    if (record.status === 'paid') {
+      return { label: '已打款', color: 'green' };
+    }
+    return { label: '-', color: 'gray' };
+  };
+
+  async function fetchWithdrawalPayouts(withdrawalId: number) {
+    const items = (await listWithdrawalPayouts(withdrawalId)).data.data || [];
+    payoutCache.value = { ...payoutCache.value, [withdrawalId]: items };
+    return items;
+  }
+
+  const withdrawalPayouts = ref<EsportsWithdrawalPayout[]>([]);
+  const withdrawalPayoutsLoading = ref(false);
+  const withdrawalPayoutsVisible = ref(false);
+  const withdrawalPayoutsTarget = ref<EsportsWithdrawal | null>(null);
+
+  async function openWithdrawalPayouts(record: EsportsWithdrawal) {
+    withdrawalPayoutsTarget.value = record;
+    withdrawalPayouts.value = payoutCache.value[record.id] || [];
+    withdrawalPayoutsVisible.value = true;
+    withdrawalPayoutsLoading.value = true;
+    try {
+      withdrawalPayouts.value = await fetchWithdrawalPayouts(record.id);
+    } catch (err) {
+      Message.error(errorText(err, '加载打款记录失败，请稍后重试'));
+    } finally {
+      withdrawalPayoutsLoading.value = false;
+    }
+  }
+
+  async function reloadWithdrawalPayouts() {
+    const target = withdrawalPayoutsTarget.value;
+    if (!target) return;
+    withdrawalPayoutsLoading.value = true;
+    try {
+      withdrawalPayouts.value = await fetchWithdrawalPayouts(target.id);
+    } catch (err) {
+      Message.error(errorText(err, '加载打款记录失败，请稍后重试'));
+    } finally {
+      withdrawalPayoutsLoading.value = false;
+    }
+  }
+
+  // 提交 / 确认 / 失败后同时刷新提现单与当前打款记录抽屉。
+  async function refreshAfterPayoutAction() {
+    await loadWithdrawals();
+    const target = withdrawalPayoutsTarget.value;
+    if (!target) return;
+    try {
+      withdrawalPayouts.value = await fetchWithdrawalPayouts(target.id);
+    } catch {
+      // 列表刷新已给出提示，抽屉刷新失败不再重复弹错。
+    }
+  }
+
+  const withdrawalPayoutRequestVisible = ref(false);
+  const withdrawalPayoutRequestForm = reactive<{
+    id: number;
+    withdrawalNo: string;
+    channel: WithdrawalChannel;
+    transactionNo: string;
+    amountCents: number;
+  }>({
+    id: 0,
+    withdrawalNo: '',
+    channel: 'bank_card',
+    transactionNo: '',
+    amountCents: 0,
+  });
+
+  function openWithdrawalPayoutRequest(record: EsportsWithdrawal) {
+    withdrawalPayoutRequestForm.id = record.id;
+    withdrawalPayoutRequestForm.withdrawalNo = record.withdrawal_no;
+    withdrawalPayoutRequestForm.channel = record.channel;
+    withdrawalPayoutRequestForm.transactionNo = '';
+    // 后端要求打款金额等于实际到账额，直接带出并只读展示。
+    withdrawalPayoutRequestForm.amountCents = record.net_cents;
+    withdrawalPayoutRequestVisible.value = true;
+  }
+
+  async function submitWithdrawalPayoutRequest() {
+    const transactionNo = withdrawalPayoutRequestForm.transactionNo.trim();
+    if (!transactionNo) {
+      Message.warning('请填写外部打款凭证号');
+      return;
+    }
+    try {
+      const payout = (
+        await requestWithdrawalPayout(withdrawalPayoutRequestForm.id, {
+          channel: withdrawalPayoutRequestForm.channel,
+          transaction_no: transactionNo,
+          amount_cents: withdrawalPayoutRequestForm.amountCents,
+        })
+      ).data.data;
+      withdrawalPayoutRequestVisible.value = false;
+      Message.success('已提交打款执行，请确认到账后标记成功');
+      await loadWithdrawals();
+      const target =
+        withdrawals.value.find(
+          (item) => item.id === withdrawalPayoutRequestForm.id
+        ) || null;
+      if (target) {
+        await openWithdrawalPayouts(target);
+      } else if (payout) {
+        await fetchWithdrawalPayouts(payout.withdrawal_id);
+      }
+    } catch (err) {
+      Message.error(
+        payoutErrorText(
+          err,
+          '提交打款失败：提现单须为已通过，且打款金额须等于实际到账额'
+        )
+      );
+    }
+  }
+
+  const withdrawalPayoutPaidVisible = ref(false);
+  const withdrawalPayoutPaidForm = reactive({
+    payoutId: 0,
+    payoutNo: '',
+    taxRef: '',
+  });
+
+  function openWithdrawalPayoutPaid(payout: EsportsWithdrawalPayout) {
+    withdrawalPayoutPaidForm.payoutId = payout.id;
+    withdrawalPayoutPaidForm.payoutNo = payout.payout_no;
+    withdrawalPayoutPaidForm.taxRef = payout.tax_ref || '';
+    withdrawalPayoutPaidVisible.value = true;
+  }
+
+  async function submitWithdrawalPayoutPaid() {
+    try {
+      await markWithdrawalPayoutPaid(
+        withdrawalPayoutPaidForm.payoutId,
+        withdrawalPayoutPaidForm.taxRef.trim()
+      );
+      withdrawalPayoutPaidVisible.value = false;
+      Message.success('已确认打款成功，提现单已置为已打款');
+      await refreshAfterPayoutAction();
+    } catch (err) {
+      Message.error(payoutErrorText(err, '确认失败：打款执行单状态已变化'));
+    }
+  }
+
+  const withdrawalPayoutFailedVisible = ref(false);
+  const withdrawalPayoutFailedForm = reactive({
+    payoutId: 0,
+    payoutNo: '',
+    reason: '',
+  });
+
+  function openWithdrawalPayoutFailed(payout: EsportsWithdrawalPayout) {
+    withdrawalPayoutFailedForm.payoutId = payout.id;
+    withdrawalPayoutFailedForm.payoutNo = payout.payout_no;
+    withdrawalPayoutFailedForm.reason = '';
+    withdrawalPayoutFailedVisible.value = true;
+  }
+
+  async function submitWithdrawalPayoutFailed() {
+    const reason = withdrawalPayoutFailedForm.reason.trim();
+    if (!reason) {
+      Message.warning('请填写打款失败原因');
+      return;
+    }
+    try {
+      await markWithdrawalPayoutFailed(
+        withdrawalPayoutFailedForm.payoutId,
+        reason
+      );
+      withdrawalPayoutFailedVisible.value = false;
+      Message.success('已标记打款失败，可重新提交打款');
+      await refreshAfterPayoutAction();
+    } catch (err) {
+      Message.error(payoutErrorText(err, '标记失败：打款执行单状态已变化'));
+    }
+  }
+
   // ── 陪玩追偿（§13.4） ──
   const recoveries = ref<EsportsPlayerRecovery[]>([]);
   const recoveriesLoading = ref(false);
@@ -2480,5 +2911,10 @@
   .freeze-reason {
     display: block;
     font-size: 12px;
+  }
+
+  .payout-tip {
+    display: block;
+    margin-top: 12px;
   }
 </style>

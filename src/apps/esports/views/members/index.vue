@@ -32,6 +32,16 @@
               priorityText(record.priority_dispatch)
             }}</template>
           </a-table-column>
+          <a-table-column title="专属客服">
+            <template #cell="{ record }">{{
+              priorityText(record.dedicated_cs)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="优先预约">
+            <template #cell="{ record }">{{
+              priorityText(record.priority_booking)
+            }}</template>
+          </a-table-column>
           <a-table-column title="储值卡赠送比例">
             <template #cell="{ record }">{{
               percentText(record.prepay_bonus_bps)
@@ -186,6 +196,14 @@
         <a-form-item label="会员订单优先">
           <a-switch v-model="form.priorityDispatch" />
         </a-form-item>
+        <a-form-item label="专属客服">
+          <a-switch v-model="form.dedicatedCs" />
+          <div class="hint">客户绑定固定负责客服、不参与轮转</div>
+        </a-form-item>
+        <a-form-item label="优先预约">
+          <a-switch v-model="form.priorityBooking" />
+          <div class="hint">会员预约意向在客服工作台置顶处理</div>
+        </a-form-item>
         <a-form-item label="储值卡赠送比例（%）">
           <a-input-number
             v-model="form.prepayBonusPercent"
@@ -301,6 +319,8 @@
     growthYuan: 0,
     discountZhe: 10,
     priorityDispatch: false,
+    dedicatedCs: false,
+    priorityBooking: false,
     prepayBonusPercent: 0,
     sortOrder: 0,
   });
@@ -323,6 +343,8 @@
     form.growthYuan = 0;
     form.discountZhe = 10;
     form.priorityDispatch = false;
+    form.dedicatedCs = false;
+    form.priorityBooking = false;
     form.prepayBonusPercent = 0;
     form.sortOrder = 0;
     formVisible.value = true;
@@ -335,6 +357,8 @@
     form.growthYuan = record.growth_threshold / 100;
     form.discountZhe = record.discount_bps / 1000;
     form.priorityDispatch = record.priority_dispatch;
+    form.dedicatedCs = record.dedicated_cs;
+    form.priorityBooking = record.priority_booking;
     form.prepayBonusPercent = record.prepay_bonus_bps / 100;
     form.sortOrder = record.sort_order;
     formVisible.value = true;
@@ -353,6 +377,8 @@
       growth_threshold: Math.round((form.growthYuan || 0) * 100),
       discount_bps: Math.round((form.discountZhe || 0) * 1000),
       priority_dispatch: form.priorityDispatch,
+      dedicated_cs: form.dedicatedCs,
+      priority_booking: form.priorityBooking,
       prepay_bonus_bps: Math.round((form.prepayBonusPercent || 0) * 100),
       sort_order: form.sortOrder || 0,
     };
