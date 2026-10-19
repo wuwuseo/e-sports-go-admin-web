@@ -56,7 +56,7 @@
             </template>
           </a-table-column>
           <a-table-column data-index="version" title="版本" :width="70" />
-          <a-table-column title="操作" :width="180">
+          <a-table-column title="操作" :width="240">
             <template #cell="{ record }">
               <template v-if="canManage">
                 <a-button type="text" @click="openEdit(record)">编辑</a-button>
@@ -75,6 +75,15 @@
                       record.status === 'enabled' ? '停用' : '启用'
                     }}</a-button
                   >
+                </a-popconfirm>
+                <!-- §8.1-8 删除等级：后端 DELETE /admin/member-levels/:id（app.go:592）
+                     仅允许删除「已停用且未被客户引用」的等级，其余情况后端返回中文冲突提示。 -->
+                <a-popconfirm
+                  v-if="record.status === 'disabled' && canDeleteLevel"
+                  content="仅未被客户引用的停用等级可删除，否则请改用停用。"
+                  @ok="removeLevel(record)"
+                >
+                  <a-button type="text" status="danger">删除</a-button>
                 </a-popconfirm>
               </template>
               <span v-else>-</span>
@@ -429,6 +438,7 @@
   import usePermission from '@/hooks/permission';
   import {
     createMemberLevel,
+    deleteMemberLevel,
     getCustomerMember,
     getPlayerAvailability,
     listMemberLevels,
@@ -446,9 +456,20 @@
     PriorityBooking,
   } from '../../api';
 
-  const { hasButtonPermission } = usePermission();
+  const { hasButtonPermission, hasAnyPermission } = usePermission();
   const canManage = computed(() =>
     hasButtonPermission('esports:members:manage')
+  );
+  // 删除等级（§8.1-8）：权限码取自 app.go 的 PermAPI 声明（esports:members:level_delete，
+  // 只有 API 授权、无同名按钮），按「按钮码 || 同码 API 授权」并集判断。
+  const canDeleteLevel = computed(
+    () =>
+      hasButtonPermission('esports:members:level_delete') ||
+      hasAnyPermission([
+        'esports:members:level_delete',
+        'esports:members:level_status',
+        'esports:members:manage',
+      ])
   );
 
   // ── 等级配置 ──
@@ -613,6 +634,25 @@
       await load();
     } catch (err) {
       Message.error(errorText(err, '状态更新失败：版本已变化或状态不允许'));
+    }
+  }
+
+  // 删除等级（§8.1-8）：后端只允许删除「已停用且未被客户引用」的等级
+  // （启用中 → 「该会员等级启用中，不能删除，请先停用」；
+  //   仍被客户当前 / 待生效等级引用 → 「该会员等级仍被客户引用，不能删除，请改用停用」），
+  // 失败按 errorText 原样透出后端中文提示。
+  async function removeLevel(record: MemberLevel) {
+    try {
+      await deleteMemberLevel(record.id);
+      Message.success('已删除等级');
+      await load();
+    } catch (err) {
+      Message.error(
+        errorText(
+          err,
+          '删除失败：仅未被客户引用的停用等级可删除，否则请改用停用'
+        )
+      );
     }
   }
 

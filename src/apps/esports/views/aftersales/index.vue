@@ -567,6 +567,29 @@
               v-if="!messages.length && !messageLoading"
               description="暂无沟通记录"
             />
+            <!-- §8.1-3 客服回复：后端 POST /admin/after-sales/:id/messages 已注册，
+                 走 api.ts 的 sendAfterSaleMessage（未改动 api.ts）。 -->
+            <div v-if="canCreateMessage" class="message-reply">
+              <a-textarea
+                v-model="messageForm.content"
+                :max-length="1000"
+                :auto-size="{ minRows: 2, maxRows: 5 }"
+                placeholder="回复客户 / 记录沟通内容（≤1000 字）"
+              />
+              <a-space class="message-reply-actions" wrap>
+                <a-checkbox v-model="messageForm.internal"
+                  >仅客服可见（内部备注）</a-checkbox
+                >
+                <a-button
+                  type="primary"
+                  size="small"
+                  :loading="messageSending"
+                  :disabled="!messageForm.content.trim()"
+                  @click="submitMessage"
+                  >发送</a-button
+                >
+              </a-space>
+            </div>
           </template>
         </a-drawer>
 
@@ -1487,10 +1510,9 @@
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
-  import axios from 'axios';
   import usePermission from '@/hooks/permission';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
-  import type { ApiResponse, AttachmentResponse } from '@/types/api';
+  import type { AttachmentResponse } from '@/types/api';
   import {
     acceptAfterSale,
     approveAfterSale,
@@ -1508,6 +1530,7 @@
     getOrder,
     listAfterSaleActions,
     listAfterSales,
+    listAfterSaleMessages,
     listAfterSaleReviews,
     listAfterSaleRuleHits,
     listAfterSaleRules,
@@ -1517,7 +1540,9 @@
     planAfterSale,
     registerExternalRefund,
     rejectAfterSale,
+    requestAfterSaleEvidence,
     requestAfterSaleReview,
+    sendAfterSaleMessage,
     startFulfillmentMakeup,
     updateAfterSaleRule,
     withdrawAfterSale,
@@ -1544,6 +1569,7 @@
     AfterSaleSourceType,
     EsportsAfterSale,
     EsportsAfterSaleAction,
+    EsportsAfterSaleMessage,
     EsportsAfterSaleReview,
     EsportsAfterSaleRule,
     EsportsExternalRefund,
@@ -1552,7 +1578,7 @@
     MakeupKind,
   } from '../../api';
 
-  const { hasButtonPermission } = usePermission();
+  const { hasButtonPermission, hasAnyPermission } = usePermission();
   const canOperate = computed(() =>
     hasButtonPermission('esports:aftersales:operate')
   );
@@ -1585,6 +1611,13 @@
   // 售后沟通 / 补证与规则维护权限。
   const canViewMessages = computed(() =>
     hasButtonPermission('esports:aftersales:messages_list')
+  );
+  // 回复沟通记录（§8.1-3）：权限码取自 app.go 的 PermAPI 声明（只有 API 授权、无同名按钮），
+  // 因此按「按钮码 || 同码 API 授权」并集判断，避免非超管被误隐藏。
+  const canCreateMessage = computed(
+    () =>
+      hasButtonPermission('esports:aftersales:messages_create') ||
+      hasAnyPermission(['esports:aftersales:messages_create'])
   );
   const canRequestEvidence = computed(() =>
     hasButtonPermission('esports:aftersales:evidence_request')
@@ -1657,9 +1690,9 @@
   const actionStatusMap: Record<AfterSaleActionStatus, string> = {
     pending: '待执行',
     executing: '执行中',
+    awaiting_execution: '待执行（外部退款）',
     succeeded: '已成功',
     failed: '执行失败',
-    skipped: '已跳过',
   };
   const actionStatusLabel = (value: AfterSaleActionStatus) =>
     actionStatusMap[value] || value;
@@ -1671,8 +1704,6 @@
         return 'red';
       case 'executing':
         return 'arcoblue';
-      case 'skipped':
-        return 'gray';
       default:
         return 'orange';
     }
@@ -2580,30 +2611,20 @@
     }
   }
 
-  // ── 售后单内沟通记录 / 补证（§13.3-04）──
-  // api.ts 尚未提供 messages / evidence-request 封装（任务约束不改 api.ts），这里直连同一路径；
-  // 待封装补齐后替换为 import 调用即可。
-  interface AfterSaleMessageView {
-    id: number;
-    after_sale_id: number;
-    author_type: 'customer' | 'admin' | 'player' | 'system';
-    author_id: number;
-    author_name: string;
-    content: string;
-    attachments?: string[] | null;
-    visibility: 'all' | 'internal';
-    created_at: string;
-  }
-  const afterSaleAdminBase = '/api/v1/esports/admin';
-  const messages = ref<AfterSaleMessageView[]>([]);
+  // ── 售后单内沟通记录 / 补证 / 客服回复（§13.3-04）──
+  // 读写均走 api.ts 封装（listAfterSaleMessages / sendAfterSaleMessage /
+  // requestAfterSaleEvidence），不再直连裸 axios。
+  const messages = ref<EsportsAfterSaleMessage[]>([]);
   const messageLoading = ref(false);
+  const messageSending = ref(false);
+  const messageForm = reactive({ content: '', internal: false });
   const messageAuthorTypeMap: Record<string, string> = {
     customer: '客户',
     admin: '客服',
     player: '陪玩',
     system: '系统',
   };
-  const messageAuthorLabel = (record: AfterSaleMessageView) =>
+  const messageAuthorLabel = (record: EsportsAfterSaleMessage) =>
     `${messageAuthorTypeMap[record.author_type] || record.author_type}${
       record.author_name ? `（${record.author_name}）` : `#${record.author_id}`
     }`;
@@ -2616,14 +2637,37 @@
     }
     messageLoading.value = true;
     try {
-      const res = await axios.get<ApiResponse<AfterSaleMessageView[]>>(
-        `${afterSaleAdminBase}/after-sales/${record.id}/messages`
-      );
-      messages.value = res.data.data || [];
+      messages.value = (await listAfterSaleMessages(record.id)).data.data || [];
     } catch (err) {
       Message.error(errorText(err, '加载沟通记录失败'));
     } finally {
       messageLoading.value = false;
+    }
+  }
+
+  // §8.1-3：客服回复（visibility=internal 为内部备注，客户不可见）；成功后就地刷新消息流。
+  async function submitMessage() {
+    const record = detail.value;
+    if (!record) return;
+    const content = messageForm.content.trim();
+    if (!content) {
+      Message.warning('请填写回复内容');
+      return;
+    }
+    messageSending.value = true;
+    try {
+      await sendAfterSaleMessage(record.id, {
+        content,
+        visibility: messageForm.internal ? 'internal' : 'all',
+      });
+      messageForm.content = '';
+      messageForm.internal = false;
+      Message.success('已发送沟通记录');
+      await loadMessages();
+    } catch (err) {
+      Message.error(errorText(err, '发送失败：内容须为 1–1000 字'));
+    } finally {
+      messageSending.value = false;
     }
   }
 
@@ -2644,10 +2688,7 @@
       return;
     }
     try {
-      await axios.post<ApiResponse<AfterSaleMessageView>>(
-        `${afterSaleAdminBase}/after-sales/${record.id}/evidence-request`,
-        { note }
-      );
+      await requestAfterSaleEvidence(record.id, { note });
       evidenceRequestVisible.value = false;
       Message.success('已提示客户补证，客户侧可在售后单内看到该提示');
       await loadMessages();
@@ -3102,5 +3143,13 @@
   .action-seq {
     color: var(--color-text-3);
     font-size: 12px;
+  }
+
+  .message-reply {
+    margin-top: 12px;
+  }
+
+  .message-reply-actions {
+    margin-top: 8px;
   }
 </style>

@@ -1176,16 +1176,35 @@
             dateTimeText(appointmentForm.suspendedAt)
           }}</a-descriptions-item>
           <a-descriptions-item label="后端处置选项">
-            退还（全额退款）/ 改期（重开待确认档期）— 具体放行哪几种由服务端配置
-            app.esports.appointment_expire_action 决定
+            <span v-if="appointmentOptionsLoading">读取中…</span>
+            <template v-else-if="appointmentOptions">
+              {{
+                appointmentCurrentActionText(appointmentOptions.current_action)
+              }}
+              · 截止 {{ dateTimeText(appointmentOptions.expire_at) }}
+            </template>
+            <span v-else>退还 / 改期（策略读取失败，按默认两项展示）</span>
           </a-descriptions-item>
         </a-descriptions>
         <a-form-item label="处置方式" required>
           <a-radio-group v-model="appointmentForm.action">
-            <a-radio value="refund">全额退还（平台责任，不收手续费）</a-radio>
-            <a-radio value="reschedule">改期（回到待确认档期）</a-radio>
+            <a-radio
+              v-for="action in appointmentActionOptions"
+              :key="action"
+              :value="action"
+              >{{ appointmentActionText(action) }}</a-radio
+            >
           </a-radio-group>
         </a-form-item>
+        <a-typography-text
+          v-if="appointmentOptionsFallback"
+          type="danger"
+          class="hint"
+        >
+          无法读取当前处置策略，提交后以服务端校验为准（{{
+            appointmentOptionsError
+          }}）
+        </a-typography-text>
         <a-form-item
           v-if="appointmentForm.action === 'reschedule'"
           label="新的预约开始时间"
@@ -1293,7 +1312,11 @@
         </template>
         <template v-if="serviceAction === 'correction'">
           <a-form-item label="更正后有效秒数" required>
-            <a-input-number v-model="serviceForm.effectiveSeconds" :min="1" />
+            <a-input-number
+              v-model="serviceForm.effectiveSeconds"
+              :min="1"
+              :max="serviceTimingUpperBound ?? undefined"
+            />
           </a-form-item>
           <a-form-item label="更正后暂停秒数" required>
             <a-input-number v-model="serviceForm.pausedSeconds" :min="0" />
@@ -1308,6 +1331,21 @@
               >
             </a-select>
           </a-form-item>
+          <a-typography-text v-if="serviceTimingLoading" type="secondary">
+            正在读取服务段计时…
+          </a-typography-text>
+          <a-typography-text
+            v-else-if="serviceForm.currentTimingText"
+            type="secondary"
+          >
+            {{ serviceForm.currentTimingText }}
+          </a-typography-text>
+          <a-typography-text v-if="serviceTimingUpperBound" type="secondary">
+            可填上限
+            {{ serviceTimingUpperBound }}
+            秒（与后端更正校验同源：min(服务段墙钟跨度, 订单标准时长 ×
+            系数)），超出会被前端直接拦下。
+          </a-typography-text>
           <a-typography-text type="secondary" class="hint">
             仅已结束的服务段可更正；有效秒数上限由服务端校验（min(服务段墙钟跨度,
             订单标准时长 × 系数)），越界会原样返回可更正区间与实际跨度。
@@ -1377,12 +1415,10 @@
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
-  import axios from 'axios';
   import usePermission from '@/hooks/permission';
   import useUserStore from '@/store/modules/user';
   import { getAdmins } from '@/api/user';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
-  import type { ApiResponse } from '@/types/api';
   import {
     addOrderCollaborator,
     approveCloseReview,
@@ -1400,6 +1436,8 @@
     getOrderCloseForm,
     getOrderSeatRoles,
     getTeammateCandidates,
+    getAppointmentDisposalOptions,
+    getOrderServiceTiming,
     listOrderAddons,
     listOrderCollaborators,
     listOrderRescheduleProposals,
@@ -1433,9 +1471,9 @@
     confirmOrderAppointment,
   } from '../../api';
   import type {
+    AppointmentDisposalOptions,
     CancelQuote,
     CloseConditionStatus,
-    CloseSubstituteReport,
     CommissionRule,
     EsportsCloseFormField,
     EsportsDispatchSeat,
@@ -2172,6 +2210,48 @@
     reason: '',
   });
 
+  // 可用处置动作由后端返回（api.ts 的 getAppointmentDisposalOptions）：
+  // allowed_actions / current_action / expire_at。
+  const appointmentOptions = ref<AppointmentDisposalOptions | null>(null);
+  const appointmentOptionsLoading = ref(false);
+  // 只读接口不可用时降级为原来的两项，并在弹窗内明确提示，不静默吞错。
+  const appointmentOptionsFallback = ref(false);
+  const appointmentOptionsError = ref('');
+  const appointmentActionText = (action: string) =>
+    ({
+      refund: '全额退还（平台责任，不收手续费）',
+      reschedule: '改期（回到待确认档期）',
+    }[action] || action);
+  const appointmentCurrentActionText = (action: string) =>
+    ({
+      refund: '仅允许全额退还',
+      reschedule: '仅允许改期',
+      both: '退还与改期皆可',
+    }[action] || action);
+  // 只渲染后端放行的动作；读取失败时退回原有的 refund / reschedule 两项。
+  const appointmentActionOptions = computed<string[]>(() => {
+    const allowed = appointmentOptions.value?.allowed_actions || [];
+    return allowed.length ? allowed : ['refund', 'reschedule'];
+  });
+
+  async function loadAppointmentDisposalOptions(orderId: number) {
+    appointmentOptionsLoading.value = true;
+    try {
+      appointmentOptions.value =
+        (await getAppointmentDisposalOptions(orderId)).data.data || null;
+      const allowed = appointmentActionOptions.value;
+      if (allowed.length && !allowed.includes(appointmentForm.action)) {
+        appointmentForm.action = allowed[0] as 'refund' | 'reschedule';
+      }
+    } catch (err) {
+      appointmentOptions.value = null;
+      appointmentOptionsFallback.value = true;
+      appointmentOptionsError.value = errorText(err, '读取处置策略失败');
+    } finally {
+      appointmentOptionsLoading.value = false;
+    }
+  }
+
   function openAppointmentDisposal(order: EsportsOrder) {
     appointmentForm.orderId = order.id;
     appointmentForm.orderNo = order.order_no;
@@ -2184,7 +2264,11 @@
     appointmentForm.startAt = '';
     appointmentForm.reason = '';
     appointmentError.value = '';
+    appointmentOptions.value = null;
+    appointmentOptionsFallback.value = false;
+    appointmentOptionsError.value = '';
     appointmentVisible.value = true;
+    loadAppointmentDisposalOptions(order.id);
   }
 
   async function submitAppointmentDisposal() {
@@ -2412,7 +2496,13 @@
     responsibility: 'player',
     reason: '',
     lastTimingText: '',
+    currentTimingText: '',
   });
+  // 服务段计时只读接口（api.ts 的 getOrderServiceTiming）：upper_bound_seconds 与后端
+  // 更正校验同源，用作输入上限与提交前拦截。
+  const serviceTimingLoading = ref(false);
+  // null 表示没读到上界（字段缺失或接口失败），此时只靠服务端错误文案兜底。
+  const serviceTimingUpperBound = ref<number | null>(null);
   const responsibilityOptions = [
     { value: 'player', label: '陪玩' },
     { value: 'customer', label: '客户' },
@@ -2442,6 +2532,39 @@
       }[serviceAction.value])
   );
 
+  // 秒数按「X 分 Y 秒」展示，与弹窗提示口径一致。
+  const secondsText = (seconds: number) =>
+    `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
+
+  async function loadServiceTiming(orderId: number, playerId: number) {
+    serviceTimingLoading.value = true;
+    try {
+      const timing = (await getOrderServiceTiming(orderId, playerId)).data.data;
+      if (!timing) return;
+      if (typeof timing.effective_seconds === 'number') {
+        serviceForm.effectiveSeconds = timing.effective_seconds;
+        serviceForm.currentTimingText = `当前有效时长 ${secondsText(
+          timing.effective_seconds
+        )}`;
+      }
+      serviceTimingUpperBound.value =
+        typeof timing.upper_bound_seconds === 'number' &&
+        timing.upper_bound_seconds > 0
+          ? timing.upper_bound_seconds
+          : null;
+    } catch (err) {
+      // 读不到计时不影响提交：不预填、不加前端上界，交由服务端更正校验兜底。
+      serviceTimingUpperBound.value = null;
+      serviceForm.currentTimingText = '';
+      serviceError.value = errorText(
+        err,
+        '无法读取当前服务段计时，提交后以服务端校验为准'
+      );
+    } finally {
+      serviceTimingLoading.value = false;
+    }
+  }
+
   function openServiceOps(seat: EsportsDispatchSeat, action: ServiceAction) {
     if (!seat.player_id) return;
     serviceAction.value = action;
@@ -2454,9 +2577,15 @@
     serviceForm.responsibility = 'player';
     serviceForm.reason = '';
     serviceForm.lastTimingText = serviceTimingTexts[seat.player_id] || '';
+    serviceForm.currentTimingText = '';
+    serviceTimingUpperBound.value = null;
     serviceError.value = '';
     serviceResultText.value = '';
     serviceVisible.value = true;
+    // 时长更正弹窗打开即按后端口径预填当前有效时长与可填上限。
+    if (action === 'correction') {
+      loadServiceTiming(seat.order_id, seat.player_id);
+    }
   }
 
   function rememberTiming(timing?: PlayerServiceTiming | null) {
@@ -2475,6 +2604,17 @@
     const reason = serviceForm.reason.trim();
     if (!reason) {
       Message.warning('请填写原因');
+      return;
+    }
+    // 已读到上界时前端直接拦下，不再等服务端报越界。
+    if (
+      serviceAction.value === 'correction' &&
+      serviceTimingUpperBound.value !== null &&
+      serviceForm.effectiveSeconds > serviceTimingUpperBound.value
+    ) {
+      Message.warning(
+        `更正后有效秒数不得超过可填上限 ${serviceTimingUpperBound.value} 秒`
+      );
       return;
     }
     serviceLoading.value = true;
@@ -2667,25 +2807,6 @@
     }
   }
 
-  // 结单接口须回传 viewed_evidence_attachment_ids；api.ts 的 closeOrder 暂未声明该字段，
-  // 这里按同一路径补齐请求体，待 api.ts 收敛后可直接替换为 closeOrder(...)。
-  const closeOrderWithEvidence = (
-    orderId: number,
-    note: string,
-    formValues: Record<string, unknown>,
-    substituteReports: CloseSubstituteReport[],
-    viewedEvidenceAttachmentIds: number[]
-  ) =>
-    axios.post<ApiResponse<EsportsOrder>>(
-      `/api/v1/esports/admin/orders/${orderId}/close`,
-      {
-        note,
-        form_values: formValues || {},
-        substitute_reports: substituteReports || [],
-        viewed_evidence_attachment_ids: viewedEvidenceAttachmentIds,
-      }
-    );
-
   async function showDetail(id: number) {
     try {
       detail.value = (await getOrder(id)).data.data || null;
@@ -2843,22 +2964,17 @@
             reported_units: row.units,
             evidence_ref: row.evidence.trim(),
           }));
-        if (evidenceAttachmentIds.value.length > 0) {
-          await closeOrderWithEvidence(
-            order.id,
-            opsForm.reason.trim(),
-            closeFormValues.value,
-            substitutes,
-            evidenceAttachmentIds.value
-          );
-        } else {
-          await closeOrder(
-            order.id,
-            opsForm.reason.trim(),
-            closeFormValues.value,
-            substitutes
-          );
-        }
+        // 结单须回传 viewed_evidence_attachment_ids（api.ts 的 closeOrder 第 5 参）：
+        // 无图片凭证时传 undefined，不写入请求体，保持既有调用方行为。
+        await closeOrder(
+          order.id,
+          opsForm.reason.trim(),
+          closeFormValues.value,
+          substitutes,
+          evidenceAttachmentIds.value.length > 0
+            ? evidenceAttachmentIds.value
+            : undefined
+        );
       } else {
         await cancelOrder(order.id, opsForm.reason.trim());
       }

@@ -22,6 +22,9 @@ export interface EsportsSku {
   title: string;
   service_type: 'play' | 'teaching' | 'entertainment';
   category_id: number | null;
+  // 商品父实体（§15.1）与规格组（§15.5）的挂载：可空，未挂载为 null。
+  product_id: number | null;
+  spec_group_id: number | null;
   description: string;
   unit_price_cents: number;
   min_unit_price_cents: number;
@@ -29,6 +32,10 @@ export interface EsportsSku {
   service_units: number;
   service_unit_name: string;
   required_seats: number;
+  // 每席承诺服务量（§15.3-01 / §15.5-01）：0 表示未配置，多人 SKU 下单前必须配置。
+  per_seat_service_units: number;
+  // SKU 成本（分，§15.8-03）：可空，未登记为 null；仅授权角色能读到真实值。
+  cost_cents: number | null;
   // 单次服务时长（分钟，§5.5）：用于预约时段重叠与容量判定，0 表示未配置。
   service_duration_minutes: number;
   // 所需技能等级（§5.5）：陪玩等级不得低于该值。
@@ -42,7 +49,23 @@ export interface EsportsSku {
   status: 'draft' | 'on_sale' | 'off_sale';
 }
 
-export type SkuInput = Omit<EsportsSku, 'id' | 'quota_reserved' | 'quota_sold'>;
+// 写入模型：三态字段与读模型不同——未传表示「不挂载 / 保持既有」：
+// - product_id / spec_group_id：创建时未传即不挂载，编辑时传 0 表示显式解除挂载；
+// - cost_cents：编辑时传 null 表示清空已登记成本（后端 optionalInt64 区分「不传」与「传 null」）。
+export interface SkuInput
+  extends Omit<
+    EsportsSku,
+    | 'id'
+    | 'quota_reserved'
+    | 'quota_sold'
+    | 'product_id'
+    | 'spec_group_id'
+    | 'cost_cents'
+  > {
+  product_id?: number;
+  spec_group_id?: number;
+  cost_cents?: number | null;
+}
 
 // 编辑商品不提交 code（编码创建后不可变）。
 export type SkuUpdateInput = Omit<SkuInput, 'code'>;
@@ -981,9 +1004,10 @@ export type AfterSaleActionType =
 export type AfterSaleActionStatus =
   | 'pending'
   | 'executing'
+  // 外部渠道退款已登记、等待财务执行（钱未出账，不阻断终态判定）。
+  | 'awaiting_execution'
   | 'succeeded'
-  | 'failed'
-  | 'skipped';
+  | 'failed';
 
 export interface AfterSaleActionInput {
   action_type: AfterSaleActionType;
@@ -1270,6 +1294,17 @@ export const createAfterSaleMessage = (
     `${base}/after-sales/${id}/messages`,
     input
   );
+
+// 客服回复售后单（§13.3-04，审核报告 §8.1-3）：后端已注册
+// POST /admin/after-sales/:id/messages（adminPostAfterSaleMessageHandler），
+// 入参即 afterSaleMessageInput（content 必填 ≤1000 字、visibility 为 all / internal、
+// attachments ≤20 个引用），返回新建的沟通记录。
+// 与上面的 createAfterSaleMessage 是同一接口的两个语义名：保留旧名以免影响既有页面，
+// 新的「批量清零残留」页面用这个更直白的名字。
+export const sendAfterSaleMessage = (
+  id: number,
+  input: AfterSaleMessageInput
+) => createAfterSaleMessage(id, input);
 
 // 提示客户补证（§13.7-03）：同事务写客户可见沟通记录 + 外盒留痕，返回该条沟通记录。
 export const requestAfterSaleEvidence = (id: number, input: { note: string }) =>
@@ -1815,6 +1850,11 @@ export interface CsCommissionEntry {
   studio_remainder_cents: number;
   status: CommissionEntryStatus;
   settlement_id: number | null;
+  // 争议冻结（§12.6 / P0-8）：冻结与 status 正交（仍为 pending_settlement），
+  // 冻结中的明细不得进入结算单、不得置 settled，解冻后恢复可结算。
+  frozen_at?: string | null;
+  frozen_reason?: string;
+  frozen_by_admin_id?: number | null;
   note: string;
   version: number;
   created_at: string;
@@ -1823,6 +1863,8 @@ export interface CsCommissionEntry {
 
 export interface CsCommissionSummary {
   pending_settlement_cents: number;
+  // 被争议冻结的待结算金额（P0-8）：单独统计，不混进「待结算净额」。
+  frozen_cents?: number;
   settled_cents: number;
   monthly_cents: number;
   month_start: string;
@@ -1866,6 +1908,28 @@ export const getCsCommissionSummary = (adminId?: number) =>
   axios.get<ApiResponse<CsCommissionSummary>>(`${base}/cs-commission/summary`, {
     params: { admin_id: adminId },
   });
+
+// 客服提成明细的争议冻结 / 解冻（审核报告 §8.2-14，P0-8）。
+// 后端本批已注册路由与权限码（handlers 与 service 同在 cs_commission.go）：
+//   POST /admin/cs-commission-entries/:id/freeze    权限码 esports:settlements:cs_entry_freeze
+//   POST /admin/cs-commission-entries/:id/unfreeze  权限码 esports:settlements:cs_entry_unfreeze
+// 冻结入参 { reason } 必填（trim 后非空，超长按 120 字截断），操作人写入 frozen_by_admin_id；
+// 解冻原因可空，带正文时按 { reason } 解析。两者都返回更新后的客服提成明细。
+// 冻结仅允许「pending_settlement 且未挂结算单且未冻结」的明细，否则后端返回冲突错误；
+// 解冻仅允许已冻结的明细，解冻后恢复可结算。
+// 后端路由本批新增，未经联调
+export const freezeCsCommissionEntry = (id: number, reason: string) =>
+  axios.post<ApiResponse<CsCommissionEntry>>(
+    `${base}/cs-commission-entries/${id}/freeze`,
+    { reason }
+  );
+
+// 后端路由本批新增，未经联调
+export const unfreezeCsCommissionEntry = (id: number, reason?: string) =>
+  axios.post<ApiResponse<CsCommissionEntry>>(
+    `${base}/cs-commission-entries/${id}/unfreeze`,
+    reason ? { reason } : {}
+  );
 
 export const createCsSettlement = (input: {
   admin_id: number;
@@ -2449,6 +2513,13 @@ export const setMemberLevelStatus = (
     expected_version: expectedVersion,
     status,
   });
+
+// 删除会员等级（审核报告 §8.1-8）：仅「已停用且未被客户引用」的等级可删，
+// 否则后端返回中文冲突（启用中 → 先停用；被引用 → 改用停用）。
+// 后端路由本批新增：DELETE /admin/member-levels/:id（deleteMemberLevelHandler），
+// 权限码 esports:members:level_delete；成功返回 { id }。
+export const deleteMemberLevel = (id: number) =>
+  axios.delete<ApiResponse<{ id: number }>>(`${base}/member-levels/${id}`);
 
 export const getCustomerMember = (customerId: number) =>
   axios.get<ApiResponse<CustomerMemberDetail>>(
@@ -4345,7 +4416,8 @@ export interface ProductChildSkuInput {
   service_unit_name: string;
   required_seats: number;
   per_seat_service_units: number;
-  cost_cents: number | null;
+  // 成本（分，§15.8-03）：三态——不传表示保持既有成本（新建即未登记），传 null 表示清空。
+  cost_cents?: number | null;
   service_duration_minutes: number;
   close_rule_code: string;
   spec_group_id: number | null;
@@ -4391,13 +4463,9 @@ export interface SpecGroupInput {
   status: 'enabled' | 'disabled';
 }
 
-// 商品详情内的子 SKU 比列表多出商品归属、规格组、每席量与成本。
-// 成本按角色可见性脱敏：未获授权时后端返回 null（§15.8-03）。
+// 商品详情内的子 SKU 与列表同为 ent 实体直出：商品归属、规格组、每席量与成本已在
+// EsportsSku 中声明，这里只补时间戳。成本按角色可见性脱敏：未获授权时后端返回 null（§15.8-03）。
 export interface EsportsProductSku extends EsportsSku {
-  product_id: number | null;
-  spec_group_id: number | null;
-  per_seat_service_units: number;
-  cost_cents: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -4705,6 +4773,27 @@ export const disposeExpiredAppointment = (
     input
   );
 
+// 档期超时处置的可用方式（只读，后端 appointmentDisposalOptionView）：
+// allowed_actions 是当前配置下允许的处置方式（refund / reschedule），
+// current_action 是配置生效值（refund / reschedule / both，未配置或非法回落 both），
+// expire_at 是本单档期确认截止时间（RFC3339，缺失时回落暂停派单时间，都缺失则为空字符串）。
+// 前端据此渲染处置按钮，不再把 refund / reschedule 硬编码进页面。
+export type AppointmentDisposalAction = 'refund' | 'reschedule';
+export type AppointmentDisposalCurrentAction =
+  | AppointmentDisposalAction
+  | 'both';
+
+export interface AppointmentDisposalOptions {
+  allowed_actions: AppointmentDisposalAction[];
+  current_action: AppointmentDisposalCurrentAction;
+  expire_at: string;
+}
+
+export const getAppointmentDisposalOptions = (id: number) =>
+  axios.get<ApiResponse<AppointmentDisposalOptions>>(
+    `${base}/orders/${id}/appointment/disposal-options`
+  );
+
 // 释放到公共池（§5.1）：客服把待派单订单交回公共池。
 export const releaseOrderToPool = (orderId: number, reason: string) =>
   axios.post<ApiResponse<EsportsOrder>>(
@@ -4805,6 +4894,31 @@ export const correctOrderPlayerServiceTiming = (
   axios.post<ApiResponse<ServiceTimingCorrection>>(
     `${base}/orders/${orderId}/players/${playerId}/service/timing-correction`,
     input
+  );
+
+// 服务段计时只读快照（后端 serviceTimingReadout）：供「时长更正」弹窗预填当前有效时长
+// 与可填上限，避免猜数被更正校验拒绝。
+// - effective_seconds：当前有效服务秒数（暂停期间冻结；已结束服务段取落库的 system_seconds，
+//   即上一次更正后的值）；
+// - wall_clock_seconds：服务段墙钟跨度（开始到结束 / 现在）；
+// - upper_bound_seconds：更正可填上限 = min(墙钟跨度, 订单标准时长 × 系数)，与更正校验同源；
+// - paused_seconds：当前累计暂停秒数（进行中的暂停按当前时刻续算）。
+// 目标陪玩在本单没有服务段时后端返回 403（与代暂停 / 更正同一「非本单成员」口径）。
+export interface OrderServiceTimingReadout {
+  order_id: number;
+  player_id: number;
+  seat_index: number;
+  // 服务段状态（后端 EsportsServiceSegment.status，如 running / paused / finished）。
+  status: string;
+  effective_seconds: number;
+  wall_clock_seconds: number;
+  upper_bound_seconds: number;
+  paused_seconds: number;
+}
+
+export const getOrderServiceTiming = (orderId: number, playerId: number) =>
+  axios.get<ApiResponse<OrderServiceTimingReadout>>(
+    `${base}/orders/${orderId}/players/${playerId}/service/timing`
   );
 
 export const terminateOrderPlayerService = (
@@ -4977,6 +5091,43 @@ export const markRechargeRefundExecuted = (id: number, financeRef: string) =>
   axios.post<ApiResponse<EsportsRechargeRefundExecution>>(
     `${base}/recharge-refund-executions/${id}/execute`,
     { finance_ref: financeRef }
+  );
+
+// 退款执行批次列表（只读，后端 rechargeRefundExecutionView）：
+// status 留空不过滤，只接受 pending / executed（非法值后端中文报错，不静默放行）；
+// limit 夹在 1~200，缺省 100。列表项比 POST 返回的 ent 行多了 after_sale_no（关联售后单号，
+// 单号缺失时为空字符串），但不含 idem_key / version，故单独建模，避免把两种读模型混用。
+export interface RechargeRefundExecutionView {
+  id: number;
+  execution_no: string;
+  status: RechargeRefundExecutionStatus;
+  // 该批次本次外部应打款金额（分）。
+  amount_cents: number;
+  after_sale_id: number;
+  after_sale_no: string;
+  account_type: string;
+  account_id: string;
+  batch_source_type: string;
+  batch_source_id: string;
+  executed_by_admin_id: number | null;
+  // pending 时为空。
+  executed_at: string | null;
+  finance_ref: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RechargeRefundExecutionListParams {
+  status?: RechargeRefundExecutionStatus;
+  limit?: number;
+}
+
+export const listRechargeRefundExecutions = (
+  params: RechargeRefundExecutionListParams = {}
+) =>
+  axios.get<ApiResponse<RechargeRefundExecutionView[]>>(
+    `${base}/recharge-refund-executions`,
+    { params }
   );
 
 // ── 渠道撤销 / 拒付（§3.2） ──
@@ -5171,8 +5322,31 @@ export interface RechargeRefundQuoteBasis {
   batch_bonus_in_cents: number;
 }
 
+// 账本核验异常类型（后端 ledger_reconcile.go / ledger_sum_reconcile.go 的常量字面量，
+// 与事件 key 一起构成对外契约）：余额为负 / 分摊引用批次缺失 / 批次超分摊 /
+// 钱包流水求和与批次账本求和不一致 / 预付账户出账未登记批次。
+export type LedgerReconcileAnomalyKind =
+  | 'account_negative_balance'
+  | 'allocation_batch_missing'
+  | 'batch_over_allocated'
+  | 'wallet_batch_sum_mismatch'
+  | 'wallet_outflow_unbooked';
+
+// 按批次退款试算的异常类型（后端 recharge_refund_quote.go 的常量字面量）：
+// 批次超分摊 / 批次无法拆分本金与赠送 / 账户余额大于批次合计（未落批次资金）。
+export type RefundQuoteAnomalyKind =
+  | 'refund_quote_batch_over_allocated'
+  | 'refund_quote_batch_split_unknown'
+  | 'refund_quote_unbatched_balance';
+
+// 同一份 ledgerAnomaly 结构同时服务「账本核验异常」与「退款试算异常」两个读模型，
+// 故 kind 取两者并集；页面按所属接口判断具体取值。
+export type LedgerAnomalyKind =
+  | LedgerReconcileAnomalyKind
+  | RefundQuoteAnomalyKind;
+
 export interface LedgerAnomaly {
-  kind: string;
+  kind: LedgerAnomalyKind;
   account_type: string;
   account_id: string;
   detail: string;
@@ -5219,6 +5393,9 @@ export interface LedgerReconcileAnomaly {
   anomalies: LedgerAnomaly[];
 }
 
+// 最近的账本核验异常事件（按时间倒序）。后端只接受 ?limit=（夹在 1~200，
+// 缺省 20），没有分页 / 偏移参数，也没有 kind 过滤：要按异常类型筛选只能在页面侧
+// 对返回项的 anomalies[].kind 做二次过滤。
 export const listLedgerReconcileAnomalies = (limit?: number) =>
   axios.get<ApiResponse<LedgerReconcileAnomaly[]>>(
     `${base}/ledger-reconcile-anomalies`,

@@ -202,6 +202,11 @@
           key="reversals"
           title="撤销 / 拒付（§3.2）"
         />
+        <a-tab-pane
+          v-if="canListRefundExecutions"
+          key="refundExecutions"
+          title="退款执行批次（§4.5）"
+        />
       </a-tabs>
 
       <template v-if="settleTab === 'proofs'">
@@ -267,7 +272,7 @@
         </a-table>
       </template>
 
-      <template v-else>
+      <template v-else-if="settleTab === 'reversals'">
         <a-space class="toolbar">
           <a-select
             v-model="reversalFilterStatus"
@@ -364,6 +369,76 @@
                   >处置</a-button
                 >
                 <span v-else>-</span>
+              </template>
+            </a-table-column>
+          </template>
+        </a-table>
+      </template>
+
+      <template v-else>
+        <a-space class="toolbar">
+          <a-select
+            v-model="refundFilterStatus"
+            placeholder="全部状态"
+            allow-clear
+            :style="{ width: '160px' }"
+          >
+            <a-option value="pending">待打款</a-option>
+            <a-option value="executed">已打款</a-option>
+          </a-select>
+          <a-button
+            :loading="refundExecutionsLoading"
+            @click="loadRefundExecutions"
+            >刷新</a-button
+          >
+        </a-space>
+        <div class="hint">
+          只读批次列表：按充值批次生成的外部退款执行明细，pending
+          表示待财务打款、executed
+          表示已登记打款；打款登记在售后单页执行，本页不改任何状态。金额按分转元展示。
+        </div>
+        <a-table
+          :data="refundExecutions"
+          :loading="refundExecutionsLoading"
+          row-key="id"
+          :pagination="{ pageSize: 10 }"
+        >
+          <template #columns>
+            <a-table-column
+              data-index="execution_no"
+              title="批次号"
+              :width="190"
+            />
+            <a-table-column title="状态" :width="100">
+              <template #cell="{ record }">
+                <a-tag :color="refundExecutionStatusColor(record.status)">{{
+                  refundExecutionStatusText(record.status)
+                }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="金额" :width="120">
+              <template #cell="{ record }">{{
+                yuan(record.amount_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="创建时间" :width="180">
+              <template #cell="{ record }">{{
+                timeText(record.created_at)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="打款时间" :width="180">
+              <template #cell="{ record }">{{
+                timeText(record.executed_at)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="关联售后单号" :width="190">
+              <template #cell="{ record }">
+                {{ record.after_sale_no || `#${record.after_sale_id}` }}
+              </template>
+            </a-table-column>
+            <a-table-column title="执行人" :width="100">
+              <template #cell="{ record }">
+                {{ record.executed_by_admin_id ?? '-' }}
               </template>
             </a-table-column>
           </template>
@@ -706,6 +781,7 @@
     listPaymentAccounts,
     listPaymentChannels,
     listPaymentReversals,
+    listRechargeRefundExecutions,
     registerPaymentReversal,
     rejectOfflinePaymentProof,
     reviewPaymentAccount,
@@ -724,10 +800,12 @@
     PaymentReversalAction,
     PaymentReversalKind,
     PaymentReversalStatus,
+    RechargeRefundExecutionStatus,
+    RechargeRefundExecutionView,
     ReadinessReport,
   } from '../../api';
 
-  const { hasButtonPermission } = usePermission();
+  const { hasButtonPermission, hasAnyPermission } = usePermission();
   // 权限码全部取自 app.go 的 PermAPI / PermButton 声明，不臆造。
   const canCreateAccount = computed(() =>
     hasButtonPermission('esports:payments:account_create')
@@ -758,6 +836,12 @@
   );
   const canDecideReversal = computed(() =>
     hasButtonPermission('esports:payments:reversal_decide')
+  );
+  // 退款执行批次是只读列表，权限码取 app.go 已声明的 esports:settlements:recharge_refund_executions。
+  const canListRefundExecutions = computed(
+    () =>
+      hasButtonPermission('esports:settlements:recharge_refund_executions') ||
+      hasAnyPermission(['esports:settlements:recharge_refund_executions'])
   );
 
   const yuan = (value: number) => `¥${(value / 100).toFixed(2)}`;
@@ -1043,8 +1127,8 @@
     }
   }
 
-  // ── 收款核验页签：待核验收款 / 撤销拒付 ──
-  const settleTab = ref<'proofs' | 'reversals'>('proofs');
+  // ── 收款核验页签：待核验收款 / 撤销拒付 / 退款执行批次 ──
+  const settleTab = ref<'proofs' | 'reversals' | 'refundExecutions'>('proofs');
 
   // ── 待核验收款 ──
   const proofs = ref<OfflinePaymentProof[]>([]);
@@ -1202,9 +1286,42 @@
     }
   }
 
+  // ── 充值退款执行批次（§4.5，只读，api.ts 的 listRechargeRefundExecutions）：
+  // 金额单位分，列表按批次 ID 倒序。 ──
+  const refundExecutions = ref<RechargeRefundExecutionView[]>([]);
+  const refundExecutionsLoading = ref(false);
+  const refundFilterStatus = ref<RechargeRefundExecutionStatus>();
+  const refundExecutionStatusText = (status: string) =>
+    ({ pending: '待打款', executed: '已打款' }[status] || status);
+  const refundExecutionStatusColor = (status: string) =>
+    ({ pending: 'orange', executed: 'green' }[status] || 'gray');
+  const timeText = (value: string | null) =>
+    value ? new Date(value).toLocaleString() : '-';
+
+  async function loadRefundExecutions() {
+    refundExecutionsLoading.value = true;
+    try {
+      refundExecutions.value =
+        (
+          await listRechargeRefundExecutions({
+            status: refundFilterStatus.value || undefined,
+            limit: 200,
+          })
+        ).data.data || [];
+    } catch (err) {
+      // 状态非法等后端中文原因原样展示，不吞错误。
+      Message.error(errorText(err, '加载退款执行批次失败'));
+    } finally {
+      refundExecutionsLoading.value = false;
+    }
+  }
+
   function onSettleTabChange(key: string | number) {
     if (key === 'reversals' && reversals.value.length === 0) {
       loadReversals();
+    }
+    if (key === 'refundExecutions' && refundExecutions.value.length === 0) {
+      loadRefundExecutions();
     }
   }
 

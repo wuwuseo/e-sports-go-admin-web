@@ -501,6 +501,19 @@
             份数」计承诺量。挂规格组时可留空（跟随规格组），未挂规格组时必须为正整数，否则下单会被拒绝。</div
           >
         </a-form-item>
+        <a-form-item label="成本（元）">
+          <a-input-number
+            :model-value="childSkuForm.cost_yuan ?? undefined"
+            :min="0"
+            :precision="2"
+            allow-clear
+            placeholder="未登记"
+            @update:model-value="onChildCostChange"
+          />
+          <div class="hint"
+            >成本仅用于毛利口径，未获授权的角色读不到既有成本（按未登记返回）；留空表示不登记成本，编辑时未改动不会提交该字段。</div
+          >
+        </a-form-item>
         <a-form-item label="单次服务时长（分钟）">
           <a-input-number
             v-model="childSkuForm.service_duration_minutes"
@@ -659,6 +672,41 @@
             <a-option value="entertainment">娱乐</a-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="所属商品">
+          <a-select
+            :model-value="skuForm.product_id ?? undefined"
+            allow-clear
+            placeholder="不关联商品"
+            @update:model-value="onSkuProductChange"
+          >
+            <a-option v-for="item in products" :key="item.id" :value="item.id"
+              >{{ item.name }}（{{ productStatusText(item.status) }}）</a-option
+            >
+          </a-select>
+          <div class="hint"
+            >关联商品后该 SKU 出现在商品详情下；已下架商品不能再挂载新
+            SKU。</div
+          >
+        </a-form-item>
+        <a-form-item label="所属规格组">
+          <a-select
+            :model-value="skuForm.spec_group_id ?? undefined"
+            allow-clear
+            placeholder="不关联规格组（单人）"
+            @update:model-value="onSkuSpecGroupChange"
+          >
+            <a-option
+              v-for="group in specGroups.filter((g) => g.status === 'enabled')"
+              :key="group.id"
+              :value="group.id"
+              >{{ group.name }}（{{ group.seats.length }} 席 · 每席
+              {{ group.per_seat_service_units }}）</a-option
+            >
+          </a-select>
+          <div class="hint"
+            >选择规格组会自动带出必需席位与每席承诺服务量；规格组席位数必须与必需席位一致。</div
+          >
+        </a-form-item>
         <a-form-item label="每份标价（分）" required>
           <a-input-number v-model="skuForm.unit_price_cents" :min="1" />
         </a-form-item>
@@ -698,6 +746,19 @@
             >多人 SKU 每席承诺的服务量：下单按「每席量 × 席位数 ×
             份数」计承诺量。未配置时后端会拒绝报单，因此多人 SKU
             必须填写正整数。</div
+          >
+        </a-form-item>
+        <a-form-item label="成本（元）">
+          <a-input-number
+            :model-value="skuForm.cost_yuan ?? undefined"
+            :min="0"
+            :precision="2"
+            allow-clear
+            placeholder="未登记"
+            @update:model-value="onSkuCostChange"
+          />
+          <div class="hint"
+            >成本仅用于毛利口径，未获授权的角色读不到既有成本（按未登记返回）；留空表示不登记成本，编辑时未改动不会提交该字段。</div
           >
         </a-form-item>
         <a-form-item label="单次服务时长（分钟）">
@@ -1047,10 +1108,24 @@
     SpecGroupInput,
   } from '../../api';
 
-  // api.ts 的 EsportsSku / SkuInput 未声明后端已支持的 per_seat_service_units，
-  // 这里用交叉类型补齐「列表读列 + 请求体」，避免改动 api.ts。
-  type SkuRow = EsportsSku & { per_seat_service_units?: number };
-  type SkuPayload = SkuUpdateInput & { per_seat_service_units: number };
+  // SKU 表单：在 api 的 SkuInput 上把三态字段换成本地表单值（成本用「元」录入，提交时换算为分）。
+  type SkuForm = Omit<
+    SkuInput,
+    'product_id' | 'spec_group_id' | 'cost_cents'
+  > & {
+    id: number;
+    product_id: number | null;
+    spec_group_id: number | null;
+    cost_yuan: number | null;
+  };
+  // 子 SKU 行：在 api 的 ProductChildSkuInput 上记录「成本是否本次改动」，
+  // 编辑既有子 SKU 时未改动就不提交 cost_cents（无成本读权限的角色读不到既有值，
+  // 回传 null 会误清空）。
+  type ChildSkuRow = ProductChildSkuInput & { cost_dirty?: boolean };
+  // 子 SKU 表单：成本用「元」录入，提交时按 Math.round(元 * 100) 换算为分。
+  type ChildSkuForm = Omit<ProductChildSkuInput, 'cost_cents'> & {
+    cost_yuan: number | null;
+  };
   type ProductForm = {
     id: number;
     name: string;
@@ -1105,9 +1180,9 @@
   const activeTab = ref('products');
   const loading = ref(false);
   const products = ref<EsportsProduct[]>([]);
-  const productSkus = ref<ProductChildSkuInput[]>([]);
+  const productSkus = ref<ChildSkuRow[]>([]);
   const specGroups = ref<EsportsSpecGroup[]>([]);
-  const skus = ref<SkuRow[]>([]);
+  const skus = ref<EsportsSku[]>([]);
   const categories = ref<EsportsProductCategory[]>([]);
   // 结单要求下拉只列出生效中的结单规则（§15.3）。
   const closeRules = ref<EsportsCloseRule[]>([]);
@@ -1156,7 +1231,13 @@
   const productForm = reactive<ProductForm>(emptyProductForm());
   const childSkuIndex = ref(-1);
   const dirtyChildIds = ref<number[]>([]);
-  const emptyChildSkuForm = (): ProductChildSkuInput => ({
+  // 成本「元」→「分」：四舍五入避免浮点误差；null 表示清空已登记成本。
+  const costCents = (yuan: number | null) =>
+    yuan === null ? null : Math.round(yuan * 100);
+  // 成本「分」→「元」回显：未登记（null / 未传）按空处理。
+  const childCostYuan = (cents?: number | null) =>
+    typeof cents === 'number' ? cents / 100 : null;
+  const emptyChildSkuForm = (): ChildSkuForm => ({
     id: 0,
     code: '',
     title: '',
@@ -1169,7 +1250,7 @@
     service_unit_name: '小时',
     required_seats: 1,
     per_seat_service_units: 0,
-    cost_cents: null,
+    cost_yuan: null,
     service_duration_minutes: 60,
     close_rule_code: '',
     spec_group_id: null,
@@ -1177,7 +1258,11 @@
     sort_order: 0,
     status: 'draft',
   });
-  const childSkuForm = reactive<ProductChildSkuInput>(emptyChildSkuForm());
+  const childSkuForm = reactive<ChildSkuForm>(emptyChildSkuForm());
+  // 子 SKU 成本三态：打开弹窗时的成本（元）与该行是否已改过成本。
+  // 编辑既有子 SKU 未改动时不提交 cost_cents，避免把读不到的既有成本回传成清空。
+  const childCostBaseline = ref<number | null>(null);
+  const childCostDirty = ref(false);
   watch(
     () => childSkuForm.unit_price_cents,
     (price, previous) => {
@@ -1197,10 +1282,7 @@
   });
   const specGroupForm = reactive<SpecGroupForm>(emptySpecGroupForm());
 
-  const emptySkuForm = (): SkuInput & {
-    id: number;
-    per_seat_service_units: number;
-  } => ({
+  const emptySkuForm = (): SkuForm => ({
     id: 0,
     code: '',
     title: '',
@@ -1214,6 +1296,9 @@
     service_unit_name: '小时',
     required_seats: 1,
     per_seat_service_units: 0,
+    product_id: null,
+    spec_group_id: null,
+    cost_yuan: null,
     service_duration_minutes: 60,
     required_level: 'novice',
     close_rule_code: '',
@@ -1221,7 +1306,14 @@
     sort_order: 0,
     status: 'draft',
   });
-  const skuForm = reactive(emptySkuForm());
+  const skuForm = reactive<SkuForm>(emptySkuForm());
+  // 三态基线：打开弹窗时的商品 / 规格组 / 成本值。编辑时只有与基线不同才提交，
+  // 避免未改动也回传导致误解除关联或误清空成本（后端：未传 = 保持原值）。
+  const skuBaseline = reactive<{
+    product_id: number | null;
+    spec_group_id: number | null;
+    cost_yuan: number | null;
+  }>({ product_id: null, spec_group_id: null, cost_yuan: null });
   watch(
     () => skuForm.unit_price_cents,
     (price, previous) => {
@@ -1250,6 +1342,32 @@
     if (group.per_seat_service_units > 0) {
       childSkuForm.per_seat_service_units = group.per_seat_service_units;
     }
+  }
+  // 子 SKU 成本：clear 时 a-input-number 给 undefined，转回 null 表示清空已登记成本。
+  function onChildCostChange(value: unknown) {
+    childSkuForm.cost_yuan = typeof value === 'number' ? value : null;
+  }
+  // SKU 弹窗的所属商品 / 规格组：clear 时 a-select 给 undefined，转回 null 表示「不关联」。
+  function onSkuProductChange(value: unknown) {
+    skuForm.product_id = typeof value === 'number' ? value : null;
+  }
+  function onSkuSpecGroupChange(value: unknown) {
+    skuForm.spec_group_id = typeof value === 'number' ? value : null;
+    const group = specGroups.value.find(
+      (item) => item.id === skuForm.spec_group_id
+    );
+    if (!group) return;
+    // 后端 resolveSkuCatalogRefs 会校验「规格组席位数 = required_seats」，
+    // 这里选中即校准，减少一次 400。
+    if (group.seats.length > 0) {
+      skuForm.required_seats = group.seats.length;
+    }
+    if (group.per_seat_service_units > 0) {
+      skuForm.per_seat_service_units = group.per_seat_service_units;
+    }
+  }
+  function onSkuCostChange(value: unknown) {
+    skuForm.cost_yuan = typeof value === 'number' ? value : null;
   }
 
   const emptyCategoryForm = (): CategoryInput & { id: number } => ({
@@ -1304,7 +1422,7 @@
     record.quota_total === -1
       ? `不限（已售 ${record.quota_sold}）`
       : `${record.quota_sold}/${record.quota_total}`;
-  const perSeatText = (record: SkuRow) =>
+  const perSeatText = (record: EsportsSku) =>
     record.required_seats > 1
       ? `${record.per_seat_service_units ?? 0} / 席`
       : '—';
@@ -1361,7 +1479,7 @@
       listSkus(),
     ]);
     suspensions.value = listResult.data.data || [];
-    skus.value = (skuResult.data.data || []) as SkuRow[];
+    skus.value = skuResult.data.data || [];
   }
 
   async function loadActive() {
@@ -1382,14 +1500,26 @@
       } else if (activeTab.value === 'spec-groups') {
         specGroups.value = (await listSpecGroups()).data.data || [];
       } else if (activeTab.value === 'skus') {
-        const [skuResult, categoryResult, ruleResult] = await Promise.all([
+        // SKU 弹窗需要「所属商品」「所属规格组」下拉与规格组席位校验口径，
+        // 因此 SKU 页签同时拉商品与规格组列表。
+        const [
+          skuResult,
+          categoryResult,
+          ruleResult,
+          productResult,
+          groupResult,
+        ] = await Promise.all([
           listSkus(),
           listCategories(),
           listCloseRules(),
+          listProducts(),
+          listSpecGroups(),
         ]);
-        skus.value = (skuResult.data.data || []) as SkuRow[];
+        skus.value = skuResult.data.data || [];
         categories.value = categoryResult.data.data || [];
         closeRules.value = ruleResult.data.data || [];
+        products.value = productResult.data.data || [];
+        specGroups.value = groupResult.data.data || [];
       } else if (activeTab.value === 'categories') {
         categories.value = (await listCategories()).data.data || [];
       } else {
@@ -1449,20 +1579,27 @@
     productVisible.value = true;
   }
 
-  function productChildPayload(
-    row: ProductChildSkuInput
-  ): ProductChildSkuInput {
-    return {
-      ...row,
-      code: row.code.trim(),
-      title: row.title.trim(),
-      service_unit_name: row.service_unit_name.trim(),
-      description: row.description.trim(),
-      close_rule_code: row.close_rule_code.trim(),
+  function productChildPayload(row: ChildSkuRow): ProductChildSkuInput {
+    const { cost_dirty: costDirty, ...fields } = row;
+    const payload: ProductChildSkuInput = {
+      ...fields,
+      code: fields.code.trim(),
+      title: fields.title.trim(),
+      service_unit_name: fields.service_unit_name.trim(),
+      description: fields.description.trim(),
+      close_rule_code: fields.close_rule_code.trim(),
       // 单人子 SKU 不保留每席量，避免残值被后端当成多人口径。
       per_seat_service_units:
-        row.required_seats > 1 ? row.per_seat_service_units : 0,
+        fields.required_seats > 1 ? fields.per_seat_service_units : 0,
     };
+    // 成本三态：新建行直接带（留空 = 未登记）；编辑行只有改过才传，
+    // 未改动不传 —— 无成本读权限的角色读到的 null 不得回传成清空。
+    if (!row.id || costDirty) {
+      payload.cost_cents = fields.cost_cents ?? null;
+    } else {
+      delete payload.cost_cents;
+    }
+    return payload;
   }
 
   function validateChildSku(row: ProductChildSkuInput) {
@@ -1511,9 +1648,21 @@
     childSkuIndex.value = typeof index === 'number' ? index : -1;
     if (typeof index === 'number') {
       const row = productSkus.value[index];
-      Object.assign(childSkuForm, emptyChildSkuForm(), row);
+      const {
+        cost_cents: rowCostCents,
+        cost_dirty: rowCostDirty,
+        ...fields
+      } = row;
+      const rowCostYuan = childCostYuan(rowCostCents);
+      Object.assign(childSkuForm, emptyChildSkuForm(), fields, {
+        cost_yuan: rowCostYuan,
+      });
+      childCostBaseline.value = rowCostYuan;
+      childCostDirty.value = rowCostDirty ?? false;
     } else {
       Object.assign(childSkuForm, emptyChildSkuForm());
+      childCostBaseline.value = null;
+      childCostDirty.value = false;
     }
     childSkuVisible.value = true;
   }
@@ -1523,24 +1672,37 @@
   }
 
   function saveChildSku() {
-    const payload = productChildPayload({
-      ...childSkuForm,
+    const { cost_yuan: costYuanValue, ...fields } = childSkuForm;
+    if (costYuanValue !== null && costYuanValue < 0) {
+      Message.error('成本不能为负（单位：元）');
+      return;
+    }
+    const editing =
+      childSkuIndex.value >= 0 ? productSkus.value[childSkuIndex.value] : null;
+    // 成本三态：未改动沿用打开弹窗时的原值，清空按 null，填了按分换算。
+    const costDirty =
+      childCostDirty.value || costYuanValue !== childCostBaseline.value;
+    const row: ChildSkuRow = {
+      ...fields,
       id: childSkuForm.id,
-    });
+      cost_cents: costDirty ? costCents(costYuanValue) : editing?.cost_cents,
+      cost_dirty: costDirty,
+    };
+    const payload = productChildPayload(row);
     const error = validateChildSku(payload);
     if (error) {
       Message.error(error);
       return;
     }
     if (childSkuIndex.value >= 0) {
-      productSkus.value.splice(childSkuIndex.value, 1, payload);
+      productSkus.value.splice(childSkuIndex.value, 1, row);
       // 已有子 SKU 只在本次被编辑时才随商品提交：后端 PUT 对未传子 SKU 原样保留，
       // 而传了 cost_cents=null 会清空成本价（未授权角色读不到成本，避免误清）。
       if (payload.id > 0 && !dirtyChildIds.value.includes(payload.id)) {
         dirtyChildIds.value.push(payload.id);
       }
     } else {
-      productSkus.value.push(payload);
+      productSkus.value.push(row);
     }
     childSkuVisible.value = false;
   }
@@ -1664,45 +1826,97 @@
   }
 
   // ── SKU（独立商品，含每席承诺服务量与技能等级） ──
-  function openSku(record?: SkuRow) {
+  function openSku(record?: EsportsSku) {
+    const productId = record?.product_id ?? null;
+    const specGroupId = record?.spec_group_id ?? null;
+    // 成本按「分」回显为「元」；未授权角色读到的 cost_cents 为 null，按未登记处理。
+    const costYuan =
+      typeof record?.cost_cents === 'number' ? record.cost_cents / 100 : null;
     Object.assign(
       skuForm,
+      emptySkuForm(),
       record
         ? {
-            ...emptySkuForm(),
             ...record,
             per_seat_service_units: record.per_seat_service_units ?? 0,
           }
-        : emptySkuForm()
+        : {},
+      { product_id: productId, spec_group_id: specGroupId, cost_yuan: costYuan }
     );
+    Object.assign(skuBaseline, {
+      product_id: productId,
+      spec_group_id: specGroupId,
+      cost_yuan: costYuan,
+    });
     skuVisible.value = true;
   }
 
   // 编辑时不提交 code（后端以创建时的编码为准）。
-  const skuPayload = (): SkuPayload => ({
-    title: skuForm.title,
-    service_type: skuForm.service_type,
-    category_id: skuForm.category_id,
-    description: skuForm.description,
-    unit_price_cents: skuForm.unit_price_cents,
-    min_unit_price_cents: skuForm.min_unit_price_cents,
-    adjustment_approval_bp: skuForm.adjustment_approval_bp,
-    service_units: skuForm.service_units,
-    service_unit_name: skuForm.service_unit_name,
-    required_seats: skuForm.required_seats,
-    per_seat_service_units:
-      skuForm.required_seats > 1 ? skuForm.per_seat_service_units : 0,
-    service_duration_minutes: skuForm.service_duration_minutes,
-    required_level: skuForm.required_level,
-    close_rule_code: skuForm.close_rule_code || '',
-    quota_total: skuForm.quota_total,
-    sort_order: skuForm.sort_order,
-    status: skuForm.status,
-  });
+  const skuPayload = (): SkuUpdateInput => {
+    const payload: SkuUpdateInput = {
+      title: skuForm.title,
+      service_type: skuForm.service_type,
+      category_id: skuForm.category_id,
+      description: skuForm.description,
+      unit_price_cents: skuForm.unit_price_cents,
+      min_unit_price_cents: skuForm.min_unit_price_cents,
+      adjustment_approval_bp: skuForm.adjustment_approval_bp,
+      service_units: skuForm.service_units,
+      service_unit_name: skuForm.service_unit_name,
+      required_seats: skuForm.required_seats,
+      per_seat_service_units:
+        skuForm.required_seats > 1 ? skuForm.per_seat_service_units : 0,
+      service_duration_minutes: skuForm.service_duration_minutes,
+      required_level: skuForm.required_level,
+      close_rule_code: skuForm.close_rule_code || '',
+      quota_total: skuForm.quota_total,
+      sort_order: skuForm.sort_order,
+      status: skuForm.status,
+    };
+    // 三态字段（后端：未传 = 保持原值）：
+    // - product_id / spec_group_id：改过才传，解除关联传 0；
+    // - cost_cents：改过才传，清空传 null，填了按分换算。
+    if (skuForm.id) {
+      if (skuForm.product_id !== skuBaseline.product_id) {
+        payload.product_id = skuForm.product_id ?? 0;
+      }
+      if (skuForm.spec_group_id !== skuBaseline.spec_group_id) {
+        payload.spec_group_id = skuForm.spec_group_id ?? 0;
+      }
+      if (skuForm.cost_yuan !== skuBaseline.cost_yuan) {
+        payload.cost_cents = costCents(skuForm.cost_yuan);
+      }
+    } else {
+      if (skuForm.product_id) payload.product_id = skuForm.product_id;
+      if (skuForm.spec_group_id) payload.spec_group_id = skuForm.spec_group_id;
+      if (skuForm.cost_yuan !== null) {
+        payload.cost_cents = costCents(skuForm.cost_yuan);
+      }
+    }
+    return payload;
+  };
 
   async function saveSku() {
     if (!skuForm.code.trim() || !skuForm.title.trim()) {
       Message.error('请填写商品编码与名称');
+      return;
+    }
+    if (skuForm.cost_yuan !== null && skuForm.cost_yuan < 0) {
+      Message.error('成本不能为负（单位：元）');
+      return;
+    }
+    // §15.5：后端 resolveSkuCatalogRefs 要求规格组席位数与必需席位一致，先拦一道。
+    const group = specGroups.value.find(
+      (item) => item.id === skuForm.spec_group_id
+    );
+    if (
+      group &&
+      group.seats.length > 0 &&
+      group.seats.length !== skuForm.required_seats
+    ) {
+      Message.error(
+        `规格组「${group.name}」有 ${group.seats.length} 席，须与必需席位一致`
+      );
       return;
     }
     // §15.3-01：多人 SKU 缺每席承诺服务量时后端下单必拒，这里先拦一道。
@@ -1730,8 +1944,8 @@
   }
 
   // 上下架复用编辑接口，仅切换状态字段。
-  async function toggleSale(record: SkuRow, status: EsportsSku['status']) {
-    const payload: SkuPayload = {
+  async function toggleSale(record: EsportsSku, status: EsportsSku['status']) {
+    const payload: SkuUpdateInput = {
       title: record.title,
       service_type: record.service_type,
       category_id: record.category_id,
@@ -1811,7 +2025,7 @@
     });
     if (skus.value.length === 0) {
       try {
-        skus.value = ((await listSkus()).data.data || []) as SkuRow[];
+        skus.value = (await listSkus()).data.data || [];
       } catch (err) {
         Message.error(errorText(err, '加载 SKU 列表失败'));
         return;
