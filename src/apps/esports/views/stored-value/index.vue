@@ -1,133 +1,368 @@
 <template>
   <div class="container page-container">
-    <a-card class="general-card" title="储值卡">
+    <a-tabs v-model:active-key="mainTab" @change="onMainTabChange">
+      <a-tab-pane key="cards" title="储值卡" />
+      <a-tab-pane
+        v-if="canExceptionList"
+        key="exceptions"
+        title="异常队列（§4.6-06）"
+      />
+    </a-tabs>
+
+    <template v-if="mainTab === 'cards'">
+      <a-card class="general-card" title="储值卡">
+        <a-space class="toolbar" wrap>
+          <a-button :loading="loading" @click="loadCards">刷新</a-button>
+          <a-select
+            v-model="filterStatus"
+            placeholder="按状态筛选"
+            allow-clear
+            :style="{ width: '150px' }"
+            @change="loadCards"
+          >
+            <a-option
+              v-for="option in statusOptions"
+              :key="option.value"
+              :value="option.value"
+              >{{ option.label }}</a-option
+            >
+          </a-select>
+          <a-input-number
+            v-model="filterCustomerId"
+            placeholder="按客户 ID 筛选"
+            :min="0"
+            :style="{ width: '170px' }"
+          />
+          <a-checkbox v-model="onlyRemind" @change="loadCards"
+            >只看临近到期</a-checkbox
+          >
+          <a-button v-if="canManage" type="primary" @click="openCreate"
+            >开卡</a-button
+          >
+          <a-button v-if="canManage" @click="openPackageCreate"
+            >新建套餐</a-button
+          >
+        </a-space>
+
+        <a-table
+          :data="cards"
+          :loading="loading"
+          row-key="id"
+          :pagination="{ pageSize: 10 }"
+        >
+          <template #columns>
+            <a-table-column data-index="card_no" title="卡号" />
+            <a-table-column
+              data-index="customer_id"
+              title="客户 ID"
+              :width="90"
+            />
+            <a-table-column title="来源支付">
+              <template #cell="{ record }">{{
+                channelLabel(record.payment_channel)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="本金余额">
+              <template #cell="{ record }">{{
+                moneyText(record.principal_remaining_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="赠送余额">
+              <template #cell="{ record }">{{
+                moneyText(record.bonus_remaining_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="卡内合计">
+              <template #cell="{ record }">{{
+                moneyText(record.balance_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="有效期">
+              <template #cell="{ record }">{{
+                fmtDate(record.valid_until)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="状态">
+              <template #cell="{ record }">
+                <a-tag :color="statusColor(record.status)">{{
+                  statusLabel(record.status)
+                }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="操作" :width="100">
+              <template #cell="{ record }">
+                <a-button type="text" @click="openDetail(record)"
+                  >详情</a-button
+                >
+              </template>
+            </a-table-column>
+          </template>
+        </a-table>
+      </a-card>
+
+      <a-card class="general-card" title="储值卡套餐" style="margin-top: 16px">
+        <a-table
+          :data="packages"
+          :loading="packagesLoading"
+          row-key="id"
+          :pagination="false"
+        >
+          <template #columns>
+            <a-table-column data-index="code" title="编码" />
+            <a-table-column data-index="name" title="套餐名" />
+            <a-table-column title="本金">
+              <template #cell="{ record }">{{
+                moneyText(record.principal_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="赠送">
+              <template #cell="{ record }">{{
+                moneyText(record.bonus_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="状态">
+              <template #cell="{ record }">
+                <a-tag
+                  :color="record.status === 'on_sale' ? 'green' : 'gray'"
+                  >{{ record.status === 'on_sale' ? '在售' : '已下架' }}</a-tag
+                >
+              </template>
+            </a-table-column>
+            <a-table-column title="操作" :width="140">
+              <template #cell="{ record }">
+                <a-button type="text" @click="openPackageEdit(record)"
+                  >编辑</a-button
+                >
+                <a-button type="text" @click="togglePackageStatus(record)">{{
+                  record.status === 'on_sale' ? '下架' : '上架'
+                }}</a-button>
+              </template>
+            </a-table-column>
+          </template>
+        </a-table>
+      </a-card>
+    </template>
+
+    <a-card v-else class="general-card" title="储值卡一致性异常队列（§4.6-06）">
+      <div class="hint">
+        结单 / 结算时「卡标记 / 关联卡 /
+        核销流水」三者不符会自动入队，此处只是可跟进的落地记录；
+        指派后转「跟进中」，处置须填写中文说明。
+      </div>
       <a-space class="toolbar" wrap>
-        <a-button :loading="loading" @click="loadCards">刷新</a-button>
         <a-select
-          v-model="filterStatus"
-          placeholder="按状态筛选"
+          v-model="exceptionFilterStatus"
+          placeholder="待跟进（待指派 + 跟进中）"
           allow-clear
-          :style="{ width: '150px' }"
-          @change="loadCards"
+          :style="{ width: '220px' }"
+        >
+          <a-option value="open">待指派</a-option>
+          <a-option value="following">跟进中</a-option>
+          <a-option value="resolved">已处理</a-option>
+          <a-option value="ignored">已忽略</a-option>
+        </a-select>
+        <a-select
+          v-model="exceptionFilterKind"
+          placeholder="全部不一致类型"
+          allow-clear
+          :style="{ width: '180px' }"
         >
           <a-option
-            v-for="option in statusOptions"
+            v-for="option in exceptionKindOptions"
             :key="option.value"
             :value="option.value"
             >{{ option.label }}</a-option
           >
         </a-select>
         <a-input-number
-          v-model="filterCustomerId"
-          placeholder="按客户 ID 筛选"
+          v-model="exceptionFilterCardId"
+          placeholder="按卡 ID 筛选"
           :min="0"
-          :style="{ width: '170px' }"
+          :style="{ width: '150px' }"
         />
-        <a-checkbox v-model="onlyRemind" @change="loadCards"
-          >只看临近到期</a-checkbox
-        >
-        <a-button v-if="canManage" type="primary" @click="openCreate"
-          >开卡</a-button
-        >
-        <a-button v-if="canManage" @click="openPackageCreate"
-          >新建套餐</a-button
+        <a-input-number
+          v-model="exceptionFilterOrderId"
+          placeholder="按订单 ID 筛选"
+          :min="0"
+          :style="{ width: '160px' }"
+        />
+        <a-checkbox v-model="exceptionMine">只看指派给我的</a-checkbox>
+        <a-checkbox v-model="exceptionUnassigned">只看未指派</a-checkbox>
+        <a-button :loading="exceptionsLoading" @click="loadExceptions"
+          >查询</a-button
         >
       </a-space>
-
       <a-table
-        :data="cards"
-        :loading="loading"
+        :data="exceptions"
+        :loading="exceptionsLoading"
         row-key="id"
         :pagination="{ pageSize: 10 }"
       >
         <template #columns>
-          <a-table-column data-index="card_no" title="卡号" />
           <a-table-column
-            data-index="customer_id"
-            title="客户 ID"
-            :width="90"
+            data-index="exception_no"
+            title="异常号"
+            :width="200"
           />
-          <a-table-column title="来源支付">
+          <a-table-column data-index="card_id" title="卡 ID" :width="80" />
+          <a-table-column data-index="order_id" title="订单" :width="80" />
+          <a-table-column data-index="customer_id" title="客户" :width="80" />
+          <a-table-column title="不一致类型" :width="150">
             <template #cell="{ record }">{{
-              channelLabel(record.payment_channel)
+              exceptionKindText(record.kind)
             }}</template>
           </a-table-column>
-          <a-table-column title="本金余额">
-            <template #cell="{ record }">{{
-              moneyText(record.principal_remaining_cents)
-            }}</template>
-          </a-table-column>
-          <a-table-column title="赠送余额">
-            <template #cell="{ record }">{{
-              moneyText(record.bonus_remaining_cents)
-            }}</template>
-          </a-table-column>
-          <a-table-column title="卡内合计">
-            <template #cell="{ record }">{{
-              moneyText(record.balance_cents)
-            }}</template>
-          </a-table-column>
-          <a-table-column title="有效期">
-            <template #cell="{ record }">{{
-              fmtDate(record.valid_until)
-            }}</template>
-          </a-table-column>
-          <a-table-column title="状态">
+          <a-table-column title="状态" :width="100">
             <template #cell="{ record }">
-              <a-tag :color="statusColor(record.status)">{{
-                statusLabel(record.status)
+              <a-tag :color="exceptionStatusColor(record.status)">{{
+                exceptionStatusText(record.status)
               }}</a-tag>
             </template>
           </a-table-column>
-          <a-table-column title="操作" :width="100">
+          <a-table-column title="重复" :width="70">
+            <template #cell="{ record }">×{{ record.occurrences }}</template>
+          </a-table-column>
+          <a-table-column title="跟进人" :width="90">
+            <template #cell="{ record }">{{
+              record.assignee_admin_id ?? '-'
+            }}</template>
+          </a-table-column>
+          <a-table-column title="原因" :width="180">
             <template #cell="{ record }">
-              <a-button type="text" @click="openDetail(record)">详情</a-button>
+              <a-tooltip :content="record.reason">
+                <span>{{ record.reason || '-' }}</span>
+              </a-tooltip>
+            </template>
+          </a-table-column>
+          <a-table-column title="处置说明" :width="180">
+            <template #cell="{ record }">{{
+              record.resolution || '-'
+            }}</template>
+          </a-table-column>
+          <a-table-column title="操作" :width="180">
+            <template #cell="{ record }">
+              <a-button
+                v-if="canExceptionDetail"
+                type="text"
+                @click="openExceptionDetail(record)"
+                >详情</a-button
+              >
+              <a-button
+                v-if="canExceptionAssign && isExceptionOpen(record)"
+                type="text"
+                @click="openExceptionAssign(record)"
+                >指派</a-button
+              >
+              <a-button
+                v-if="canExceptionResolve && isExceptionOpen(record)"
+                type="text"
+                @click="openExceptionResolve(record)"
+                >处置</a-button
+              >
             </template>
           </a-table-column>
         </template>
       </a-table>
     </a-card>
 
-    <a-card class="general-card" title="储值卡套餐" style="margin-top: 16px">
-      <a-table
-        :data="packages"
-        :loading="packagesLoading"
-        row-key="id"
-        :pagination="false"
-      >
-        <template #columns>
-          <a-table-column data-index="code" title="编码" />
-          <a-table-column data-index="name" title="套餐名" />
-          <a-table-column title="本金">
-            <template #cell="{ record }">{{
-              moneyText(record.principal_cents)
-            }}</template>
-          </a-table-column>
-          <a-table-column title="赠送">
-            <template #cell="{ record }">{{
-              moneyText(record.bonus_cents)
-            }}</template>
-          </a-table-column>
-          <a-table-column title="状态">
-            <template #cell="{ record }">
-              <a-tag :color="record.status === 'on_sale' ? 'green' : 'gray'">{{
-                record.status === 'on_sale' ? '在售' : '已下架'
-              }}</a-tag>
-            </template>
-          </a-table-column>
-          <a-table-column title="操作" :width="140">
-            <template #cell="{ record }">
-              <a-button type="text" @click="openPackageEdit(record)"
-                >编辑</a-button
-              >
-              <a-button type="text" @click="togglePackageStatus(record)">{{
-                record.status === 'on_sale' ? '下架' : '上架'
-              }}</a-button>
-            </template>
-          </a-table-column>
-        </template>
-      </a-table>
-    </a-card>
+    <a-drawer
+      v-model:visible="exceptionDetailVisible"
+      :width="600"
+      title="异常详情"
+      unmount-on-close
+    >
+      <template v-if="exceptionDetail">
+        <a-descriptions :column="2" size="small" bordered>
+          <a-descriptions-item label="异常号" :span="2">{{
+            exceptionDetail.exception_no
+          }}</a-descriptions-item>
+          <a-descriptions-item label="卡 ID">{{
+            exceptionDetail.card_id
+          }}</a-descriptions-item>
+          <a-descriptions-item label="订单">{{
+            exceptionDetail.order_id || '-'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="客户">{{
+            exceptionDetail.customer_id || '-'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="类型">{{
+            exceptionKindText(exceptionDetail.kind)
+          }}</a-descriptions-item>
+          <a-descriptions-item label="状态">
+            <a-tag :color="exceptionStatusColor(exceptionDetail.status)">{{
+              exceptionStatusText(exceptionDetail.status)
+            }}</a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="重复次数">{{
+            exceptionDetail.occurrences
+          }}</a-descriptions-item>
+          <a-descriptions-item label="跟进人">{{
+            exceptionDetail.assignee_admin_id ?? '未指派'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="指派时间">{{
+            fmtMinute(exceptionDetail.assigned_at)
+          }}</a-descriptions-item>
+          <a-descriptions-item label="原因" :span="2">{{
+            exceptionDetail.reason || '-'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="处置说明" :span="2">{{
+            exceptionDetail.resolution || '-'
+          }}</a-descriptions-item>
+        </a-descriptions>
+        <a-divider>对比快照</a-divider>
+        <pre class="detail-json">{{ exceptionDetailJson }}</pre>
+      </template>
+    </a-drawer>
+
+    <a-modal
+      v-model:visible="exceptionAssignVisible"
+      title="指派跟进人"
+      @ok="submitExceptionAssign"
+      @cancel="exceptionAssignVisible = false"
+    >
+      <a-form :model="exceptionAssignForm">
+        <a-form-item label="跟进人管理员 ID" required>
+          <a-input-number v-model="exceptionAssignForm.adminId" :min="1" />
+        </a-form-item>
+        <div class="hint">
+          异常 {{ exceptionTarget?.exception_no }}（卡
+          {{ exceptionTarget?.card_id }}）：指派后状态转「跟进中」，可再次改派。
+        </div>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="exceptionResolveVisible"
+      title="处置储值卡异常"
+      @ok="submitExceptionResolve"
+      @cancel="exceptionResolveVisible = false"
+    >
+      <a-form :model="exceptionResolveForm">
+        <a-form-item label="处置动作" required>
+          <a-radio-group v-model="exceptionResolveForm.action">
+            <a-radio value="resolve">置为已处理</a-radio>
+            <a-radio value="ignore">忽略（无需处理）</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item
+          label="处置说明（置为已处理时必填，中文）"
+          :required="exceptionResolveForm.action === 'resolve'"
+        >
+          <a-textarea
+            v-model="exceptionResolveForm.resolution"
+            :max-length="500"
+            :auto-size="{ minRows: 3 }"
+            placeholder="例如：已核对核销流水，缺失流水补录完成"
+          />
+        </a-form-item>
+        <div class="hint">
+          异常 {{ exceptionTarget?.exception_no }}（状态版本
+          {{
+            exceptionTarget?.version
+          }}）：以管理员身份执行并留痕，处置后不可回退。
+        </div>
+      </a-form>
+    </a-modal>
 
     <a-modal
       v-model:visible="createVisible"
@@ -346,12 +581,60 @@
         </a-table>
 
         <template v-if="detail.card.status === 'pending_verification'">
-          <a-divider>核验外部收款</a-divider>
+          <a-divider>{{
+            detail.card.source === 'self'
+              ? '客户自助购卡核销（§4.4）'
+              : '核验外部收款'
+          }}</a-divider>
           <a-alert type="warning">
             待核对实际到账。当前卡内余额为 0，不能用于订单核销。
           </a-alert>
           <a-form
-            v-if="canVerifyPayment"
+            v-if="detail.card.source === 'self' && canVerifySelfPurchase"
+            :model="verificationForm"
+            style="margin-top: 16px"
+          >
+            <a-form-item label="申请凭证号（开卡时登记）">
+              <a-input :model-value="detail.card.payment_ref" disabled />
+            </a-form-item>
+            <a-form-item label="实收金额（分，须等于开卡本金）" required>
+              <a-input-number
+                v-model="verificationForm.receivedCents"
+                :min="0"
+              />
+            </a-form-item>
+            <a-form-item label="核销依据 / 驳回原因（至少 8 字）" required>
+              <a-textarea
+                v-model="verificationForm.evidenceNote"
+                :max-length="255"
+              />
+            </a-form-item>
+            <a-space>
+              <a-button
+                type="primary"
+                :loading="verifying"
+                @click="submitSelfPurchaseVerification(true)"
+                >核销并激活</a-button
+              >
+              <a-button
+                :loading="verifying"
+                @click="submitSelfPurchaseVerification(false)"
+                >驳回申请</a-button
+              >
+            </a-space>
+            <a-typography-text type="secondary">
+              实收金额须与开卡本金一致；开卡申请人不得核验本人提交的收款，驳回会把支付意图置为无效。
+            </a-typography-text>
+          </a-form>
+          <a-alert
+            v-else-if="detail.card.source === 'self'"
+            type="info"
+            style="margin-top: 16px"
+          >
+            该卡是客户自助购卡申请，需「自助购卡核验」权限（esports:stored_value:verify_self_purchase）才能核销。
+          </a-alert>
+          <a-form
+            v-else-if="canVerifyPayment"
             :model="verificationForm"
             style="margin-top: 16px"
           >
@@ -395,6 +678,12 @@
             >退卡试算</a-button
           >
           <a-button
+            v-if="canQuoteBatch"
+            :loading="batchQuoteLoading"
+            @click="loadBatchQuote"
+            >退卡批次试算（按预付款批次）</a-button
+          >
+          <a-button
             v-if="canManage"
             type="primary"
             :disabled="!canRequestRefund"
@@ -405,10 +694,10 @@
             <a-button
               v-if="canApprove"
               type="primary"
-              @click="decideRefund(true)"
-              >审核通过</a-button
+              @click="openRefundDecision(true)"
+              >审核通过并出账</a-button
             >
-            <a-button v-if="canApprove" @click="decideRefund(false)"
+            <a-button v-if="canApprove" @click="openRefundDecision(false)"
               >驳回</a-button
             >
           </template>
@@ -428,18 +717,146 @@
           }}</a-descriptions-item>
         </a-descriptions>
         <a-typography-text type="secondary">
-          退卡按合同试算：可退金额为未消费本金，未消费赠送权益作废、不折现。申请后须由财务审核，审核人不得与申请人相同。
+          退卡按合同试算：可退金额为未消费本金，未消费赠送权益作废、不折现。申请后须由财务审核，审核人不得与申请人相同；审核通过即出账，必须登记打款凭证。
         </a-typography-text>
+
+        <template v-if="batchQuote">
+          <a-divider>批次试算明细（§4.5）</a-divider>
+          <a-descriptions :column="2" size="small" bordered>
+            <a-descriptions-item label="可退本金">
+              {{ moneyText(batchQuote.refundable_principal_cents) }}
+            </a-descriptions-item>
+            <a-descriptions-item label="作废赠送">
+              {{ moneyText(batchQuote.forfeited_bonus_cents) }}
+            </a-descriptions-item>
+            <a-descriptions-item label="批次剩余本金">
+              {{ moneyText(batchQuote.batch_principal_remaining_cents) }}
+            </a-descriptions-item>
+            <a-descriptions-item label="批次剩余赠送">
+              {{ moneyText(batchQuote.batch_bonus_remaining_cents) }}
+            </a-descriptions-item>
+            <a-descriptions-item label="试算口径" :span="2">
+              {{ batchQuote.basis?.refund_rule || '-' }}
+            </a-descriptions-item>
+          </a-descriptions>
+          <a-table
+            :data="batchQuote.batches"
+            row-key="batch_source_id"
+            size="small"
+            :pagination="false"
+          >
+            <template #columns>
+              <a-table-column title="批次" :width="180">
+                <template #cell="{ record }">
+                  {{ record.batch_source_type }} / {{ record.batch_source_id }}
+                </template>
+              </a-table-column>
+              <a-table-column data-index="fund_batch" title="资金来源批次" />
+              <a-table-column title="入账本金">
+                <template #cell="{ record }">{{
+                  moneyText(record.principal_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="入账赠送">
+                <template #cell="{ record }">{{
+                  moneyText(record.bonus_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="已分摊">
+                <template #cell="{ record }">{{
+                  moneyText(record.allocated_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="可退">
+                <template #cell="{ record }">{{
+                  moneyText(record.refundable_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="作废赠送">
+                <template #cell="{ record }">{{
+                  moneyText(record.bonus_forfeited_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="标记" :width="90">
+                <template #cell="{ record }">
+                  <a-tag v-if="record.over_allocated" color="red"
+                    >分摊超额</a-tag
+                  >
+                  <a-tag v-else-if="!record.split_known" color="orange"
+                    >构成未知</a-tag
+                  >
+                  <a-tag v-else color="green">正常</a-tag>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+          <template v-if="batchQuote.anomalies.length">
+            <a-divider>批次异常</a-divider>
+            <a-list size="small" :bordered="false">
+              <a-list-item
+                v-for="(item, index) in batchQuote.anomalies"
+                :key="`${item.kind}-${index}`"
+              >
+                <a-tag color="red">{{ item.kind }}</a-tag>
+                {{ item.account_type }}#{{ item.account_id }} ·
+                {{ item.detail }}
+              </a-list-item>
+            </a-list>
+          </template>
+        </template>
       </template>
     </a-drawer>
+
+    <a-modal
+      v-model:visible="refundDecisionVisible"
+      title="退卡审核出账"
+      :width="560"
+      @ok="submitRefundDecision"
+      @cancel="refundDecisionVisible = false"
+    >
+      <a-form :model="refundDecisionForm">
+        <a-form-item label="审核结论" required>
+          <a-radio-group v-model="refundDecisionForm.approve">
+            <a-radio :value="true">通过（即出账）</a-radio>
+            <a-radio :value="false">驳回</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <template v-if="refundDecisionForm.approve">
+          <a-form-item label="打款凭证 / 银行流水号（6-128 位）" required>
+            <a-input
+              v-model="refundDecisionForm.payoutRef"
+              :max-length="128"
+              placeholder="已实际打款的回单号 / 银行流水号"
+            />
+          </a-form-item>
+          <a-form-item label="打款备注">
+            <a-textarea
+              v-model="refundDecisionForm.payoutNote"
+              :max-length="255"
+              :auto-size="{ minRows: 2 }"
+            />
+          </a-form-item>
+          <a-alert type="warning">
+            当前 api.ts 的退卡决策函数尚未透传 payout_ref /
+            payout_note，通过操作会被后端以「退卡出账必须填写打款凭证或银行流水号」拒绝，需先补齐
+            api.ts 入参。
+          </a-alert>
+        </template>
+        <div class="hint">
+          退卡 {{ refundDecisionTarget?.card_no }}（试算可退
+          {{ refundableText }}）：以管理员身份执行并留痕，审核人不得是申请人。
+        </div>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref } from 'vue';
-  import { Message } from '@arco-design/web-vue';
+  import { Message, Modal } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import {
+    assignStoredValueException,
     createEsportsStoredValueCard,
     createEsportsStoredValuePackage,
     decideEsportsStoredValueCardRefund,
@@ -447,20 +864,29 @@
     getEsportsStoredValueCardRefundQuote,
     getEsportsStoredValueCards,
     getEsportsStoredValuePackages,
+    getStoredValueCardRefundBatchQuote,
+    getStoredValueException,
+    listStoredValueExceptions,
     requestEsportsStoredValueCardRefund,
+    resolveStoredValueException,
     setEsportsStoredValuePackageStatus,
     updateEsportsStoredValuePackage,
     verifyEsportsStoredValueCardPayment,
+    verifyStoredValueCardSelfPurchase,
   } from '../../api';
   import type {
     EsportsStoredValueCard,
+    EsportsStoredValueException,
     EsportsStoredValuePackage,
+    RechargeRefundQuote,
     StoredValueCardDetail,
+    StoredValueExceptionStatus,
     StoredValuePaymentChannel,
     StoredValueStatus,
   } from '../../api';
 
   const { hasButtonPermission } = usePermission();
+  // 权限码全部取自 app.go 的 PermAPI / PermButton 声明。
   const canManage = computed(() =>
     hasButtonPermission('esports:stored_value:manage')
   );
@@ -470,6 +896,39 @@
   const canVerifyPayment = computed(() =>
     hasButtonPermission('esports:stored_value:payment_verify')
   );
+  const canVerifySelfPurchase = computed(() =>
+    hasButtonPermission('esports:stored_value:verify_self_purchase')
+  );
+  const canQuoteBatch = computed(() =>
+    hasButtonPermission('esports:stored_value:refund_batch_quote')
+  );
+  const canExceptionDetail = computed(() =>
+    hasButtonPermission('esports:stored_value:exceptions_detail')
+  );
+  const canExceptionList = computed(() =>
+    hasButtonPermission('esports:stored_value:exceptions_list')
+  );
+  const canExceptionAssign = computed(() =>
+    hasButtonPermission('esports:stored_value:exceptions_assign')
+  );
+  const canExceptionResolve = computed(() =>
+    hasButtonPermission('esports:stored_value:exceptions_resolve')
+  );
+
+  // 资金类动作统一二次确认，并显式提示以管理员身份执行（操作留痕）。
+  const confirmFundsAction = (content: string, title = '资金类动作确认') =>
+    new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title,
+        content: `${content}\n本操作以管理员身份执行并留痕。`,
+        okText: '确认执行',
+        cancelText: '取消',
+        closable: false,
+        maskClosable: false,
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
 
   const statusOptions: { value: StoredValueStatus; label: string }[] = [
     { value: 'pending_verification', label: '待核验收款' },
@@ -757,6 +1216,9 @@
   const detail = ref<StoredValueCardDetail | null>(null);
   const quote = ref<Record<string, unknown> | null>(null);
   const quoteLoading = ref(false);
+  // 批次维度试算（§4.5）：逐批展示预付款批次的剩余与可退金额。
+  const batchQuote = ref<RechargeRefundQuote | null>(null);
+  const batchQuoteLoading = ref(false);
   const verifying = ref(false);
   const verificationForm = reactive({
     receiptRef: '',
@@ -775,6 +1237,7 @@
     detailVisible.value = true;
     detail.value = null;
     quote.value = null;
+    batchQuote.value = null;
     try {
       detail.value = (await getEsportsStoredValueCard(card.id)).data.data;
       verificationForm.receiptRef = detail.value.card.payment_ref || '';
@@ -792,6 +1255,15 @@
       return;
     }
     const { card } = detail.value;
+    const ok = await confirmFundsAction(
+      `确认${approve ? '核销到账并激活' : '驳回'}储值卡 ${card.card_no}？${
+        approve
+          ? '激活后卡内余额立即可用于订单核销。'
+          : '驳回后需重新提交开卡申请。'
+      }`,
+      approve ? '核验开卡到账' : '驳回开卡申请'
+    );
+    if (!ok) return;
     verifying.value = true;
     try {
       await verifyEsportsStoredValueCardPayment(card.id, {
@@ -805,6 +1277,40 @@
       await loadCards();
     } catch (err) {
       Message.error(errorText(err, '收款核验失败'));
+    } finally {
+      verifying.value = false;
+    }
+  }
+
+  // 客户自助购卡核销（§4.4）：走专用入口，核销后同步支付意图与卡激活外盒。
+  async function submitSelfPurchaseVerification(approve: boolean) {
+    if (!detail.value) return;
+    if (verificationForm.evidenceNote.trim().length < 8) {
+      Message.warning('请填写至少 8 字的核销依据或驳回原因');
+      return;
+    }
+    const { card } = detail.value;
+    const ok = await confirmFundsAction(
+      `确认${approve ? '核销' : '驳回'}客户自助购卡 ${card.card_no}（凭证号 ${
+        card.payment_ref || '-'
+      }，实收 ${moneyText(verificationForm.receivedCents)}）？`,
+      approve ? '自助购卡核销' : '驳回自助购卡'
+    );
+    if (!ok) return;
+    verifying.value = true;
+    try {
+      await verifyStoredValueCardSelfPurchase(card.id, {
+        approve,
+        received_cents: verificationForm.receivedCents,
+        evidence_note: verificationForm.evidenceNote.trim(),
+      });
+      Message.success(approve ? '已核销并激活储值卡' : '已驳回自助购卡申请');
+      await openDetail(card);
+      await loadCards();
+    } catch (err) {
+      Message.error(
+        errorText(err, '自助购卡核销失败：实收金额与开卡本金不一致或状态已变化')
+      );
     } finally {
       verifying.value = false;
     }
@@ -825,28 +1331,258 @@
     }
   }
 
+  async function loadBatchQuote() {
+    if (!detail.value) return;
+    batchQuoteLoading.value = true;
+    try {
+      batchQuote.value =
+        (await getStoredValueCardRefundBatchQuote(detail.value.card.id)).data
+          .data || null;
+    } catch (err) {
+      Message.error(errorText(err, '退卡批次试算失败'));
+    } finally {
+      batchQuoteLoading.value = false;
+    }
+  }
+
   async function submitRefundRequest() {
     if (!detail.value) return;
+    const { card } = detail.value;
+    const ok = await confirmFundsAction(
+      `确认对储值卡 ${card.card_no} 提交退卡申请？申请后须由其他管理员审核，审核通过即出账。`,
+      '申请退卡'
+    );
+    if (!ok) return;
     try {
-      await requestEsportsStoredValueCardRefund(detail.value.card.id);
+      await requestEsportsStoredValueCardRefund(card.id);
       Message.success('已提交退卡申请，等待财务审核');
-      await openDetail(detail.value.card);
+      await openDetail(card);
       await loadCards();
     } catch (err) {
       Message.error(errorText(err, '申请退卡失败'));
     }
   }
 
-  async function decideRefund(approve: boolean) {
+  // 退卡审核：通过即出账，必须先登记打款凭证 / 银行流水号（后端已改为必填）。
+  const refundDecisionVisible = ref(false);
+  const refundDecisionTarget = ref<EsportsStoredValueCard | null>(null);
+  const refundDecisionForm = reactive({
+    approve: true,
+    payoutRef: '',
+    payoutNote: '',
+  });
+  // 可退金额优先取退卡试算，其次取批次试算（两者的可退本金口径一致）。
+  const refundableText = computed(() =>
+    moneyText(
+      Number(
+        quote.value?.refundable_cents ||
+          batchQuote.value?.refundable_principal_cents ||
+          0
+      )
+    )
+  );
+
+  function openRefundDecision(approve: boolean) {
     if (!detail.value) return;
-    const { card } = detail.value;
+    refundDecisionTarget.value = detail.value.card;
+    refundDecisionForm.approve = approve;
+    refundDecisionForm.payoutRef = '';
+    refundDecisionForm.payoutNote = '';
+    refundDecisionVisible.value = true;
+  }
+
+  async function submitRefundDecision() {
+    const target = refundDecisionTarget.value;
+    if (!target) return;
+    const { approve } = refundDecisionForm;
+    const payoutRef = refundDecisionForm.payoutRef.trim();
+    if (approve) {
+      if (payoutRef.length < 6 || payoutRef.length > 128) {
+        Message.warning('打款凭证 / 银行流水号须填写 6-128 个字符');
+        return;
+      }
+      if (!/^[A-Za-z0-9\u4e00-\u9fa5\-_/.]+$/.test(payoutRef)) {
+        Message.warning('打款凭证号只能包含字母、数字与 - _ / . 等字符');
+        return;
+      }
+    }
+    const ok = await confirmFundsAction(
+      `确认${approve ? '通过退卡并出账' : '驳回退卡'}（卡号 ${
+        target.card_no
+      }，试算可退 ${refundableText.value}）？${
+        approve ? `打款凭证 ${payoutRef}。` : ''
+      }审核人不得是申请人，操作不可回退。`,
+      approve ? '退卡审核出账' : '驳回退卡'
+    );
+    if (!ok) return;
     try {
-      await decideEsportsStoredValueCardRefund(card.id, approve);
+      // TODO(api.ts): decideEsportsStoredValueCardRefund 目前只接受 (id, approve)，
+      // 后端本轮起审核通过必须带 payout_ref（打款凭证 / 银行流水号）与可选 payout_note。
+      // 需 api.ts 补第三个入参（如 { payout_ref, payout_note }）后再在此透传；
+      // 在此之前通过操作会被后端以「退卡出账必须填写打款凭证或银行流水号」拒绝。
+      await decideEsportsStoredValueCardRefund(target.id, approve);
       Message.success(approve ? '已通过退卡' : '已驳回退卡');
-      await openDetail(card);
+      refundDecisionVisible.value = false;
+      await openDetail(target);
       await loadCards();
     } catch (err) {
       Message.error(errorText(err, '退卡审核失败'));
+    }
+  }
+
+  // ── 储值卡一致性异常队列（§4.6-06） ──
+  const mainTab = ref<'cards' | 'exceptions'>('cards');
+  const exceptions = ref<EsportsStoredValueException[]>([]);
+  const exceptionsLoading = ref(false);
+  const exceptionFilterStatus = ref<StoredValueExceptionStatus | ''>('');
+  const exceptionFilterKind = ref<string>('');
+  const exceptionFilterCardId = ref(0);
+  const exceptionFilterOrderId = ref(0);
+  const exceptionMine = ref(false);
+  const exceptionUnassigned = ref(false);
+  const exceptionKindOptions = [
+    { value: 'write_off_mismatch', label: '核销流水不符' },
+    { value: 'card_flag_mismatch', label: '卡标记不符' },
+    { value: 'card_link_mismatch', label: '关联卡不符' },
+    { value: 'settlement_blocked', label: '结算被拦截' },
+  ];
+  const exceptionKindText = (kind: string) =>
+    exceptionKindOptions.find((option) => option.value === kind)?.label || kind;
+  const exceptionStatusText = (status: StoredValueExceptionStatus) =>
+    ({
+      open: '待指派',
+      following: '跟进中',
+      resolved: '已处理',
+      ignored: '已忽略',
+    }[status] || status);
+  const exceptionStatusColor = (status: StoredValueExceptionStatus) =>
+    ({
+      open: 'red',
+      following: 'orange',
+      resolved: 'green',
+      ignored: 'gray',
+    }[status] || 'gray');
+  const isExceptionOpen = (record: EsportsStoredValueException) =>
+    record.status === 'open' || record.status === 'following';
+
+  async function loadExceptions() {
+    exceptionsLoading.value = true;
+    try {
+      exceptions.value =
+        (
+          await listStoredValueExceptions({
+            status: exceptionFilterStatus.value || undefined,
+            kind: exceptionFilterKind.value || undefined,
+            card_id: exceptionFilterCardId.value || undefined,
+            order_id: exceptionFilterOrderId.value || undefined,
+            mine: exceptionMine.value || undefined,
+            unassigned: exceptionUnassigned.value || undefined,
+          })
+        ).data.data || [];
+    } catch (err) {
+      Message.error(errorText(err, '加载储值卡异常队列失败'));
+    } finally {
+      exceptionsLoading.value = false;
+    }
+  }
+
+  // 切到「异常队列」页签时按需拉取（默认只看待跟进）。
+  function onMainTabChange(key: string | number) {
+    if (key === 'exceptions' && exceptions.value.length === 0) {
+      loadExceptions();
+    }
+  }
+
+  const exceptionDetailVisible = ref(false);
+  const exceptionDetail = ref<EsportsStoredValueException | null>(null);
+  const exceptionDetailJson = computed(() =>
+    exceptionDetail.value?.detail
+      ? JSON.stringify(exceptionDetail.value.detail, null, 2)
+      : '无对比快照'
+  );
+  const exceptionTarget = ref<EsportsStoredValueException | null>(null);
+  const exceptionAssignVisible = ref(false);
+  const exceptionAssignForm = reactive({ adminId: 0 });
+  const exceptionResolveVisible = ref(false);
+  const exceptionResolveForm = reactive({
+    action: 'resolve' as 'resolve' | 'ignore',
+    resolution: '',
+  });
+
+  async function openExceptionDetail(record: EsportsStoredValueException) {
+    exceptionDetailVisible.value = true;
+    exceptionDetail.value = record;
+    try {
+      exceptionDetail.value = (
+        await getStoredValueException(record.id)
+      ).data.data;
+    } catch (err) {
+      Message.error(errorText(err, '加载异常详情失败'));
+    }
+  }
+
+  function openExceptionAssign(record: EsportsStoredValueException) {
+    exceptionTarget.value = record;
+    exceptionAssignForm.adminId = record.assignee_admin_id || 0;
+    exceptionAssignVisible.value = true;
+  }
+
+  async function submitExceptionAssign() {
+    const target = exceptionTarget.value;
+    if (!target) return;
+    if (!exceptionAssignForm.adminId) {
+      Message.warning('请填写跟进人管理员 ID');
+      return;
+    }
+    const ok = await confirmFundsAction(
+      `确认把异常 ${target.exception_no} 指派给管理员 ${exceptionAssignForm.adminId}？指派后状态转「跟进中」。`,
+      '指派异常跟进人'
+    );
+    if (!ok) return;
+    try {
+      await assignStoredValueException(target.id, exceptionAssignForm.adminId);
+      exceptionAssignVisible.value = false;
+      Message.success('已指派跟进人');
+      await loadExceptions();
+    } catch (err) {
+      Message.error(errorText(err, '指派失败：跟进人不存在或状态已变化'));
+    }
+  }
+
+  function openExceptionResolve(record: EsportsStoredValueException) {
+    exceptionTarget.value = record;
+    exceptionResolveForm.action = 'resolve';
+    exceptionResolveForm.resolution = '';
+    exceptionResolveVisible.value = true;
+  }
+
+  async function submitExceptionResolve() {
+    const target = exceptionTarget.value;
+    if (!target) return;
+    const resolution = exceptionResolveForm.resolution.trim();
+    if (exceptionResolveForm.action === 'resolve' && !resolution) {
+      Message.warning('置为已处理时必须填写处置说明');
+      return;
+    }
+    const ok = await confirmFundsAction(
+      `确认对异常 ${target.exception_no} 执行「${
+        exceptionResolveForm.action === 'resolve' ? '已处理' : '忽略'
+      }」？处置后不可回退。`,
+      '处置储值卡异常'
+    );
+    if (!ok) return;
+    try {
+      await resolveStoredValueException(target.id, {
+        action: exceptionResolveForm.action,
+        resolution,
+        expected_version: target.version,
+      });
+      exceptionResolveVisible.value = false;
+      exceptionDetailVisible.value = false;
+      Message.success('已处置该异常');
+      await loadExceptions();
+    } catch (err) {
+      Message.error(errorText(err, '处置失败：状态已变化或说明不合规'));
     }
   }
 
@@ -859,5 +1595,22 @@
 <style scoped>
   .toolbar {
     margin-bottom: 12px;
+  }
+
+  .hint {
+    margin-bottom: 12px;
+    color: var(--color-text-3);
+    font-size: 12px;
+  }
+
+  .detail-json {
+    max-height: 260px;
+    margin: 0;
+    padding: 8px;
+    overflow: auto;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: var(--color-fill-1);
   }
 </style>

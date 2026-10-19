@@ -270,6 +270,79 @@
       </a-table>
     </a-card>
 
+    <a-card class="general-card" title="评价申诉（§7.5-05）">
+      <a-space class="toolbar" wrap>
+        <a-select
+          v-model="reviewAppealStatusFilter"
+          placeholder="状态"
+          allow-clear
+          :style="{ width: '150px' }"
+        >
+          <a-option value="pending">待复核</a-option>
+          <a-option value="approved">申诉成立</a-option>
+          <a-option value="rejected">申诉驳回</a-option>
+        </a-select>
+        <a-button
+          type="primary"
+          :loading="reviewAppealLoading"
+          @click="loadReviewAppeals"
+          >查询</a-button
+        >
+      </a-space>
+      <div class="hint">
+        陪玩 /
+        客户对客户评价提出申诉后进入待复核；通过则重判评价（恢复原状态），驳回维持原判。
+      </div>
+      <a-table
+        :data="reviewAppeals"
+        :loading="reviewAppealLoading"
+        row-key="id"
+        :pagination="{ pageSize: 10 }"
+      >
+        <template #columns>
+          <a-table-column data-index="id" title="申诉 ID" :width="90" />
+          <a-table-column title="评价" :width="90">
+            <template #cell="{ record }">{{ record.review_id }}</template>
+          </a-table-column>
+          <a-table-column title="申诉人" :width="150">
+            <template #cell="{ record }"
+              >{{ appellantTypeLabel(record.appellant_type) }} #{{
+                record.appellant_id
+              }}</template
+            >
+          </a-table-column>
+          <a-table-column title="订单" :width="90">
+            <template #cell="{ record }">{{ record.order_id }}</template>
+          </a-table-column>
+          <a-table-column data-index="reason" title="申诉理由" />
+          <a-table-column title="状态" :width="110">
+            <template #cell="{ record }">
+              <a-tag :color="reviewAppealStatusColor(record.status)">{{
+                reviewAppealStatusLabel(record.status)
+              }}</a-tag>
+            </template>
+          </a-table-column>
+          <a-table-column
+            data-index="created_at"
+            title="提交时间"
+            :width="190"
+          />
+          <a-table-column title="操作" :width="120">
+            <template #cell="{ record }">
+              <a-button
+                v-if="canManage && record.status === 'pending'"
+                type="text"
+                status="warning"
+                @click="openReviewAppeal(record)"
+                >复核</a-button
+              >
+              <span v-else>—</span>
+            </template>
+          </a-table-column>
+        </template>
+      </a-table>
+    </a-card>
+
     <a-card class="general-card" title="陪玩综合评分">
       <a-space class="toolbar">
         <a-input-number
@@ -425,6 +498,28 @@
     </a-modal>
 
     <a-modal
+      v-model:visible="reviewAppealVisible"
+      title="复核评价申诉"
+      @ok="submitReviewAppeal"
+      @cancel="reviewAppealVisible = false"
+    >
+      <a-form :model="reviewAppealForm">
+        <a-form-item label="申诉理由">
+          <div class="hint">{{ reviewAppealTarget?.reason || '—' }}</div>
+        </a-form-item>
+        <a-form-item label="复核结论" required>
+          <a-radio-group v-model="reviewAppealForm.decision">
+            <a-radio value="approve">申诉成立（重判评价）</a-radio>
+            <a-radio value="reject">驳回申诉（维持原判）</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item label="复核说明">
+          <a-input v-model="reviewAppealForm.note" :max-length="500" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
       v-model:visible="recordVisible"
       title="客服代录评价"
       @ok="submitRecord"
@@ -541,9 +636,11 @@
     getPlayerRating,
     listAssessmentRules,
     listAssessments,
+    listPlayerReviewAppeals,
     listPlayerReviews,
     recordPlayerReview,
     reviewAssessmentAppeal,
+    reviewPlayerReviewAppeal,
     scoreAssessment,
     setAssessmentRules,
     setPlayerReviewStatus,
@@ -555,6 +652,7 @@
     AssessmentStatus,
     AssessmentType,
     AssessmentWeightInput,
+    EsportsPlayerReviewAppeal,
     PlayerLevel,
     PlayerRating,
     PlayerReview,
@@ -1007,10 +1105,86 @@
     }
   }
 
+  // ── 评价申诉（§7.5-05）：/player-review-appeals 列表 + 复核决定 ──
+  // 两条路由（esports:assessments:review_appeals_list / review_appeal_decide）在 app.go 里
+  // 只有 PermAPI 权限码，因此沿用考核管理按钮权限 esports:assessments:manage（已在报告注明）。
+  const reviewAppealLoading = ref(false);
+  const reviewAppeals = ref<EsportsPlayerReviewAppeal[]>([]);
+  const reviewAppealStatusFilter = ref<string>();
+
+  const reviewAppealStatusLabels: Record<string, string> = {
+    pending: '待复核',
+    approved: '申诉成立',
+    rejected: '申诉驳回',
+  };
+  const reviewAppealStatusLabel = (value: string) =>
+    reviewAppealStatusLabels[value] || value;
+  const reviewAppealStatusColor = (value: string) => {
+    if (value === 'approved') return 'green';
+    if (value === 'rejected') return 'red';
+    return 'orange';
+  };
+  const appellantTypeLabels: Record<string, string> = {
+    player: '陪玩',
+    customer: '客户',
+  };
+  const appellantTypeLabel = (value: string) =>
+    appellantTypeLabels[value] || value;
+
+  async function loadReviewAppeals() {
+    reviewAppealLoading.value = true;
+    try {
+      reviewAppeals.value =
+        (
+          await listPlayerReviewAppeals({
+            status: reviewAppealStatusFilter.value,
+            limit: 100,
+          })
+        ).data.data || [];
+    } catch (err) {
+      reviewAppeals.value = [];
+      Message.error(errorText(err, '加载评价申诉失败'));
+    } finally {
+      reviewAppealLoading.value = false;
+    }
+  }
+
+  const reviewAppealVisible = ref(false);
+  const reviewAppealTarget = ref<EsportsPlayerReviewAppeal | null>(null);
+  const reviewAppealForm = reactive({
+    decision: 'approve' as 'approve' | 'reject',
+    note: '',
+  });
+
+  function openReviewAppeal(record: EsportsPlayerReviewAppeal) {
+    reviewAppealTarget.value = record;
+    reviewAppealForm.decision = 'approve';
+    reviewAppealForm.note = '';
+    reviewAppealVisible.value = true;
+  }
+
+  async function submitReviewAppeal() {
+    if (!reviewAppealTarget.value) return;
+    try {
+      await reviewPlayerReviewAppeal(reviewAppealTarget.value.id, {
+        decision: reviewAppealForm.decision,
+        note: reviewAppealForm.note.trim(),
+      });
+      Message.success('评价申诉复核完成');
+      reviewAppealVisible.value = false;
+      await Promise.all([loadReviewAppeals(), loadReviews()]);
+    } catch (err) {
+      Message.error(
+        errorText(err, '复核失败：该申诉可能已被复核或评价状态已变化')
+      );
+    }
+  }
+
   onMounted(async () => {
     await loadRules();
     await loadAssessments();
     await loadReviews();
+    await loadReviewAppeals();
   });
 </script>
 

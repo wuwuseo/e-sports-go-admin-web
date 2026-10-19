@@ -158,6 +158,25 @@
                 </template>
               </a-table-column>
               <a-table-column data-index="created_at" title="创建时间" />
+              <!-- 争议冻结（§12.6）：冻结 / 解冻按订单维度作用于待结算明细，需二次确认。 -->
+              <a-table-column title="操作" :width="140">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="entryCanFreeze(record)"
+                    type="text"
+                    status="danger"
+                    @click="openFreeze(record)"
+                    >冻结</a-button
+                  >
+                  <a-button
+                    v-else-if="record.frozen_at && canUnfreeze"
+                    type="text"
+                    @click="openUnfreeze(record)"
+                    >解冻</a-button
+                  >
+                  <span v-else class="text-secondary">-</span>
+                </template>
+              </a-table-column>
             </template>
           </a-table>
         </a-tab-pane>
@@ -381,9 +400,11 @@
             <a-button v-if="canOperate" @click="openCsSettlementCreate"
               >生成客服提成结算单</a-button
             >
+            <!-- 作废单默认隐藏（后端 listSettlements 已排除 void），需要核对时再打开。 -->
+            <a-checkbox v-model="showVoidSettlements">显示已作废</a-checkbox>
           </a-space>
           <a-table
-            :data="settlements"
+            :data="visibleSettlements"
             :loading="settlementsLoading"
             row-key="id"
             :pagination="{ pageSize: 20 }"
@@ -426,16 +447,19 @@
                 :width="90"
               />
               <a-table-column title="状态">
-                <template #cell="{ record }">{{
-                  settlementStatusLabel(record.status)
-                }}</template>
+                <template #cell="{ record }">
+                  <a-tag v-if="record.status === 'void'" color="red"
+                    >已作废</a-tag
+                  >
+                  <span v-else>{{ settlementStatusLabel(record.status) }}</span>
+                </template>
               </a-table-column>
               <a-table-column title="打款凭证">
                 <template #cell="{ record }">{{
                   record.payout_ref || '-'
                 }}</template>
               </a-table-column>
-              <a-table-column title="操作" :width="220">
+              <a-table-column title="操作" :width="300">
                 <template #cell="{ record }">
                   <a-button type="text" @click="showSettlement(record.id)"
                     >详情</a-button
@@ -457,6 +481,20 @@
                       status="success"
                       @click="openPayout(record)"
                       >登记发放</a-button
+                    >
+                    <!-- 作废 / 重开（P0-6 / P0-8）：仅客服提成结算单；作废人不得等于登记人。 -->
+                    <a-button
+                      v-if="csVoidable(record)"
+                      type="text"
+                      status="danger"
+                      @click="openCsVoid(record)"
+                      >作废</a-button
+                    >
+                    <a-button
+                      v-if="csReopenable(record)"
+                      type="text"
+                      @click="openCsReopen(record)"
+                      >重开</a-button
                     >
                   </template>
                 </template>
@@ -964,43 +1002,288 @@
       </a-form>
     </a-modal>
 
+    <!-- 结算单详情（§12.6-06）：后端返回 { settlement, entries, entry_count, detail_truncated } 包体。 -->
     <a-drawer
       v-model:visible="detailVisible"
       title="结算单详情"
-      :width="520"
+      :width="900"
       :footer="false"
     >
-      <a-descriptions v-if="detail" :column="1" bordered>
-        <a-descriptions-item label="结算单号">{{
-          detail.settlement_no
-        }}</a-descriptions-item>
-        <a-descriptions-item label="陪玩 ID">{{
-          detail.owner_id
-        }}</a-descriptions-item>
-        <a-descriptions-item label="结算周期"
-          >{{ detail.period_start }} ~
-          {{ detail.period_end }}</a-descriptions-item
-        >
-        <a-descriptions-item label="应结 / 调整 / 实结"
-          >{{ money(detail.gross_cents) }} /
-          {{ money(detail.adjustment_cents) }} /
-          {{ money(detail.net_cents) }}</a-descriptions-item
-        >
-        <a-descriptions-item label="明细数">{{
-          detail.entry_count
-        }}</a-descriptions-item>
-        <a-descriptions-item label="状态">{{
-          settlementStatusLabel(detail.status)
-        }}</a-descriptions-item>
-        <a-descriptions-item label="锁定人 / 锁定时间"
-          >{{ detail.locked_by_admin_id ?? '-' }} /
-          {{ detail.locked_at || '-' }}</a-descriptions-item
-        >
-        <a-descriptions-item label="创建时间">{{
-          detail.created_at
-        }}</a-descriptions-item>
-      </a-descriptions>
+      <a-spin :loading="detailLoading" style="width: 100%">
+        <a-empty v-if="!detail" description="暂无详情" />
+        <template v-else>
+          <a-descriptions :column="2" size="small" bordered>
+            <a-descriptions-item label="结算单号">{{
+              detail.settlement.settlement_no
+            }}</a-descriptions-item>
+            <a-descriptions-item label="状态">
+              <a-tag v-if="detail.settlement.status === 'void'" color="red"
+                >已作废</a-tag
+              >
+              <span v-else>{{
+                settlementStatusLabel(detail.settlement.status)
+              }}</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="主体"
+              >{{ detail.settlement.owner_type === 'cs' ? '客服' : '陪玩' }} #{{
+                detail.settlement.owner_id
+              }}</a-descriptions-item
+            >
+            <a-descriptions-item label="版本"
+              >v{{ detail.settlement.version }}</a-descriptions-item
+            >
+            <a-descriptions-item label="结算周期"
+              >{{ detail.settlement.period_start }} ~
+              {{ detail.settlement.period_end }}</a-descriptions-item
+            >
+            <a-descriptions-item label="明细数">{{
+              detail.settlement.entry_count
+            }}</a-descriptions-item>
+            <a-descriptions-item label="应结金额">{{
+              money(detail.settlement.gross_cents)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="调整金额">{{
+              money(detail.settlement.adjustment_cents)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="实结金额">{{
+              money(detail.settlement.net_cents)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="明细合计（返回条目）"
+              >{{ money(detailEntrySummary.amount) }} / 净额
+              {{ money(detailEntrySummary.net) }}</a-descriptions-item
+            >
+            <a-descriptions-item label="锁定人 / 锁定时间"
+              >{{ detail.settlement.locked_by_admin_id ?? '-' }} /
+              {{ detail.settlement.locked_at || '-' }}</a-descriptions-item
+            >
+            <a-descriptions-item label="发放凭证 / 发放时间"
+              >{{ detail.settlement.payout_ref || '-' }} /
+              {{ detail.settlement.paid_at || '-' }}</a-descriptions-item
+            >
+            <a-descriptions-item label="发放人">{{
+              detail.settlement.paid_by_admin_id ?? '-'
+            }}</a-descriptions-item>
+            <a-descriptions-item label="作废人 / 作废时间"
+              >{{ detail.settlement.voided_by_admin_id ?? '-' }} /
+              {{ detail.settlement.voided_at || '-' }}</a-descriptions-item
+            >
+            <a-descriptions-item label="作废原因" :span="2">{{
+              detail.settlement.void_reason || '-'
+            }}</a-descriptions-item>
+            <a-descriptions-item label="创建 / 更新时间" :span="2"
+              >{{ detail.settlement.created_at }} /
+              {{ detail.settlement.updated_at }}</a-descriptions-item
+            >
+          </a-descriptions>
+
+          <a-alert
+            v-if="detail.detail_truncated"
+            class="detail-alert"
+            type="warning"
+          >
+            本期明细超过返回上限，以下仅展示前
+            {{ detail.entry_count }} 条；结算金额以结算单汇总字段为准。
+          </a-alert>
+          <a-alert
+            v-if="
+              detail.settlement.owner_type === 'cs' &&
+              !detail.entries.length &&
+              detail.settlement.entry_count > 0
+            "
+            class="detail-alert"
+            type="info"
+          >
+            客服提成结算单的明细由客服提成明细表绑定，本详情接口只内联陪玩分成明细，
+            因此这里不返回条目；请到「客服提成明细」页签按客服 ID 与周期核对。
+          </a-alert>
+
+          <div class="section-title">
+            本期明细（{{ detail.entries.length }} 条，已冻结
+            {{ detailEntrySummary.frozen }} 条）
+          </div>
+          <a-table
+            :data="detail.entries"
+            row-key="id"
+            size="small"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column title="订单" :width="90">
+                <template #cell="{ record }">{{
+                  record.order_id ? `#${record.order_id}` : '—'
+                }}</template>
+              </a-table-column>
+              <a-table-column data-index="player_id" title="陪玩" :width="80" />
+              <a-table-column title="类型" :width="100">
+                <template #cell="{ record }">{{
+                  entryKindLabel(record.kind)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="规则 / 版本">
+                <template #cell="{ record }"
+                  >{{ record.rule_no || '-' }} / v{{
+                    record.rule_version
+                  }}</template
+                >
+              </a-table-column>
+              <a-table-column title="基数" :width="100">
+                <template #cell="{ record }">{{
+                  money(record.base_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="分成" :width="100">
+                <template #cell="{ record }">{{
+                  money(record.amount_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="扣减" :width="100">
+                <template #cell="{ record }">{{
+                  money(record.deducted_cents || 0)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="净额" :width="100">
+                <template #cell="{ record }">{{
+                  money(record.net_cents || 0)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="状态" :width="90">
+                <template #cell="{ record }">{{
+                  entryStatusLabel(record.status)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="冻结" :width="120">
+                <template #cell="{ record }">
+                  <a-tag v-if="record.frozen_at" color="orange">已冻结</a-tag>
+                  <span v-else class="text-secondary">-</span>
+                </template>
+              </a-table-column>
+              <a-table-column title="操作" :width="120">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="entryCanFreeze(record)"
+                    type="text"
+                    status="danger"
+                    @click="openFreeze(record)"
+                    >冻结</a-button
+                  >
+                  <a-button
+                    v-else-if="record.frozen_at && canUnfreeze"
+                    type="text"
+                    @click="openUnfreeze(record)"
+                    >解冻</a-button
+                  >
+                  <span v-else class="text-secondary">-</span>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+        </template>
+      </a-spin>
     </a-drawer>
+
+    <!-- 冻结订单分成（§12.6 争议冻结）：必须填写原因，确认后按订单 + 陪玩冻结待结算明细。 -->
+    <a-modal
+      v-model:visible="freezeVisible"
+      title="冻结订单分成（二次确认）"
+      ok-text="确认冻结"
+      @ok="submitFreeze"
+      @cancel="freezeVisible = false"
+    >
+      <a-form :model="freezeForm">
+        <a-form-item label="订单">
+          <a-typography-text>#{{ freezeForm.orderId }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="陪玩">
+          <a-typography-text>#{{ freezeForm.playerId }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="冻结原因" required>
+          <a-textarea
+            v-model="freezeForm.reason"
+            :max-length="255"
+            placeholder="如：客户投诉服务问题，待争议处理"
+          />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          冻结后该订单该陪玩的待结算分成不参与当期结算，明细状态仍为待结算；
+          争议结案后在此解冻即可恢复。已结算或已纳入结算单的明细不会被冻结。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <!-- 解冻订单分成：解冻该订单下全部被冻结的待结算明细。 -->
+    <a-modal
+      v-model:visible="unfreezeVisible"
+      title="解冻订单分成（二次确认）"
+      ok-text="确认解冻"
+      @ok="submitUnfreeze"
+      @cancel="unfreezeVisible = false"
+    >
+      <a-typography-text>
+        将解冻订单 #{{ unfreezeOrderId }}
+        下全部被冻结的待结算分成明细，恢复参与当期结算。
+      </a-typography-text>
+      <a-typography-text type="secondary" class="modal-tip">
+        解冻按订单维度生效，会同时解除该订单其他陪玩的冻结。
+      </a-typography-text>
+    </a-modal>
+
+    <!-- 作废客服提成结算单：原因必填，作废人不得与登记人相同。 -->
+    <a-modal
+      v-model:visible="csVoidVisible"
+      title="作废客服提成结算单（二次确认）"
+      ok-text="确认作废"
+      @ok="submitCsVoid"
+      @cancel="csVoidVisible = false"
+    >
+      <a-form :model="csVoidForm">
+        <a-form-item label="结算单">
+          <a-typography-text>{{ csVoidForm.settlementNo }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="作废原因" required>
+          <a-textarea
+            v-model="csVoidForm.reason"
+            :max-length="120"
+            placeholder="如：周期内数据有误，需重新计提"
+          />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          作废后该单绑定的提成明细安全回退到待结算，原单转为已作废且不可再发放；
+          已登记发放的结算单不能作废（须走财务冲正），作废人不得与登记人相同。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <!-- 重开客服提成结算单：按同一客服 + 同一周期重新生成草稿单。 -->
+    <a-modal
+      v-model:visible="csReopenVisible"
+      title="重开客服提成结算单（二次确认）"
+      ok-text="确认重开"
+      @ok="submitCsReopen"
+      @cancel="csReopenVisible = false"
+    >
+      <a-form :model="csReopenForm">
+        <a-form-item label="原结算单">
+          <a-typography-text>{{ csReopenForm.settlementNo }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="客服 / 周期">
+          <a-typography-text
+            >客服 #{{ csReopenForm.adminId }} · {{ csReopenForm.periodStart }} ~
+            {{ csReopenForm.periodEnd }}</a-typography-text
+          >
+        </a-form-item>
+        <a-form-item label="重开原因" required>
+          <a-textarea
+            v-model="csReopenForm.reason"
+            :max-length="120"
+            placeholder="如：更正后重新计提，避免漏发"
+          />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          重开只生成草稿单，仍需锁定并登记发放（发放人不得等于登记人），因此作废
+          + 重开不会重复发钱。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
 
     <a-modal
       v-model:visible="ruleCreateVisible"
@@ -1507,6 +1790,7 @@
     createCsCommissionRule,
     createCsSettlement,
     createSettlement,
+    freezeOrderCommission,
     getCsCommissionSummary,
     getSettlement,
     listCloseRules,
@@ -1535,6 +1819,7 @@
     rollbackCsCommissionRule,
     setSettlementCycleStatus,
     updateCloseRule,
+    unfreezeOrderCommission,
     updateSettlementCycle,
   } from '../../api';
   import type {
@@ -1542,6 +1827,7 @@
     CloseRuleScope,
     CommissionCalcMode,
     CommissionEntry,
+    CommissionEntryStatus,
     CommissionRule,
     CommissionRuleInput,
     CommissionScope,
@@ -1552,6 +1838,7 @@
     SettlementCycle,
     SettlementCyclePeriod,
     SettlementCycleScope,
+    SettlementStatus,
     CsCommissionEntry,
     CsCommissionPeriod,
     CsCommissionRule,
@@ -1575,6 +1862,77 @@
   const canOperate = computed(() =>
     hasButtonPermission('esports:settlements:manage')
   );
+  // 冻结 / 解冻（§12.6）与客服提成作废 / 重开（P0-6 / P0-8）的按钮级权限，
+  // 复用后端 app.go 已声明的 PermAPI code。
+  const canFreeze = computed(() =>
+    hasButtonPermission('esports:settlements:freeze')
+  );
+  const canUnfreeze = computed(() =>
+    hasButtonPermission('esports:settlements:unfreeze')
+  );
+  const canCsVoid = computed(() =>
+    hasButtonPermission('esports:settlements:cs_void')
+  );
+  const canCsReopen = computed(() =>
+    hasButtonPermission('esports:settlements:cs_reopen')
+  );
+
+  // 结算单列表 / 详情记录：后端已返回 void 状态、version 与作废留痕，
+  // api.ts 的 Settlement 尚未包含，这里按真实响应放宽（不改 api.ts，由另一路补齐）。
+  type SettlementRow = Omit<Settlement, 'status'> & {
+    status: SettlementStatus | 'void';
+    version: number;
+    voided_by_admin_id: number | null;
+    voided_at: string | null;
+    void_reason: string;
+  };
+
+  // 结算单详情包体（GET /admin/settlements/:id）：{ settlement, entries, entry_count, detail_truncated }。
+  type SettlementDetailRecord = Omit<Settlement, 'status'> & {
+    status: SettlementStatus | 'void';
+    version: number;
+    voided_by_admin_id: number | null;
+    voided_at: string | null;
+    void_reason: string;
+  };
+  // 明细读模型（commissionEntryView）：在明细原始字段上补规则数值、扣减项与到手净额。
+  interface SettlementDetailEntry {
+    id: number;
+    order_id: number | null;
+    player_id: number;
+    kind: string;
+    rule_no: string;
+    rule_version: number;
+    base_cents: number;
+    amount_cents: number;
+    status: CommissionEntryStatus;
+    settlement_id: number | null;
+    frozen_at: string | null;
+    frozen_reason: string;
+    deducted_cents: number;
+    net_cents: number;
+  }
+  interface SettlementDetailPayload {
+    settlement: SettlementDetailRecord;
+    entries: SettlementDetailEntry[];
+    entry_count: number;
+    detail_truncated: boolean;
+  }
+  // 冻结 / 解冻按订单维度调用，两种明细（列表 / 详情）都满足该最小形状。
+  interface FreezableEntry {
+    order_id: number | null;
+    player_id: number;
+    status: CommissionEntryStatus;
+    settlement_id?: number | null;
+    frozen_at: string | null;
+  }
+  // 仅「待结算、未纳入结算单、未冻结」的明细可以冻结；已冻结的走解冻。
+  const entryCanFreeze = (record: FreezableEntry) =>
+    canFreeze.value &&
+    record.status === 'pending_settlement' &&
+    !record.frozen_at &&
+    !record.settlement_id &&
+    !!record.order_id;
 
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
   // 透出后端返回的中文错误信息，取不到时回退默认文案。
@@ -2089,26 +2447,45 @@
   }
 
   // ── 结算单 ──
-  const settlements = ref<Settlement[]>([]);
+  const settlements = ref<SettlementRow[]>([]);
   const settlementsLoading = ref(false);
   const settlementPlayerId = ref<number>();
+  // 作废单默认不展示（后端 listSettlements 已排除 void，这里再做一层兜底过滤）。
+  const showVoidSettlements = ref(false);
+  const visibleSettlements = computed(() =>
+    showVoidSettlements.value
+      ? settlements.value
+      : settlements.value.filter((item) => item.status !== 'void')
+  );
   const settlementStatusMap: Record<string, string> = {
     draft: '草稿',
     locked: '已锁定',
     paid: '已打款',
+    void: '已作废',
   };
   const settlementStatusLabel = (value: string) =>
     settlementStatusMap[value] || value;
 
   const detailVisible = ref(false);
-  const detail = ref<Settlement | null>(null);
+  const detailLoading = ref(false);
+  const detail = ref<SettlementDetailPayload | null>(null);
+  const detailSettlementId = ref(0);
+  // 明细返回条目的金额合计（仅统计本接口返回的条目，供与结算单汇总交叉核对）。
+  const detailEntrySummary = computed(() => {
+    const list = detail.value?.entries || [];
+    return {
+      amount: list.reduce((sum, item) => sum + (item.amount_cents || 0), 0),
+      net: list.reduce((sum, item) => sum + (item.net_cents || 0), 0),
+      frozen: list.filter((item) => !!item.frozen_at).length,
+    };
+  });
 
   async function loadSettlements() {
     settlementsLoading.value = true;
     try {
-      settlements.value =
-        (await listSettlements(settlementPlayerId.value || undefined)).data
-          .data || [];
+      settlements.value = ((
+        await listSettlements(settlementPlayerId.value || undefined)
+      ).data.data || []) as unknown as SettlementRow[];
     } catch {
       Message.error('加载结算单失败，请稍后重试');
     } finally {
@@ -2116,16 +2493,53 @@
     }
   }
 
+  // 详情接口返回 { settlement, entries, entry_count, detail_truncated }，
+  // api.ts 目前按单个 Settlement 声明返回类型，这里按真实包体收敛解析。
+  async function fetchSettlementDetail(id: number) {
+    const payload = (await getSettlement(id)).data
+      .data as unknown as SettlementDetailPayload | null;
+    if (!payload || !payload.settlement) return null;
+    return {
+      settlement: payload.settlement,
+      entries: payload.entries || [],
+      entry_count: payload.entry_count || 0,
+      detail_truncated: !!payload.detail_truncated,
+    };
+  }
+
   async function showSettlement(id: number) {
+    detailSettlementId.value = id;
+    detail.value = null;
+    detailVisible.value = true;
+    detailLoading.value = true;
     try {
-      detail.value = (await getSettlement(id)).data.data || null;
-      detailVisible.value = true;
-    } catch {
-      Message.error('无法获取结算单详情');
+      const payload = await fetchSettlementDetail(id);
+      if (!payload) {
+        Message.error('结算单详情为空');
+        detailVisible.value = false;
+        return;
+      }
+      detail.value = payload;
+    } catch (err) {
+      detailVisible.value = false;
+      Message.error(errorText(err, '无法获取结算单详情'));
+    } finally {
+      detailLoading.value = false;
     }
   }
 
-  async function doLockSettlement(record: Settlement) {
+  // 冻结 / 解冻后同时刷新明细、结算单列表与当前详情抽屉，避免残留旧状态。
+  async function refreshAfterFreeze() {
+    await Promise.all([loadEntries(), loadSettlements()]);
+    if (!detailSettlementId.value) return;
+    try {
+      detail.value = await fetchSettlementDetail(detailSettlementId.value);
+    } catch {
+      // 列表刷新已给出提示，详情刷新失败不重复弹错。
+    }
+  }
+
+  async function doLockSettlement(record: SettlementRow) {
     try {
       await lockSettlement(record.id);
       Message.success('已锁定结算单');
@@ -2133,6 +2547,159 @@
     } catch (err) {
       Message.error(errorText(err, '锁定失败：状态已变化或无待结算明细'));
     }
+  }
+
+  // ── 争议冻结（§12.6）：冻结 / 解冻按订单维度，作用于该订单的待结算分成明细。
+  const freezeVisible = ref(false);
+  const freezeForm = reactive({ orderId: 0, playerId: 0, reason: '' });
+
+  function openFreeze(record: FreezableEntry) {
+    if (!record.order_id) {
+      Message.warning('该明细没有关联订单，无法按订单冻结');
+      return;
+    }
+    freezeForm.orderId = record.order_id;
+    freezeForm.playerId = record.player_id;
+    freezeForm.reason = '';
+    freezeVisible.value = true;
+  }
+
+  async function submitFreeze() {
+    const reason = freezeForm.reason.trim();
+    if (!reason) {
+      Message.warning('请填写冻结原因');
+      return;
+    }
+    try {
+      const result = (
+        await freezeOrderCommission(freezeForm.orderId, {
+          player_id: freezeForm.playerId || undefined,
+          reason,
+        })
+      ).data.data;
+      freezeVisible.value = false;
+      Message.success(
+        result.frozen > 0
+          ? `已冻结 ${result.frozen} 条待结算明细`
+          : '该订单没有可冻结的待结算明细'
+      );
+      await refreshAfterFreeze();
+    } catch (err) {
+      Message.error(errorText(err, '冻结失败：明细已结算或状态已变化'));
+    }
+  }
+
+  const unfreezeVisible = ref(false);
+  const unfreezeOrderId = ref(0);
+
+  function openUnfreeze(record: FreezableEntry) {
+    if (!record.order_id) {
+      Message.warning('该明细没有关联订单，无法按订单解冻');
+      return;
+    }
+    unfreezeOrderId.value = record.order_id;
+    unfreezeVisible.value = true;
+  }
+
+  async function submitUnfreeze() {
+    try {
+      const result = (await unfreezeOrderCommission(unfreezeOrderId.value)).data
+        .data;
+      unfreezeVisible.value = false;
+      Message.success(
+        result.unfrozen > 0
+          ? `已解冻 ${result.unfrozen} 条明细`
+          : '该订单没有被冻结的明细'
+      );
+      await refreshAfterFreeze();
+    } catch (err) {
+      Message.error(errorText(err, '解冻失败：状态已变化'));
+    }
+  }
+
+  // ── 客服提成结算单作废 / 重开（P0-6 / P0-8） ──
+  const csVoidable = (record: SettlementRow) =>
+    canCsVoid.value &&
+    record.owner_type === 'cs' &&
+    (record.status === 'draft' || record.status === 'locked');
+  const csReopenable = (record: SettlementRow) =>
+    canCsReopen.value && record.owner_type === 'cs' && record.status === 'void';
+
+  const csVoidVisible = ref(false);
+  const csVoidForm = reactive({
+    settlementId: 0,
+    settlementNo: '',
+    reason: '',
+  });
+
+  function openCsVoid(record: SettlementRow) {
+    csVoidForm.settlementId = record.id;
+    csVoidForm.settlementNo = record.settlement_no;
+    csVoidForm.reason = '';
+    csVoidVisible.value = true;
+  }
+
+  async function submitCsVoid() {
+    const reason = csVoidForm.reason.trim();
+    if (!reason) {
+      Message.warning('请填写作废原因');
+      return;
+    }
+    // TODO(api.ts 待补封装)：voidCsSettlement(id: number, reason: string)
+    //   路由：POST /api/v1/esports/admin/cs-settlements/{id}/void
+    //   入参：{ reason: string }（必填，≤120 字）
+    //   返回：{ settlement_id, settlement_no, owner_type, owner_id, period_start,
+    //           period_end, net_cents, entry_count, released_count, operator_id,
+    //           reason, voided_at, version }
+    // 封装补齐后把下面这行替换为：
+    //   await voidCsSettlement(csVoidForm.settlementId, reason);
+    // 并保留成功提示与列表刷新。
+    csVoidVisible.value = false;
+    Message.warning(
+      '作废接口尚未在 api.ts 封装（voidCsSettlement），已保留确认与原因校验，补齐封装后即可提交'
+    );
+  }
+
+  const csReopenVisible = ref(false);
+  const csReopenForm = reactive({
+    settlementNo: '',
+    adminId: 0,
+    periodStart: '',
+    periodEnd: '',
+    reason: '',
+  });
+
+  function openCsReopen(record: SettlementRow) {
+    csReopenForm.settlementNo = record.settlement_no;
+    csReopenForm.adminId = record.owner_id;
+    csReopenForm.periodStart = record.period_start;
+    csReopenForm.periodEnd = record.period_end;
+    csReopenForm.reason = '';
+    csReopenVisible.value = true;
+  }
+
+  async function submitCsReopen() {
+    const reason = csReopenForm.reason.trim();
+    if (!reason) {
+      Message.warning('请填写重开原因');
+      return;
+    }
+    // TODO(api.ts 待补封装)：reopenCsSettlement(input)
+    //   路由：POST /api/v1/esports/admin/cs-settlements/reopen
+    //   入参：{ admin_id: number, period_start: string(RFC3339), period_end: string(RFC3339),
+    //           reason: string }（reason 必填，≤120 字）
+    //   返回：Settlement（新生成的草稿单）
+    // 封装补齐后把下面这行替换为：
+    //   await reopenCsSettlement({
+    //     admin_id: csReopenForm.adminId,
+    //     period_start: csReopenForm.periodStart,
+    //     period_end: csReopenForm.periodEnd,
+    //     reason,
+    //   });
+    csReopenVisible.value = false;
+    Message.warning(
+      '重开接口尚未在 api.ts 封装（reopenCsSettlement），已保留确认与原因校验，补齐封装后即可提交'
+    );
   }
 
   const settlementCreateVisible = ref(false);
@@ -2421,7 +2988,7 @@
     payoutRef: '',
   });
 
-  function openPayout(record: Settlement) {
+  function openPayout(record: SettlementRow) {
     payoutForm.settlementId = record.id;
     payoutForm.settlementNo = record.settlement_no;
     payoutForm.payoutRef = '';
@@ -2916,5 +3483,20 @@
   .payout-tip {
     display: block;
     margin-top: 12px;
+  }
+
+  .detail-alert {
+    margin: 12px 0;
+  }
+
+  .section-title {
+    margin: 16px 0 8px;
+    color: var(--color-text-3);
+    font-weight: 500;
+  }
+
+  .modal-tip {
+    display: block;
+    margin-top: 8px;
   }
 </style>

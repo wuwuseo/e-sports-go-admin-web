@@ -363,6 +363,9 @@ export interface EsportsDispatchBoard {
   admins: DispatchBoardAdmin[];
   // 会员订单优先（§10.4）：待派单池 / 公共池中属于会员优先等级客户的订单 ID（后端已置顶）。
   member_priority_order_ids: number[];
+  // 会员专属通道（§10.1-02 / P1-11）：因「专属通道」权益二级置顶的订单 ID
+  // （排在会员优先档之后、普通订单之前）；同时命中会员优先的订单只出现在上一字段。
+  member_dedicated_channel_order_ids: number[];
   // 公共池脱敏（§5.1 / §8.2）：非超管在公共池只看到脱敏摘要，客户身份与金额被掩码。
   masked_public_pool_ids: number[];
 }
@@ -634,6 +637,8 @@ export interface LedgerAllocation {
   created_at: string;
 }
 
+// 批次分摊明细（§4.3 / §11.3）：account_type 与 account_id 均为**后端必填**，
+// 任一为空后端直接返回参数错误（不会返回空数组）。
 export const listLedgerAllocations = (accountType: string, accountId: string) =>
   axios.get<ApiResponse<LedgerAllocation[]>>(`${base}/ledger-allocations`, {
     params: { account_type: accountType, account_id: accountId },
@@ -760,17 +765,44 @@ export const remindOrder = (orderId: number, level: number, note: string) =>
     { level, note }
   );
 
+// 期望报价复核状态（§6.1-12）。
+export type ExpectedPriceStatus = 'none' | 'pending' | 'approved' | 'rejected';
+
 export interface EsportsPlayer {
   id: number;
   user_id: number;
   display_name: string;
   qualification: 'pending' | 'qualified' | 'suspended';
   presence: 'offline' | 'online' | 'protected_abnormal';
+  // 考核等级（§7.3）：由考核结论写入，与接单权限联动。
+  level: PlayerLevel;
+  level_appraised_at: string | null;
+  // 陪玩端保活（§6.4）：最近心跳时刻，超时由后台任务自动转离线。
+  last_heartbeat_at: string | null;
   // 接单上限（§5.5 / §6.4）：0 = 不限。
   daily_limit: number;
   concurrent_limit: number;
   // 接单游戏分区（§5.5 / §6.4）：空表示不限。
   games: string[];
+  // 接单时段与自动上线（§6.4-06）：分钟数从 0 点起算，0/0 表示不限。
+  service_slot_start_minute: number;
+  service_slot_end_minute: number;
+  auto_online: boolean;
+  // 可接报价区间（分）：0 表示该侧不限。
+  accept_price_min_cents: number;
+  accept_price_max_cents: number;
+  // 固排（§5.3）：开关与允许成队的时段。
+  fixed_team_enabled: boolean;
+  fixed_team_slot_start_minute: number;
+  fixed_team_slot_end_minute: number;
+  // 期望报价与复核留痕（§6.1-12）：status 为 none / pending / approved / rejected，
+  // 复核意见字段名是 expected_price_review_note（后端没有 review_reason）。
+  expected_price_cents: number;
+  expected_price_status: ExpectedPriceStatus;
+  expected_price_submitted_at: string | null;
+  expected_price_reviewed_by_admin_id: number | null;
+  expected_price_reviewed_at: string | null;
+  expected_price_review_note: string;
   version: number;
 }
 
@@ -791,27 +823,6 @@ export interface PlayerUpdateInput {
   concurrent_limit: number;
   // 接单游戏分区（§5.5 / §6.4）：空表示不限。
   games: string[];
-}
-
-export interface PlayerDashboard {
-  presence: string;
-  online: boolean;
-  pending_invites: number;
-  active_orders: number;
-  today_catfood_cents: number;
-}
-
-export interface PlayerInvite {
-  id: number;
-  seat_index: number;
-  order_id: number;
-  order_no: string;
-  customer_id: number;
-  sku_id: number;
-  payable_cents: number;
-  fulfillment_status: string;
-  required_seats: number;
-  expires_at: string;
 }
 
 export const listPlayers = (keyword = '') =>
@@ -847,63 +858,6 @@ export const reviewPlayerIdentity = (
   axios.post<ApiResponse<{ id: number; status: string }>>(
     `${base}/players/${id}/identity/review`,
     input
-  );
-
-// 陪玩端自助接口供 uni-app 客户端使用，路由前缀为 /api/v1/esports/user。
-const userBase = '/api/v1/esports/user';
-
-export const getPlayerDashboard = () =>
-  axios.get<ApiResponse<PlayerDashboard>>(`${userBase}/player/dashboard`);
-
-export const setPlayerPresence = (online: boolean) =>
-  axios.post<ApiResponse<EsportsPlayer>>(`${userBase}/player/presence`, {
-    online,
-  });
-
-export const listPlayerInvites = () =>
-  axios.get<ApiResponse<PlayerInvite[]>>(`${userBase}/player/invites`);
-
-export const acceptPlayerInvite = (seatId: number) =>
-  axios.post<ApiResponse<{ seat_id: number; accepted: boolean }>>(
-    `${userBase}/player/invites/${seatId}/accept`
-  );
-
-export const rejectPlayerInvite = (seatId: number) =>
-  axios.post<ApiResponse<{ seat_id: number; accepted: boolean }>>(
-    `${userBase}/player/invites/${seatId}/reject`
-  );
-
-export const listGrabHall = () =>
-  axios.get<ApiResponse<EsportsOrder[]>>(`${userBase}/player/grab-hall`);
-
-export const grabPlayerOrder = (orderId: number) =>
-  axios.post<ApiResponse<EsportsOrder>>(
-    `${userBase}/player/orders/${orderId}/grab`
-  );
-
-export const listPlayerOrders = (bucket = '') =>
-  axios.get<ApiResponse<EsportsOrder[]>>(`${userBase}/player/orders`, {
-    params: { bucket },
-  });
-
-export const startPlayerService = (orderId: number) =>
-  axios.post<ApiResponse<EsportsOrder>>(
-    `${userBase}/player/orders/${orderId}/service/start`
-  );
-
-export const finishPlayerService = (
-  orderId: number,
-  reportedUnits: number,
-  reportedSeconds: number,
-  evidenceRef: string
-) =>
-  axios.post<ApiResponse<EsportsOrder>>(
-    `${userBase}/player/orders/${orderId}/service/finish`,
-    {
-      reported_units: reportedUnits,
-      reported_seconds: reportedSeconds,
-      evidence_ref: evidenceRef,
-    }
   );
 
 // ── 结单（客服手动结单）与售后 / 退款 ──
@@ -1191,16 +1145,23 @@ export interface UnsubmittedMember {
 
 // formValues 为结单表单模板驱动的字段值（key = 字段库 key）；订单无适用模板时可不传。
 // substituteReports 为客服代未上报成员补填的服务段上报；仅生效提交规则允许代提交时有效。
+// viewedEvidenceAttachmentIds 为「已逐张查看」的服务段凭证图片附件 ID（§3.4-03）：
+// 订单有图片凭证时必须覆盖 close-form 返回的全部 evidence_attachment_ids，否则后端 400；
+// 无图片凭证时无需传。传 undefined 时不写入请求体，保持既有调用方行为不变。
 export const closeOrder = (
   id: number,
   note: string,
   formValues?: Record<string, unknown>,
-  substituteReports?: CloseSubstituteReport[]
+  substituteReports?: CloseSubstituteReport[],
+  viewedEvidenceAttachmentIds?: number[]
 ) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/close`, {
     note,
     form_values: formValues || {},
     substitute_reports: substituteReports || [],
+    ...(viewedEvidenceAttachmentIds
+      ? { viewed_evidence_attachment_ids: viewedEvidenceAttachmentIds }
+      : {}),
   });
 
 // 结单复核（§3.4）：金额达复核阈值的订单进入待复核，由非负责客服的管理员通过 / 驳回。
@@ -1266,6 +1227,66 @@ export const listAfterSaleActions = (id: number) =>
 export const executeAfterSaleAction = (id: number, seq: number) =>
   axios.post<ApiResponse<EsportsAfterSaleAction>>(
     `${base}/after-sales/${id}/actions/${seq}/execute`
+  );
+
+// ── 售后沟通记录 / 提示补证 / 代客户确认方案（§13.3 / §13.7-03） ──
+
+// 沟通记录（管理端视角含内部备注）：visibility=internal 仅客服可见。
+export type AfterSaleMessageVisibility = 'all' | 'internal';
+
+export interface EsportsAfterSaleMessage {
+  id: number;
+  after_sale_id: number;
+  // admin / customer / player / system。
+  author_type: string;
+  author_id: number;
+  author_name: string;
+  content: string;
+  attachments: string[];
+  visibility: AfterSaleMessageVisibility;
+  created_at: string;
+}
+
+export interface AfterSaleMessageInput {
+  // 沟通内容必填，不超过 1000 字。
+  content: string;
+  // 留空按 all（客户可见）；internal 为内部备注，客户不可见。
+  visibility?: AfterSaleMessageVisibility;
+  // 附件引用（沿用 evidence_ref 口径），单条最多 20 个。
+  attachments?: string[];
+}
+
+export const listAfterSaleMessages = (id: number, limit?: number) =>
+  axios.get<ApiResponse<EsportsAfterSaleMessage[]>>(
+    `${base}/after-sales/${id}/messages`,
+    { params: { limit } }
+  );
+
+export const createAfterSaleMessage = (
+  id: number,
+  input: AfterSaleMessageInput
+) =>
+  axios.post<ApiResponse<EsportsAfterSaleMessage>>(
+    `${base}/after-sales/${id}/messages`,
+    input
+  );
+
+// 提示客户补证（§13.7-03）：同事务写客户可见沟通记录 + 外盒留痕，返回该条沟通记录。
+export const requestAfterSaleEvidence = (id: number, input: { note: string }) =>
+  axios.post<ApiResponse<EsportsAfterSaleMessage>>(
+    `${base}/after-sales/${id}/evidence-request`,
+    input
+  );
+
+// 客服代客户确认售后方案（§13.3，客户线下已同意）：pending_customer_confirm → pending_approval，
+// 记录代确认管理员（customer_confirm_channel=admin_proxy）。
+// 注意：后端服务层已就绪（confirmAfterSaleByAdmin），但 app.go 尚未注册
+// POST /admin/after-sales/:id/confirm —— 「后端待注册」，注册后本封装即可用；
+// 未注册前调用会 404，页面侧应先隐藏入口。已有 /after-sales/:id/approve 是**审批**
+// （pending_approval → pending_execution），与本函数不是同一状态流转。
+export const confirmAfterSale = (id: number) =>
+  axios.post<ApiResponse<EsportsAfterSale>>(
+    `${base}/after-sales/${id}/confirm`
   );
 
 // ── 售后复核（§13.6）：终态售后凭新证据申请复核，由非申请人且非原审批人的异人审查 ──
@@ -1447,7 +1468,10 @@ export type CommissionUnitBasis = 'sku_quantity' | 'promised_units';
 export type CommissionRuleStatus = 'draft' | 'scheduled' | 'active' | 'history';
 export type CommissionEntryKind = 'service' | 'reversal';
 export type CommissionEntryStatus = 'pending_settlement' | 'settled' | 'void';
-export type SettlementStatus = 'draft' | 'locked' | 'paid';
+// 状态机：draft → locked → paid；void 为作废终态（明细回退待结算、原单不可再发放）。
+export type SettlementStatus = 'draft' | 'locked' | 'paid' | 'void';
+// 结算单列表的状态过滤：不带 = 默认视图（后端已排除作废单），all = 全部。
+export type SettlementListStatus = SettlementStatus | 'all';
 
 export interface CommissionRule {
   id: number;
@@ -1518,14 +1542,73 @@ export interface Settlement {
   net_cents: number;
   entry_count: number;
   status: SettlementStatus;
+  // 乐观锁版本：锁定 / 发放 / 作废均按该值做条件更新。
+  version: number;
   locked_by_admin_id: number | null;
   locked_at: string | null;
   // 发放（打款）留痕，仅 status=paid 时非空。
   payout_ref: string;
   paid_by_admin_id: number | null;
   paid_at: string | null;
+  // 作废留痕（P0-8），仅 status=void 时非空。
+  voided_by_admin_id: number | null;
+  voided_at: string | null;
+  void_reason: string;
   created_at: string;
   updated_at: string;
+}
+
+// 结算单详情包体：主表 + 本期可下钻明细（带规则版本，§12.6-06）。
+// detail_truncated 为真表示本期明细超过返回上限（默认 200 条），避免「静默漏数」。
+//
+// entries 按结算单的 owner_type 分流，两种读模型字段名已对齐（id / kind / order_id /
+// rule_no / rule_version / calc_mode / base_cents / amount_cents / net_cents / status /
+// settlement_id / note / created_at），主体差异字段按主体给出：
+//   - owner_type=player → 含 player_id / seat_index / 冻结与扣减项；
+//   - owner_type=cs     → 含 admin_id / order_no / gift_order_id / base_mode。
+// 因此除共有字段外一律可选，页面按 owner_type 取用。
+export interface SettlementEntryDetail {
+  id: number;
+  // 陪玩侧为 service / reversal；客服侧为其自身明细类型。
+  kind: string;
+  order_id: number | null;
+  rule_no: string;
+  rule_version: number;
+  calc_mode: string;
+  base_cents: number;
+  amount_cents: number;
+  status: string;
+  settlement_id: number | null;
+  note: string;
+  created_at: string;
+  // 到手净额：陪玩侧含扣减项，客服侧无逐单扣减，等于本明细金额。
+  net_cents: number;
+  // 陪玩分成侧专有（owner_type=player）。
+  player_id?: number;
+  seat_index?: number;
+  after_sale_id?: number | null;
+  idem_key?: string;
+  rule_id?: number | null;
+  frozen_at?: string | null;
+  frozen_reason?: string;
+  frozen_by_admin_id?: number | null;
+  deducted_cents?: number;
+  rule_value_bp?: number;
+  rule_value_cents?: number;
+  service_unit_amounts?: number[];
+  updated_at?: string;
+  // 客服提成侧专有（owner_type=cs）。
+  admin_id?: number;
+  order_no?: string;
+  gift_order_id?: number | null;
+  base_mode?: string;
+}
+
+export interface SettlementDetail {
+  settlement: Settlement;
+  entries: SettlementEntryDetail[];
+  entry_count: number;
+  detail_truncated: boolean;
 }
 
 export interface SettlementInput {
@@ -1600,9 +1683,13 @@ export const listCommissionEntries = (params: {
     params,
   });
 
-export const listSettlements = (playerId?: number) =>
+// 结算单列表：status 缺省时后端返回默认视图（已排除作废单）；status=all 看全部。
+export const listSettlements = (
+  playerId?: number,
+  status?: SettlementListStatus
+) =>
   axios.get<ApiResponse<Settlement[]>>(`${base}/settlements`, {
-    params: { player_id: playerId },
+    params: { player_id: playerId, status },
   });
 
 export const createSettlement = (input: SettlementInput) =>
@@ -1611,8 +1698,14 @@ export const createSettlement = (input: SettlementInput) =>
 export const lockSettlement = (id: number) =>
   axios.post<ApiResponse<Settlement>>(`${base}/settlements/${id}/lock`);
 
-export const getSettlement = (id: number) =>
-  axios.get<ApiResponse<Settlement>>(`${base}/settlements/${id}`);
+// 结算单详情：包体是 { settlement, entries, entry_count, detail_truncated }，不要按单个 Settlement 解析。
+export const getSettlementDetail = (id: number, limit?: number) =>
+  axios.get<ApiResponse<SettlementDetail>>(`${base}/settlements/${id}`, {
+    params: { limit },
+  });
+
+// 兼容旧名：同一详情接口，返回类型已改为详情包体。
+export const getSettlement = getSettlementDetail;
 
 // §12.6 结算周期配置：日/周/月/自定义间隔，按 全局 → 游戏 → 等级 → 陪玩 逐级覆盖。
 export const listSettlementCycles = () =>
@@ -1780,6 +1873,43 @@ export const createCsSettlement = (input: {
   period_end: string;
 }) => axios.post<ApiResponse<Settlement>>(`${base}/cs-settlements`, input);
 
+// 作废客服提成结算单（P0-8）：明细安全回退到待结算，原单转 void 后不可再发放；
+// 作废人不得等于登记人（服务端校验）。
+export interface CsSettlementVoidResult {
+  settlement_id: number;
+  settlement_no: string;
+  owner_type: 'player' | 'cs';
+  owner_id: number;
+  period_start: string;
+  period_end: string;
+  net_cents: number;
+  entry_count: number;
+  released_count: number;
+  operator_id: number;
+  reason: string;
+  voided_at: string;
+  // 作废后的结算单版本（乐观锁），便于调用方核对并发状态。
+  version: number;
+}
+
+export const voidCsSettlement = (id: number, reason: string) =>
+  axios.post<ApiResponse<CsSettlementVoidResult>>(
+    `${base}/cs-settlements/${id}/void`,
+    { reason }
+  );
+
+// 重开客服提成结算单（P0-8）：按同一客服与同一周期重新生成草稿单，仍须锁定并登记发放。
+export interface CsSettlementReopenInput {
+  admin_id: number;
+  // RFC3339 时间串。
+  period_start: string;
+  period_end: string;
+  reason: string;
+}
+
+export const reopenCsSettlement = (input: CsSettlementReopenInput) =>
+  axios.post<ApiResponse<Settlement>>(`${base}/cs-settlements/reopen`, input);
+
 // 登记发放：locked → paid，并留外部打款凭证（§12.2）。
 export const paySettlement = (id: number, payoutRef: string) =>
   axios.post<ApiResponse<Settlement>>(`${base}/settlements/${id}/pay`, {
@@ -1914,32 +2044,6 @@ export const markWithdrawalPayoutFailed = (payoutId: number, reason: string) =>
     { silentError: true }
   );
 
-// 陪玩端自助：申请提现、我的提现单与提现概览（供 uni-app 客户端）。
-export const applyPlayerWithdrawal = (input: {
-  amount_cents: number;
-  channel: WithdrawalChannel;
-  account_ref: string;
-  note?: string;
-  idempotency_key: string;
-}) =>
-  axios.post<ApiResponse<EsportsWithdrawal>>(
-    `${userBase}/player/withdrawals`,
-    input
-  );
-
-export const listPlayerWithdrawals = (status = '') =>
-  axios.get<ApiResponse<EsportsWithdrawal[]>>(
-    `${userBase}/player/withdrawals`,
-    {
-      params: { status },
-    }
-  );
-
-export const getPlayerWithdrawalSummary = () =>
-  axios.get<ApiResponse<PlayerWithdrawalSummary>>(
-    `${userBase}/player/withdrawals/summary`
-  );
-
 // ── §5.4 优先派单权 + §5.5 派单候选排序 ──
 export type DispatchPriorityPeriod =
   | 'daily'
@@ -2053,18 +2157,6 @@ export const publishOrderToGrabHall = (orderId: number, reason = '') =>
     { reason }
   );
 
-// 陪玩端：我的优先通知与拒绝（接受复用 orders/{id}/grab）。
-export const listPlayerDispatchNotices = () =>
-  axios.get<ApiResponse<DispatchPriorityNotice[]>>(
-    `${userBase}/player/dispatch-notices`
-  );
-
-export const declinePlayerDispatchNotice = (id: number, reason = '') =>
-  axios.post<ApiResponse<DispatchPriorityNotice>>(
-    `${userBase}/player/dispatch-notices/${id}/decline`,
-    { reason }
-  );
-
 export interface DispatchCandidateResult {
   game: string;
   candidates: DispatchCandidate[];
@@ -2141,37 +2233,13 @@ export const decideSeatTransfer = (id: number, approve: boolean, note = '') =>
     { approve, note }
   );
 
-// 陪玩端：发起转单与撤回（客服确认前）。
-export const requestSeatTransfer = (
-  orderId: number,
-  reason: string,
-  idempotencyKey: string
-) =>
-  axios.post<ApiResponse<SeatTransferRequest>>(
-    `${base}/orders/${orderId}/transfer`,
-    { reason, idempotency_key: idempotencyKey }
-  );
-
-export const cancelSeatTransfer = (id: number) =>
-  axios.post<ApiResponse<SeatTransferRequest>>(
-    `${base}/user/player/transfer-requests/${id}/cancel`
-  );
-
-// 陪玩端分成：本人明细与概览。
-export const getPlayerCommissionEntries = (status = '') =>
-  axios.get<ApiResponse<CommissionEntry[]>>(`${userBase}/player/commission`, {
-    params: { status },
-  });
-
-export const getPlayerCommissionSummary = () =>
-  axios.get<ApiResponse<PlayerCommissionSummary>>(
-    `${userBase}/player/commission/summary`
-  );
-
 // ── 充值活动（§4.5 充值活动与赠送） ──
 
 export type CampaignActivityType = 'full_gift' | 'ladder' | 'limited';
-export type CampaignAudience = 'all' | 'new_customer' | 'specified';
+// audience=player 时按 audience_player_ids 命中陪玩，奖励可入陪玩猫粮（§11.2-01）。
+export type CampaignAudience = 'all' | 'new_customer' | 'specified' | 'player';
+// 奖励目标账户（§11.2-01）：客户余额 / 陪玩猫粮；留空按客户余额（兼容存量活动）。
+export type CampaignTargetAccountType = 'customer_balance' | 'player_catfood';
 export type CampaignStackRule = 'stack' | 'exclusive';
 export type CampaignStatus = 'draft' | 'active' | 'paused' | 'ended';
 
@@ -2187,7 +2255,12 @@ export interface RechargeCampaign {
   activity_type: CampaignActivityType;
   tiers: CampaignTier[];
   audience: CampaignAudience;
+  // audience=specified 时按客户 ID 命中。
   audience_customer_ids: number[];
+  // audience=player 时按陪玩 ID 命中（§11.2-01）。
+  audience_player_ids: number[];
+  // 奖励入账账户：customer_balance 入客户余额 / player_catfood 入陪玩猫粮。
+  target_account_type: CampaignTargetAccountType;
   stack_rule: CampaignStackRule;
   bonus_valid_days: number;
   starts_at: string;
@@ -2205,6 +2278,8 @@ export interface CampaignInput {
   tiers: CampaignTier[];
   audience: CampaignAudience;
   audience_customer_ids: number[];
+  audience_player_ids?: number[];
+  target_account_type?: CampaignTargetAccountType;
   stack_rule: CampaignStackRule;
   bonus_valid_days: number;
   starts_at: string;
@@ -2311,6 +2386,22 @@ export interface MemberLevelOverride {
   created_at: string;
 }
 
+// 客户当前生效的会员权益快照（§10.1-02 / §10.4）。
+// active=false 表示未定级 / 等级停用 / 规则缺失，此时不得宣称「已生效」。
+export interface MemberPrivilege {
+  customer_id: number;
+  level_code: string;
+  level_name: string;
+  active: boolean;
+  discount_bps: number;
+  prepay_bonus_bps: number;
+  dedicated_cs: boolean;
+  dedicated_channel: boolean;
+  offline_event_priority: boolean;
+  priority_booking: boolean;
+  priority_dispatch: boolean;
+}
+
 export interface CustomerMemberDetail {
   customer_id: number;
   level_code: string;
@@ -2321,6 +2412,18 @@ export interface CustomerMemberDetail {
   pending_level_code: string;
   downgrade_after: string | null;
   level_changed_at: string | null;
+  // 当前等级生效的权益快照（后端为扁平字段，不是嵌套对象）。
+  dedicated_cs: boolean;
+  priority_booking: boolean;
+  priority_dispatch: boolean;
+  dedicated_channel: boolean;
+  offline_event_priority: boolean;
+  prepay_bonus_bps: number;
+  // 手动调级覆盖状态（P1-10）：覆盖期内 override_active=true；
+  // 到期后由惰性判定回落，override_active 变 false。
+  override_level_code: string;
+  override_expires_at: string | null;
+  override_active: boolean;
   ledger: MemberGrowthLedgerEntry[];
   overrides: MemberLevelOverride[];
 }
@@ -2353,14 +2456,29 @@ export const getCustomerMember = (customerId: number) =>
   );
 
 // 手动调级：仅留覆盖记录，不改成长值流水。
+// override_days / override_until 目前后端请求体尚未接收（setCustomerMemberLevelHandler 只解析
+// level_code / reason），这里先行声明为可选，后端支持后即可直接透传。
+export interface SetCustomerMemberLevelInput {
+  level_code: string;
+  reason: string;
+  // 覆盖有效期（天）。
+  override_days?: number;
+  // 覆盖到期时刻（RFC3339），与 override_days 二选一。
+  override_until?: string;
+}
+
 export const setCustomerMemberLevel = (
   customerId: number,
   levelCode: string,
-  reason: string
+  reason: string,
+  options: Pick<
+    SetCustomerMemberLevelInput,
+    'override_days' | 'override_until'
+  > = {}
 ) =>
   axios.post<ApiResponse<CustomerMemberDetail>>(
     `${base}/customers/${customerId}/member/level`,
-    { level_code: levelCode, reason }
+    { level_code: levelCode, reason, ...options }
   );
 
 // ── 礼物（§9） ──
@@ -2446,12 +2564,29 @@ export interface GiftIntent {
   payment_source: string;
   stored_value_card_id: number | null;
   stored_value_card_no: string;
+  // 礼物档位与风控快照（§9.1-02）：下单时锁定的档位与高价值 / 年龄门槛标记。
+  gift_tier_id: number;
+  gift_tier_code: string;
+  high_value: boolean;
+  require_age: boolean;
+  // 礼物收款（§9.2-01）：发起收款后的渠道、状态、支付意图号与付款窗口。
+  payment_channel: string;
+  payment_status: string;
+  payment_intent_no: string | null;
+  payment_ref: string;
+  payment_expires_at: string | null;
+  payment_verified_at: string | null;
+  payment_verified_by_admin_id: number | null;
   created_by_admin_id: number;
+  client_key: string;
   status: 'pending' | 'confirmed' | 'consumed' | 'cancelled';
   version: number;
+  confirmation_ref: string;
   expires_at: string;
   confirmed_at: string | null;
   gift_order_id: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export const listGiftIntents = () =>
@@ -2742,16 +2877,60 @@ export const setPaymentChannelStatus = (
     { enabled }
   );
 
-export const listOfflinePaymentProofs = (params: {
+// 待核验收款单列表（§4.2）：默认返回数组；
+// 传 reconcile=true 且指定 order_id 时返回 { items, reconcile }，一并给出该订单的收款自动对账结果
+// （§4.3-04，财务只看差异笔）。未指定 order_id 却传 reconcile 会被后端 400。
+export interface PaymentReconcileMismatch {
+  proof_no: string;
+  transaction_no: string;
+  channel: PaymentChannel;
+  // channel_unmatched（渠道无此回执）/ amount_mismatch（与渠道回执金额不一致）/
+  // order_amount_mismatch（与订单应付金额不一致）。
+  kind: string;
+  proof_cents: number;
+  channel_cents: number;
+  expected_cents: number;
+  detail: string;
+}
+
+export interface PaymentReconcileReport {
+  order_id: number;
+  payable_cents: number;
+  compared: number;
+  matched: number;
+  mismatches: PaymentReconcileMismatch[];
+}
+
+export interface OfflinePaymentProofListWithReconcile {
+  items: OfflinePaymentProof[];
+  reconcile: PaymentReconcileReport;
+}
+
+export interface OfflinePaymentProofListParams {
   status?: OfflinePaymentProofStatus;
   order_id?: number;
-}) =>
-  axios.get<ApiResponse<OfflinePaymentProof[]>>(
-    `${base}/offline-payment-proofs`,
-    {
-      params,
-    }
-  );
+  limit?: number;
+  // 传 true 时必须同时给 order_id。
+  reconcile?: boolean;
+}
+
+export function listOfflinePaymentProofs(
+  params?: OfflinePaymentProofListParams
+): Promise<AxiosResponse<ApiResponse<OfflinePaymentProof[]>>>;
+export function listOfflinePaymentProofs(
+  params: OfflinePaymentProofListParams & { reconcile: true; order_id: number }
+): Promise<AxiosResponse<ApiResponse<OfflinePaymentProofListWithReconcile>>>;
+export function listOfflinePaymentProofs(
+  params: OfflinePaymentProofListParams = {}
+): Promise<
+  AxiosResponse<
+    ApiResponse<OfflinePaymentProof[] | OfflinePaymentProofListWithReconcile>
+  >
+> {
+  return axios.get<
+    ApiResponse<OfflinePaymentProof[] | OfflinePaymentProofListWithReconcile>
+  >(`${base}/offline-payment-proofs`, { params });
+}
 
 export const submitOfflinePaymentProof = (input: OfflinePaymentProofInput) =>
   axios.post<ApiResponse<OfflinePaymentProof>>(
@@ -3034,6 +3213,9 @@ export interface OwnerOverviewReport {
     net_cents: number;
     completed_count: number;
     cancelled_count: number;
+    // 加钟收入（P1-16）：已收款加钟单 paid_cents 之和，**已包含在 revenue_cents 内**，
+    // 这里单列只为说明取数来源，不要重复累加。
+    addon_revenue_cents: number;
   };
   buckets: ReportBucket[];
   details: ReportOrderDetail[];
@@ -3275,11 +3457,13 @@ export const getEsportsPageVersions = (channel: string) =>
 export const getEsportsPageAssets = () =>
   axios.get<ApiResponse<PageAsset[]>>(`${base}/page-assets`);
 
+// 新增素材（§16.2-06 / §16.5-04）：mime 与 size_bytes 后端强制必填（体积须 > 0 且在上限内），
+// 因此这里声明为必填；width / height 可留 0 表示未探测。
 export const createEsportsPageAsset = (input: {
   name: string;
   url: string;
-  mime?: string;
-  size_bytes?: number;
+  mime: string;
+  size_bytes: number;
   width?: number;
   height?: number;
 }) => axios.post<ApiResponse<PageAsset>>(`${base}/page-assets`, input);
@@ -3300,6 +3484,12 @@ export interface CustomerProfileSummary {
   growth_total: number;
   order_count: number;
   member_level_code: string;
+  member_level_name: string;
+  // 客服专属权益标记（会员权益消费点之一）。
+  dedicated_cs: boolean;
+  // 客户当前生效的会员权益快照（§10.1-02 / §10.4）：客服卡片据此展示权益。
+  member_privilege: MemberPrivilege;
+  owner_admin_name: string;
   source: CustomerSource;
   follow_status: CustomerFollowStatus;
 }
@@ -3622,13 +3812,23 @@ export const requestEsportsStoredValueCardRefund = (id: number) =>
     `${base}/stored-value-cards/${id}/refund-request`
   );
 
+// 退卡审核：通过与驳回都不得自审；**审核通过即出账**，后端强制登记打款凭证 / 银行流水号
+// （payout_ref 6–128 位，只允许字母、数字与 - _ / . 等字符），不传会被 400。
+// payout 省略时请求体与旧行为一致（仅 {approve}），驳回场景无需凭证。
+export interface StoredValueRefundPayoutInput {
+  // 审核通过时必填；驳回时可省略。
+  payout_ref?: string;
+  payout_note?: string;
+}
+
 export const decideEsportsStoredValueCardRefund = (
   id: number,
-  approve: boolean
+  approve: boolean,
+  payout: StoredValueRefundPayoutInput = {}
 ) =>
   axios.post<ApiResponse<EsportsStoredValueCard>>(
     `${base}/stored-value-cards/${id}/refund-decision`,
-    { approve }
+    { approve, ...payout }
   );
 
 export const payEsportsOrderByStoredValueCard = (
@@ -3934,6 +4134,9 @@ export interface OrderCloseFormView {
   latest_snapshot: EsportsCloseFormSnapshot | null;
   submit_rule: OrderCloseSubmitSummary | null;
   unsubmitted: UnsubmittedMember[];
+  // 结单前必须逐张查看的服务段凭证图片附件 ID（§3.4-03，升序去重；无图片凭证为空数组）。
+  // 结单弹窗据此渲染确认清单，确认后原样回传 closeOrder 的 viewedEvidenceAttachmentIds。
+  evidence_attachment_ids: number[];
 }
 
 export const getOrderCloseForm = (orderId: number) =>
@@ -4109,3 +4312,1435 @@ export const getOrderCloseApproval = (orderId: number) =>
   axios.get<ApiResponse<OrderCloseApprovalView>>(
     `${base}/orders/${orderId}/close-approval`
   );
+
+// ════ 管理端接线补齐（对应 .dsh-fix/wiring-catalog.md）════
+// 路径、方法、路径参数与请求体字段一律以 go-admin/internal/apps/esports/app.go
+// 的路由表与同目录 *_handlers.go 实际解析的 JSON 字段为准。
+
+// ── 商品父实体 / 规格组 / 逐席角色（§15.1 / §15.5） ──
+export type ProductStatus = 'draft' | 'on_sale' | 'off_sale';
+
+export interface EsportsProduct {
+  id: number;
+  name: string;
+  category_id: number | null;
+  description: string;
+  status: ProductStatus;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 商品内的子 SKU：字段与后端 productChildSkuInput 一一对应。
+export interface ProductChildSkuInput {
+  id: number;
+  code: string;
+  title: string;
+  service_type: EsportsSku['service_type'];
+  description: string;
+  unit_price_cents: number;
+  min_unit_price_cents: number;
+  adjustment_approval_bp: number;
+  service_units: number;
+  service_unit_name: string;
+  required_seats: number;
+  per_seat_service_units: number;
+  cost_cents: number | null;
+  service_duration_minutes: number;
+  close_rule_code: string;
+  spec_group_id: number | null;
+  quota_total: number;
+  sort_order: number;
+  status: EsportsSku['status'];
+}
+
+export interface ProductInput {
+  name: string;
+  category_id: number | null;
+  description: string;
+  status: ProductStatus;
+  skus: ProductChildSkuInput[];
+}
+
+// 席位约束（§15.5）：规格组与订单逐席角色快照共用同一结构。
+export interface EsportsSeatSpec {
+  seat_index: number;
+  role: string;
+  substitutable: boolean;
+  promised_units: number;
+  spec: string;
+}
+
+export interface EsportsSpecGroup {
+  id: number;
+  code: string;
+  name: string;
+  seats: EsportsSeatSpec[];
+  per_seat_service_units: number;
+  status: 'enabled' | 'disabled';
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpecGroupInput {
+  code: string;
+  name: string;
+  seats: EsportsSeatSpec[];
+  per_seat_service_units: number;
+  status: 'enabled' | 'disabled';
+}
+
+// 商品详情内的子 SKU 比列表多出商品归属、规格组、每席量与成本。
+// 成本按角色可见性脱敏：未获授权时后端返回 null（§15.8-03）。
+export interface EsportsProductSku extends EsportsSku {
+  product_id: number | null;
+  spec_group_id: number | null;
+  per_seat_service_units: number;
+  cost_cents: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductDetail {
+  product: EsportsProduct;
+  skus: EsportsProductSku[];
+  spec_groups: EsportsSpecGroup[];
+}
+
+export interface OrderSeatRolesView {
+  order_id: number;
+  seat_roles: EsportsSeatSpec[];
+}
+
+export const listProducts = () =>
+  axios.get<ApiResponse<EsportsProduct[]>>(`${base}/products`);
+
+export const getProduct = (id: number) =>
+  axios.get<ApiResponse<ProductDetail>>(`${base}/products/${id}`);
+
+export const createProduct = (input: ProductInput) =>
+  axios.post<ApiResponse<EsportsProduct>>(`${base}/products`, input);
+
+export const updateProduct = (id: number, input: ProductInput) =>
+  axios.put<ApiResponse<EsportsProduct>>(`${base}/products/${id}`, input);
+
+export const listSpecGroups = () =>
+  axios.get<ApiResponse<EsportsSpecGroup[]>>(`${base}/spec-groups`);
+
+export const createSpecGroup = (input: SpecGroupInput) =>
+  axios.post<ApiResponse<EsportsSpecGroup>>(`${base}/spec-groups`, input);
+
+export const updateSpecGroup = (id: number, input: SpecGroupInput) =>
+  axios.put<ApiResponse<EsportsSpecGroup>>(`${base}/spec-groups/${id}`, input);
+
+// 订单逐席角色快照（§15.1）：多人规格订单的席位约束，供派单与结单校验对照。
+export const getOrderSeatRoles = (orderId: number) =>
+  axios.get<ApiResponse<OrderSeatRolesView>>(
+    `${base}/orders/${orderId}/seat-roles`
+  );
+
+// ── SKU 停服（§15.7）：申请 → 异人审批 → 受影响订单逐单处置 ──
+export type SkuSuspensionStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'applied'
+  | 'cancelled';
+export type SkuSuspensionEffectiveMode = 'immediate' | 'scheduled';
+export type SkuSuspensionItemStatus = 'pending' | 'done' | 'failed';
+export type SkuSuspensionSuggestedAction =
+  | 'cancel_refund'
+  | 'reschedule'
+  | 'keep';
+
+export interface EsportsSkuSuspension {
+  id: number;
+  sku_id: number;
+  requested_by_admin_id: number;
+  reason: string;
+  effective_mode: SkuSuspensionEffectiveMode;
+  effective_at: string | null;
+  status: SkuSuspensionStatus;
+  reviewed_by_admin_id: number | null;
+  review_note: string;
+  reviewed_at: string | null;
+  affected_order_count: number;
+  affected_snapshot: Record<string, unknown> | null;
+  applied_at: string | null;
+  cancelled_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EsportsSkuSuspensionItem {
+  id: number;
+  suspension_id: number;
+  order_id: number;
+  order_no: string;
+  order_status: string;
+  payment_status: string;
+  suggested_action: SkuSuspensionSuggestedAction;
+  action: string;
+  status: SkuSuspensionItemStatus;
+  note: string;
+  handled_by_admin_id: number | null;
+  handled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SkuSuspensionProgress {
+  total: number;
+  pending: number;
+  done: number;
+  failed: number;
+}
+
+export interface SkuSuspensionReport {
+  suspension: EsportsSkuSuspension;
+  items: EsportsSkuSuspensionItem[];
+  progress: SkuSuspensionProgress;
+}
+
+export interface SkuSuspensionRequestInput {
+  reason: string;
+  // immediate 审批通过即下架；scheduled 到 effective_at 才下架。
+  effective_mode: SkuSuspensionEffectiveMode;
+  // 仅 scheduled 必填，且须晚于当前时间。
+  effective_at?: string;
+}
+
+export interface SkuSuspensionDecisionInput {
+  approve: boolean;
+  note?: string;
+}
+
+export interface SkuSuspensionDisposalInput {
+  action: SkuSuspensionSuggestedAction;
+  note?: string;
+  // 仅 action=reschedule 必填。
+  start_at?: string;
+}
+
+export const requestSkuSuspension = (
+  skuId: number,
+  input: SkuSuspensionRequestInput
+) =>
+  axios.post<ApiResponse<EsportsSkuSuspension>>(
+    `${base}/skus/${skuId}/suspensions`,
+    input
+  );
+
+export const listSkuSuspensions = (status?: SkuSuspensionStatus) =>
+  axios.get<ApiResponse<EsportsSkuSuspension[]>>(`${base}/sku-suspensions`, {
+    params: { status },
+  });
+
+export const getSkuSuspension = (id: number) =>
+  axios.get<ApiResponse<SkuSuspensionReport>>(`${base}/sku-suspensions/${id}`);
+
+export const decideSkuSuspension = (
+  id: number,
+  input: SkuSuspensionDecisionInput
+) =>
+  axios.post<ApiResponse<EsportsSkuSuspension>>(
+    `${base}/sku-suspensions/${id}/decision`,
+    input
+  );
+
+export const cancelSkuSuspension = (id: number) =>
+  axios.post<ApiResponse<EsportsSkuSuspension>>(
+    `${base}/sku-suspensions/${id}/cancel`
+  );
+
+export const disposeSkuSuspensionOrder = (
+  suspensionId: number,
+  orderId: number,
+  input: SkuSuspensionDisposalInput
+) =>
+  axios.post<ApiResponse<EsportsSkuSuspensionItem>>(
+    `${base}/sku-suspensions/${suspensionId}/orders/${orderId}/disposal`,
+    input
+  );
+
+// ── 订单动作：取消试算 / 改期提案 / 收款发起 / 过期档期处置 / 释放回池 ──
+export interface CancelPolicy {
+  free_hours: number;
+  fee_bp: number;
+}
+
+export interface CancelQuote {
+  order_id: number;
+  order_no: string;
+  policy: CancelPolicy;
+  anchor_at: string;
+  free_until: string;
+  free_cancel: boolean;
+  payable_cents: number;
+  refunded_cents: number;
+  refund_reserved_cents: number;
+  fee_cents: number;
+  refund_cents: number;
+  cancelable: boolean;
+  blocked_reason: string;
+}
+
+// 取消试算（§3.3 公示取消政策）：给出免费窗口、手续费与应退金额。
+export const previewCancelOrder = (orderId: number) =>
+  axios.get<ApiResponse<CancelQuote>>(
+    `${base}/orders/${orderId}/cancel-preview`
+  );
+
+export type RescheduleProposalStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'rejected'
+  | 'expired'
+  | 'withdrawn';
+export type RescheduleConfirmerType = 'customer' | 'player';
+
+export interface EsportsRescheduleProposal {
+  id: number;
+  proposal_no: string;
+  order_id: number;
+  order_version: number;
+  from_start_at: string | null;
+  from_service_duration_minutes: number;
+  to_start_at: string;
+  to_service_duration_minutes: number;
+  status: RescheduleProposalStatus;
+  expires_at: string;
+  proposed_by_admin_id: number;
+  reason: string;
+  active_order_id: number | null;
+  decided_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EsportsRescheduleConfirmation {
+  id: number;
+  proposal_id: number;
+  order_id: number;
+  confirmer_type: RescheduleConfirmerType;
+  confirmer_id: number;
+  seat_index: number;
+  decision: 'confirmed' | 'rejected';
+  note: string;
+  decided_at: string;
+  created_at: string;
+}
+
+export interface ReschedulePendingConfirmer {
+  type: RescheduleConfirmerType;
+  id: number;
+  seat_index: number;
+}
+
+export interface RescheduleProposalView extends EsportsRescheduleProposal {
+  // 仅进行中（pending）提案带确认进度，其余为 null。
+  confirmations: EsportsRescheduleConfirmation[] | null;
+  pending_confirmers: ReschedulePendingConfirmer[] | null;
+}
+
+export interface RescheduleProposalInput {
+  expected_version: number;
+  start_at: string;
+  service_duration_minutes: number;
+  reason: string;
+}
+
+// 限时改期提案（§3.3）：已付款订单改期须客户与已接单成员逐人确认。
+export const listOrderRescheduleProposals = (orderId: number) =>
+  axios.get<ApiResponse<RescheduleProposalView[]>>(
+    `${base}/orders/${orderId}/reschedule-proposals`
+  );
+
+export const proposeOrderReschedule = (
+  orderId: number,
+  input: RescheduleProposalInput
+) =>
+  axios.post<ApiResponse<EsportsRescheduleProposal>>(
+    `${base}/orders/${orderId}/reschedule-proposals`,
+    input
+  );
+
+export const withdrawRescheduleProposal = (id: number) =>
+  axios.post<ApiResponse<EsportsRescheduleProposal>>(
+    `${base}/reschedule-proposals/${id}/withdraw`
+  );
+
+// 收款发起（§4.3-02）：返回渠道收银台地址，未开通渠道后端返回 503。
+export interface OrderPaymentStartView {
+  intent_no: string;
+  channel: string;
+  pay_url: string;
+  amount_cents: number;
+  expires_at: string;
+}
+
+export const startOrderPayment = (orderId: number, channel: string) =>
+  axios.post<ApiResponse<OrderPaymentStartView>>(
+    `${base}/orders/${orderId}/payment/start`,
+    { channel }
+  );
+
+// 过期档期处置（§5.5-06）：refund 全额退款 / reschedule 改期，两者受配置白名单约束。
+export interface AppointmentDisposalInput {
+  action: 'refund' | 'reschedule';
+  reason: string;
+  start_at?: string;
+  expected_version: number;
+}
+
+export const disposeExpiredAppointment = (
+  orderId: number,
+  input: AppointmentDisposalInput
+) =>
+  axios.post<ApiResponse<EsportsOrder>>(
+    `${base}/orders/${orderId}/appointment/disposal`,
+    input
+  );
+
+// 释放到公共池（§5.1）：客服把待派单订单交回公共池。
+export const releaseOrderToPool = (orderId: number, reason: string) =>
+  axios.post<ApiResponse<EsportsOrder>>(
+    `${base}/orders/${orderId}/release-pool`,
+    { reason }
+  );
+
+// ── 服务段代操作（§3.3）：客服代陪玩暂停 / 恢复、留痕更正与提前终止 ──
+export interface PlayerServiceTiming {
+  order_id: number;
+  order_no: string;
+  player_id: number;
+  seat_index: number;
+  status: string;
+  started_at: string;
+  paused_at: string | null;
+  effective_seconds: number;
+  paused_seconds: number;
+  reported_units: number;
+  promised_service_units: number;
+  order_promised_service_units: number;
+  order_served_units: number;
+  order_total_units: number;
+  unfulfilled_units: number;
+}
+
+export interface ServiceTimingCorrectionInput {
+  effective_seconds: number;
+  paused_seconds: number;
+  // 责任方：陪玩 / 客服 / 客户 / 平台。
+  responsibility: string;
+  reason: string;
+}
+
+// 更正结果（§3.3）：留痕更正前后有效 / 暂停秒数与登记后停工量。
+export interface ServiceTimingCorrection {
+  order_id: number;
+  player_id: number;
+  seat_index: number;
+  effective_seconds_before: number;
+  effective_seconds_after: number;
+  paused_seconds_before: number;
+  paused_seconds_after: number;
+  downtime_seconds: number;
+  downtime_count: number;
+  responsibility: string;
+  reason: string;
+  version: number;
+}
+
+export interface ServiceTerminationInput {
+  terminated_units: number;
+  // 责任方必填。
+  responsibility: string;
+  reason: string;
+}
+
+// 终止结果（§3.3-06）：登记已履约量 / 未履约量与责任方。
+export interface ServiceTermination {
+  order_id: number;
+  player_id: number;
+  seat_index: number;
+  terminated_units: number;
+  unfulfilled_units: number;
+  promised_service_units: number;
+  fault_party: string;
+  effective_seconds: number;
+  paused_seconds: number;
+  reason: string;
+  version: number;
+}
+
+export const pauseOrderPlayerService = (
+  orderId: number,
+  playerId: number,
+  reason: string
+) =>
+  axios.post<ApiResponse<PlayerServiceTiming>>(
+    `${base}/orders/${orderId}/players/${playerId}/service/pause`,
+    { reason }
+  );
+
+export const resumeOrderPlayerService = (
+  orderId: number,
+  playerId: number,
+  reason: string
+) =>
+  axios.post<ApiResponse<PlayerServiceTiming>>(
+    `${base}/orders/${orderId}/players/${playerId}/service/resume`,
+    { reason }
+  );
+
+export const correctOrderPlayerServiceTiming = (
+  orderId: number,
+  playerId: number,
+  input: ServiceTimingCorrectionInput
+) =>
+  axios.post<ApiResponse<ServiceTimingCorrection>>(
+    `${base}/orders/${orderId}/players/${playerId}/service/timing-correction`,
+    input
+  );
+
+export const terminateOrderPlayerService = (
+  orderId: number,
+  playerId: number,
+  input: ServiceTerminationInput
+) =>
+  axios.post<ApiResponse<ServiceTermination>>(
+    `${base}/orders/${orderId}/players/${playerId}/service/terminate`,
+    input
+  );
+
+// ── 售后自动建单规则（§13.2-05） ──
+export type AfterSaleRuleSourceType =
+  | 'order'
+  | 'gift'
+  | 'stored_value_card'
+  | 'recharge'
+  | 'assessment';
+export type AfterSaleRuleTriggerEvent =
+  | 'order_closed'
+  | 'service_segment_finished'
+  | 'gift_paid'
+  | 'manual';
+export type AfterSaleRuleStatus = 'draft' | 'active' | 'disabled';
+export type AfterSaleRuleMetric =
+  | 'amount_deviation_bp'
+  | 'amount_over_cents'
+  | 'duration_shortage_minutes'
+  | 'duration_shortage_bp'
+  | 'none';
+
+export interface EsportsAfterSaleRule {
+  id: number;
+  code: string;
+  name: string;
+  source_type: AfterSaleRuleSourceType;
+  trigger_event: AfterSaleRuleTriggerEvent;
+  metric: AfterSaleRuleMetric;
+  // 阈值单位随 metric：基点 / 分 / 分钟；0 表示该规则不设阈值。
+  threshold_value: number;
+  window_minutes: number;
+  scope_game: string;
+  scope_sku_id: number | null;
+  after_sale_kind: AfterSaleKind;
+  // 建单通道：system 自动建单 / admin 只推待办由客服确认后建单。
+  channel: 'system' | 'admin';
+  fault_party: string;
+  // 命中是否直接建单（false 表示只留痕 + 待办）。
+  auto_create: boolean;
+  // 多条规则同时命中时按 priority 从大到小取第一条。
+  priority: number;
+  note: string;
+  status: AfterSaleRuleStatus;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AfterSaleRuleInput {
+  code: string;
+  name: string;
+  source_type: AfterSaleRuleSourceType;
+  trigger_event: AfterSaleRuleTriggerEvent;
+  metric: AfterSaleRuleMetric;
+  threshold_value: number;
+  window_minutes: number;
+  scope_game: string;
+  scope_sku_id: number | null;
+  after_sale_kind: AfterSaleKind;
+  channel: 'system' | 'admin';
+  fault_party: string;
+  auto_create?: boolean;
+  priority: number;
+  note: string;
+  status: AfterSaleRuleStatus;
+  // 编辑时必填（乐观锁），新建可省略。
+  version?: number;
+}
+
+export interface AfterSaleRuleHit {
+  id: number;
+  rule_id: number;
+  rule_code: string;
+  source_type: string;
+  source_id: number;
+  metric_value: number;
+  threshold_value: number;
+  after_sale_id: number;
+  dedup_key: string;
+  created_at: string;
+}
+
+export const listAfterSaleRules = (
+  params: { status?: AfterSaleRuleStatus; limit?: number } = {}
+) =>
+  axios.get<ApiResponse<EsportsAfterSaleRule[]>>(`${base}/after-sales/rules`, {
+    params,
+  });
+
+export const getAfterSaleRule = (id: number) =>
+  axios.get<ApiResponse<EsportsAfterSaleRule>>(
+    `${base}/after-sales/rules/${id}`
+  );
+
+export const createAfterSaleRule = (input: AfterSaleRuleInput) =>
+  axios.post<ApiResponse<EsportsAfterSaleRule>>(
+    `${base}/after-sales/rules`,
+    input
+  );
+
+export const updateAfterSaleRule = (
+  id: number,
+  input: AfterSaleRuleInput & { version: number }
+) =>
+  axios.put<ApiResponse<EsportsAfterSaleRule>>(
+    `${base}/after-sales/rules/${id}`,
+    input
+  );
+
+// 删除未命中的规则；已命中规则明确拒绝，提示改为停用。
+export const deleteAfterSaleRule = (id: number) =>
+  axios.delete<ApiResponse<{ id: number; deleted: boolean }>>(
+    `${base}/after-sales/rules/${id}`
+  );
+
+// 命中留痕（pending=1 只看未自动建单的客服待办命中）。
+export const listAfterSaleRuleHits = (
+  params: {
+    rule_id?: number;
+    source_type?: string;
+    pending?: boolean;
+    limit?: number;
+  } = {}
+) =>
+  axios.get<ApiResponse<AfterSaleRuleHit[]>>(`${base}/after-sales/rule-hits`, {
+    params: { ...params, pending: params.pending ? '1' : undefined },
+  });
+
+// ── 按充值批次退款执行（§4.5） ──
+export type RechargeRefundExecutionStatus = 'pending' | 'executed';
+
+export interface EsportsRechargeRefundExecution {
+  id: number;
+  execution_no: string;
+  idem_key: string;
+  after_sale_id: number;
+  account_type: string;
+  account_id: string;
+  batch_source_type: string;
+  batch_source_id: string;
+  amount_cents: number;
+  status: RechargeRefundExecutionStatus;
+  executed_by_admin_id: number | null;
+  executed_at: string | null;
+  finance_ref: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 按售后单 + 批次来源拆分生成退款执行明细，重复执行不重复落账。
+export const executeAfterSaleRefundByBatch = (afterSaleId: number) =>
+  axios.post<ApiResponse<EsportsRechargeRefundExecution[]>>(
+    `${base}/after-sales/${afterSaleId}/refund-execute`
+  );
+
+// 财务登记外部打款后把执行明细置为 executed。
+export const markRechargeRefundExecuted = (id: number, financeRef: string) =>
+  axios.post<ApiResponse<EsportsRechargeRefundExecution>>(
+    `${base}/recharge-refund-executions/${id}/execute`,
+    { finance_ref: financeRef }
+  );
+
+// ── 渠道撤销 / 拒付（§3.2） ──
+export type PaymentReversalKind = 'revoked' | 'chargeback';
+export type PaymentReversalStatus = 'pending' | 'handled' | 'rejected';
+export type PaymentReversalAction =
+  | 'none'
+  | 'mark_exception'
+  | 'suspend_customer'
+  | 'ignore';
+
+export interface EsportsPaymentReversal {
+  id: number;
+  reversal_no: string;
+  receipt_id: number;
+  order_id: number;
+  channel: string;
+  transaction_no: string;
+  amount_cents: number;
+  kind: PaymentReversalKind;
+  status: PaymentReversalStatus;
+  reason: string;
+  evidence_ref: string;
+  submitted_by_admin_id: number | null;
+  handled_by_admin_id: number | null;
+  handled_at: string | null;
+  resolution: string;
+  action: PaymentReversalAction;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 登记渠道撤销 / 拒付（§3.2）：字段与后端 paymentReversalInput 一一对应。
+// 后端校验：receipt_id ≥ 1、amount_cents ≥ 1、reason 4–255 字；
+// kind 留空按 revoked；evidence_ref 可为空但不超过 255 字。
+export interface PaymentReversalInput {
+  // 被撤销的那笔渠道回执（EsportsPaymentReceipt）ID。
+  receipt_id: number;
+  // revoked 渠道撤销 / chargeback 拒付。
+  kind: PaymentReversalKind;
+  amount_cents: number;
+  reason: string;
+  evidence_ref: string;
+}
+
+export interface PaymentReversalDecisionInput {
+  action: PaymentReversalAction;
+  resolution: string;
+  risk_reason: string;
+}
+
+export const listPaymentReversals = (
+  params: {
+    order_id?: number;
+    status?: PaymentReversalStatus;
+    limit?: number;
+  } = {}
+) =>
+  axios.get<ApiResponse<EsportsPaymentReversal[]>>(
+    `${base}/payment-reversals`,
+    { params }
+  );
+
+export const registerPaymentReversal = (input: PaymentReversalInput) =>
+  axios.post<ApiResponse<EsportsPaymentReversal>>(
+    `${base}/payment-reversals`,
+    input
+  );
+
+// 处置登记后由非登记人执行（职责分离）。
+export const decidePaymentReversal = (
+  id: number,
+  input: PaymentReversalDecisionInput
+) =>
+  axios.post<ApiResponse<EsportsPaymentReversal>>(
+    `${base}/payment-reversals/${id}/decision`,
+    input
+  );
+
+// ── 充值意图财务核验（§4.5） ──
+export interface RechargeIntentVerifyInput {
+  approve: boolean;
+  received_cents: number;
+  // 核验说明 8–255 字。
+  evidence_note: string;
+}
+
+export interface RechargeIntentView {
+  intent_no: string;
+  intent_status: string;
+  customer_id: number;
+  principal_cents: number;
+  bonus_cents: number;
+  rule_snapshot: Record<string, unknown> | null;
+  snapshot_at: string;
+  payment_channel: string;
+  payment_ref: string;
+  payable_cents: number;
+  pay_window_expires_at: string;
+}
+
+export const verifyRechargeIntent = (
+  intentNo: string,
+  input: RechargeIntentVerifyInput
+) =>
+  axios.post<ApiResponse<RechargeIntentView>>(
+    `${base}/recharge-intents/${intentNo}/verify`,
+    input
+  );
+
+// ── 外部渠道退款登记（§13 补全） ──
+export type ExternalRefundStatus = 'registered' | 'executed';
+
+export interface EsportsExternalRefund {
+  id: number;
+  refund_no: string;
+  channel: string;
+  transaction_no: string;
+  amount_cents: number;
+  order_id: number;
+  aftersale_id: number | null;
+  status: ExternalRefundStatus;
+  reason: string;
+  registered_by_admin_id: number | null;
+  executed_by_admin_id: number | null;
+  executed_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExternalRefundInput {
+  channel: string;
+  transaction_no: string;
+  amount_cents: number;
+  order_id: number;
+  aftersale_id?: number | null;
+  reason: string;
+}
+
+export const listExternalRefunds = (
+  params: { order_id?: number; status?: ExternalRefundStatus } = {}
+) =>
+  axios.get<ApiResponse<EsportsExternalRefund[]>>(`${base}/external-refunds`, {
+    params,
+  });
+
+export const registerExternalRefund = (input: ExternalRefundInput) =>
+  axios.post<ApiResponse<EsportsExternalRefund>>(
+    `${base}/external-refunds`,
+    input
+  );
+
+// 财务核验并执行，同时对齐订单退款状态。
+export const executeExternalRefund = (id: number) =>
+  axios.post<ApiResponse<EsportsExternalRefund>>(
+    `${base}/external-refunds/${id}/execute`
+  );
+
+// ── 按充值批次的退款试算（§4.5）：余额账户与储值卡共用同一口径 ──
+export interface RechargeRefundBatch {
+  batch_source_type: string;
+  batch_source_id: string;
+  fund_batch: string;
+  entry_role: string;
+  created_at: string;
+  original_cents: number;
+  principal_cents: number;
+  bonus_cents: number;
+  allocated_cents: number;
+  remaining_by_allocation_cents: number;
+  principal_remaining_cents: number;
+  bonus_remaining_cents: number;
+  refundable_cents: number;
+  bonus_forfeited_cents: number;
+  bonus_expires_at?: string | null;
+  bonus_expired: boolean;
+  over_allocated: boolean;
+  split_known: boolean;
+}
+
+export interface RechargeRefundQuoteBasis {
+  version: string;
+  batch_scope: string;
+  allocation_rule: string;
+  remaining_rule: string;
+  refund_rule: string;
+  wallet_principal_cents: number;
+  wallet_bonus_cents: number;
+  batch_principal_in_cents: number;
+  batch_bonus_in_cents: number;
+}
+
+export interface LedgerAnomaly {
+  kind: string;
+  account_type: string;
+  account_id: string;
+  detail: string;
+}
+
+export interface RechargeRefundQuote {
+  account_type: string;
+  account_id: string;
+  // 储值卡账户才有卡号，便于与退卡试算对照。
+  card_no?: string;
+  quoted_at: string;
+  basis: RechargeRefundQuoteBasis;
+  batches: RechargeRefundBatch[];
+  refundable_principal_cents: number;
+  forfeited_bonus_cents: number;
+  batch_principal_remaining_cents: number;
+  batch_bonus_remaining_cents: number;
+  anomalies: LedgerAnomaly[];
+}
+
+// 余额账户按批次退款试算（id 为钱包归属人，即客户 ID）。
+export const getWalletRefundQuote = (ownerId: number) =>
+  axios.get<ApiResponse<RechargeRefundQuote>>(
+    `${base}/wallets/${ownerId}/refund-quote`
+  );
+
+// 储值卡按预付款批次退款试算。
+export const getStoredValueCardRefundBatchQuote = (cardId: number) =>
+  axios.get<ApiResponse<RechargeRefundQuote>>(
+    `${base}/stored-value-cards/${cardId}/refund-batch-quote`
+  );
+
+// ── 账本核验异常（§11.6-01） ──
+export interface LedgerReconcileAnomaly {
+  event_key: string;
+  occurred_at: string;
+  scanned_accounts: number;
+  scanned_allocations: number;
+  scanned_batches: number;
+  scanned_wallet_sums: number;
+  scan_truncated: boolean;
+  anomaly_overflow: boolean;
+  anomaly_count: number;
+  anomalies: LedgerAnomaly[];
+}
+
+export const listLedgerReconcileAnomalies = (limit?: number) =>
+  axios.get<ApiResponse<LedgerReconcileAnomaly[]>>(
+    `${base}/ledger-reconcile-anomalies`,
+    { params: { limit } }
+  );
+
+// ── 储值卡一致性异常队列（§4.6-06） ──
+export type StoredValueExceptionStatus =
+  | 'open'
+  | 'following'
+  | 'resolved'
+  | 'ignored';
+
+export interface EsportsStoredValueException {
+  id: number;
+  exception_no: string;
+  card_id: number;
+  order_id: number;
+  customer_id: number;
+  kind: string;
+  status: StoredValueExceptionStatus;
+  reason: string;
+  detail: Record<string, unknown> | null;
+  assignee_admin_id?: number | null;
+  assigned_at?: string | null;
+  occurrences: number;
+  last_hit_at?: string | null;
+  resolved_by_admin_id?: number | null;
+  resolved_at?: string | null;
+  resolution: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoredValueExceptionListParams {
+  status?: StoredValueExceptionStatus;
+  kind?: string;
+  card_id?: number;
+  order_id?: number;
+  assignee_admin_id?: number;
+  // mine=只看指派给自己的；unassigned=只看未指派的。
+  mine?: boolean;
+  unassigned?: boolean;
+  limit?: number;
+}
+
+export interface StoredValueExceptionResolveInput {
+  action: 'resolve' | 'ignore';
+  resolution: string;
+  expected_version: number;
+}
+
+export const listStoredValueExceptions = (
+  params: StoredValueExceptionListParams = {}
+) =>
+  axios.get<ApiResponse<EsportsStoredValueException[]>>(
+    `${base}/stored-value-exceptions`,
+    { params }
+  );
+
+export const getStoredValueException = (id: number) =>
+  axios.get<ApiResponse<EsportsStoredValueException>>(
+    `${base}/stored-value-exceptions/${id}`
+  );
+
+export const assignStoredValueException = (id: number, adminId: number) =>
+  axios.post<ApiResponse<EsportsStoredValueException>>(
+    `${base}/stored-value-exceptions/${id}/assign`,
+    { assignee_admin_id: adminId }
+  );
+
+export const resolveStoredValueException = (
+  id: number,
+  input: StoredValueExceptionResolveInput
+) =>
+  axios.post<ApiResponse<EsportsStoredValueException>>(
+    `${base}/stored-value-exceptions/${id}/resolve`,
+    input
+  );
+
+// 客户自助购卡到账核验（§4.4）：approve=false 驳回并把支付意图置无效。
+export interface StoredValueSelfPurchaseVerifyInput {
+  approve: boolean;
+  received_cents: number;
+  evidence_note: string;
+}
+
+// 核验成功后的卡片视图（卡片字段 + 派生余额口径）。
+export interface StoredValueCardView extends EsportsStoredValueCard {
+  principal_remaining_cents: number;
+  bonus_remaining_cents: number;
+  balance_cents: number;
+  consumed_cents: number;
+}
+
+export const verifyStoredValueCardSelfPurchase = (
+  id: number,
+  input: StoredValueSelfPurchaseVerifyInput
+) =>
+  axios.post<ApiResponse<StoredValueCardView>>(
+    `${base}/stored-value-cards/${id}/verify-self-purchase`,
+    input
+  );
+
+// ── 礼物档位与礼物收款（§9.1-02 / §9.2-01） ──
+export interface EsportsGiftTier {
+  id: number;
+  gift_id: number;
+  tier_code: string;
+  name: string;
+  price_cents: number;
+  high_value: boolean;
+  require_age: boolean;
+  is_default: boolean;
+  sort_order: number;
+  status: 'enabled' | 'disabled';
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GiftTierInput {
+  tier_code: string;
+  name: string;
+  price_cents: number;
+  high_value: boolean;
+  require_age: boolean;
+  is_default: boolean;
+  sort_order: number;
+  status: 'enabled' | 'disabled';
+}
+
+export interface GiftPaymentStartInput {
+  channel: string;
+  client_key?: string;
+}
+
+export interface GiftPaymentStartView {
+  intent_id: number;
+  payment_intent_no: string;
+  channel: string;
+  payment_status: string;
+  payable_cents: number;
+  pay_url: string;
+  expires_at: string;
+}
+
+export interface GiftPaymentVerifyInput {
+  approve: boolean;
+  payment_ref: string;
+  received_cents: number;
+  evidence_note: string;
+}
+
+export const listGiftTiers = (
+  giftId: number,
+  status?: 'enabled' | 'disabled'
+) =>
+  axios.get<ApiResponse<EsportsGiftTier[]>>(`${base}/gifts/${giftId}/tiers`, {
+    params: { status },
+  });
+
+export const createGiftTier = (giftId: number, input: GiftTierInput) =>
+  axios.post<ApiResponse<EsportsGiftTier>>(
+    `${base}/gifts/${giftId}/tiers`,
+    input
+  );
+
+// 编辑档位：gift_id / tier_code 不可改，须带 expected_version。
+export const updateGiftTier = (
+  id: number,
+  input: GiftTierInput & { expected_version: number }
+) => axios.put<ApiResponse<EsportsGiftTier>>(`${base}/gift-tiers/${id}`, input);
+
+// 删除档位：已被礼物单引用时后端拒绝（只能停用）。
+export const deleteGiftTier = (id: number, expectedVersion?: number) =>
+  axios.delete<ApiResponse<{ id: number; deleted: boolean }>>(
+    `${base}/gift-tiers/${id}`,
+    { params: { expected_version: expectedVersion } }
+  );
+
+// 对礼物确认单发起收款：未开通渠道明确失败。
+export const startGiftPayment = (
+  intentId: number,
+  input: GiftPaymentStartInput
+) =>
+  axios.post<ApiResponse<GiftPaymentStartView>>(
+    `${base}/gift-intents/${intentId}/payment/start`,
+    input
+  );
+
+// 财务核销礼物收款并成单；驳回时返回 { intent_id, payment_status: 'failed' }。
+export const verifyGiftPayment = (
+  intentId: number,
+  input: GiftPaymentVerifyInput
+) =>
+  axios.post<
+    ApiResponse<GiftOrder | { intent_id: number; payment_status: string }>
+  >(`${base}/gift-intents/${intentId}/payment/verify`, input);
+
+// ── 陪玩：可用时段 / 责任信用 / 期望报价复核 ──
+export interface PlayerAvailabilitySlot {
+  start: string;
+  end: string;
+  status: string;
+  bookable: boolean;
+  reason?: string;
+  order_no?: string;
+}
+
+export interface PlayerAvailabilityView {
+  player_id: number;
+  player_name: string;
+  from: string;
+  to: string;
+  slot_minutes: number;
+  occupied_count: number;
+  available_count: number;
+  slots: PlayerAvailabilitySlot[];
+}
+
+export const getPlayerAvailability = (
+  playerId: number,
+  params: { from?: string; to?: string; slot_minutes?: number } = {}
+) =>
+  axios.get<ApiResponse<PlayerAvailabilityView>>(
+    `${base}/players/${playerId}/availability`,
+    { params }
+  );
+
+export type PlayerCreditEventStatus =
+  | 'recorded'
+  | 'penalty_applied'
+  | 'cleared';
+
+export interface EsportsPlayerCreditEvent {
+  id: number;
+  event_no: string;
+  player_id: number;
+  order_id: number;
+  after_sale_id: number;
+  recovery_id: number;
+  kind: string;
+  amount_cents: number;
+  note: string;
+  status: PlayerCreditEventStatus;
+  recorded_by_admin_id: number | null;
+  reviewed_by_admin_id: number | null;
+  reviewed_at: string | null;
+  review_note: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlayerCreditReviewInput {
+  // penalty 确认责任并暂停接单 / clear 判定不构成责任。
+  action: 'penalty' | 'clear';
+  note: string;
+}
+
+export const listPlayerCreditEvents = (
+  params: { player_id?: number; status?: PlayerCreditEventStatus } = {}
+) =>
+  axios.get<ApiResponse<EsportsPlayerCreditEvent[]>>(
+    `${base}/player-credit-events`,
+    { params }
+  );
+
+export const reviewPlayerCreditEvent = (
+  id: number,
+  input: PlayerCreditReviewInput
+) =>
+  axios.post<ApiResponse<EsportsPlayerCreditEvent>>(
+    `${base}/player-credit-events/${id}/review`,
+    input
+  );
+
+// 运营复核陪玩期望报价（§6.1-12）：返回陪玩自助档案视图。
+export interface PlayerSelfProfile {
+  id: number;
+  display_name: string;
+  phone: string;
+  qualification: string;
+  presence: string;
+  level: string;
+  level_appraised_at: string | null;
+  daily_limit: number;
+  concurrent_limit: number;
+  games: string[];
+  service_slot_start_minute: number;
+  service_slot_end_minute: number;
+  auto_online: boolean;
+  accept_price_min_cents: number;
+  accept_price_max_cents: number;
+  fixed_team_enabled: boolean;
+  fixed_team_slot_start_minute: number;
+  fixed_team_slot_end_minute: number;
+  expected_price_cents: number;
+  expected_price_status: ExpectedPriceStatus;
+  expected_price_submitted_at: string | null;
+  expected_price_reviewed_at: string | null;
+  expected_price_review_note: string;
+  version: number;
+  updated_at: string;
+}
+
+export const reviewPlayerExpectedPrice = (
+  playerId: number,
+  input: { approve: boolean; note: string }
+) =>
+  axios.post<ApiResponse<PlayerSelfProfile>>(
+    `${base}/players/${playerId}/expected-price/review`,
+    input
+  );
+
+// ── 客服在线状态（§1.1-08） ──
+export type CsPresence = 'online' | 'busy' | 'offline';
+
+export interface CsPresenceRecord {
+  id: number;
+  admin_id: number;
+  presence: CsPresence;
+  last_active_at: string | null;
+  last_online_at: string | null;
+  last_offline_at: string | null;
+  auto_offline_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CsPresenceList {
+  offline_timeout_minutes: number;
+  admins: DispatchBoardAdmin[];
+}
+
+export interface CsPresenceInput {
+  presence: CsPresence;
+  // 仅超管可代他人打点，留空即本人。
+  admin_id?: number;
+}
+
+export const listCsPresences = () =>
+  axios.get<ApiResponse<CsPresenceList>>(`${base}/cs/presences`);
+
+export const setCsPresence = (input: CsPresenceInput) =>
+  axios.post<ApiResponse<CsPresenceRecord>>(`${base}/cs/presence`, input);
+
+// 客户归属转移（§8.3-02）：追加交接留痕，历史跟进不变。
+export const transferCustomerOwner = (
+  customerId: number,
+  targetAdminId: number,
+  reason: string
+) =>
+  axios.post<ApiResponse<EsportsCustomer>>(
+    `${base}/customers/${customerId}/owner-transfer`,
+    { target_admin_id: targetAdminId, reason }
+  );
+
+// ── 评价申诉（§7.5-05） ──
+export interface EsportsPlayerReviewAppeal {
+  id: number;
+  review_id: number;
+  appellant_type: string;
+  appellant_id: number;
+  order_id: number;
+  reason: string;
+  evidence_ref: string;
+  status: string;
+  reviewer_admin_id: number | null;
+  review_note: string;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export const listPlayerReviewAppeals = (params: {
+  status?: string;
+  limit?: number;
+}) =>
+  axios.get<ApiResponse<EsportsPlayerReviewAppeal[]>>(
+    `${base}/player-review-appeals`,
+    { params }
+  );
+
+// 复核申诉：通过则重判评价，驳回维持原判。
+export const reviewPlayerReviewAppeal = (
+  id: number,
+  input: { decision: 'approve' | 'reject'; note: string }
+) =>
+  axios.post<ApiResponse<PlayerReview>>(
+    `${base}/player-review-appeals/${id}/review`,
+    input
+  );
+
+// ── 会员优先预约意向（§10.4） ──
+export interface PriorityBooking {
+  id: number;
+  customer_id: number;
+  customer_name: string;
+  player_id: number;
+  player_name: string;
+  requested_start_at: string | null;
+  note: string;
+  status: string;
+  member_level_code: string;
+  member_level_name: string;
+  level_sort_order: number;
+  created_at: string;
+}
+
+export const listPriorityBookings = (limit?: number) =>
+  axios.get<ApiResponse<PriorityBooking[]>>(`${base}/priority-bookings`, {
+    params: { limit },
+  });
+
+// 预约意向处理结果（后端返回意向实体本身，不是优先预约列表视图）。
+export interface PriorityBookingIntent {
+  id: number;
+  customer_id: number;
+  player_id: number;
+  player_name: string;
+  requested_start_at: string | null;
+  note: string;
+  status: 'pending' | 'processed' | 'cancelled';
+  processed_by_admin_id: number | null;
+  processed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// 处理会员优先预约（§10.4）：只能置为 processed（已处理）或 cancelled（已取消）。
+export const processPriorityBooking = (
+  id: number,
+  input: { status: 'processed' | 'cancelled' }
+) =>
+  axios.post<ApiResponse<PriorityBookingIntent>>(
+    `${base}/priority-bookings/${id}/process`,
+    input
+  );
+
+// ── 页面装修：预览码 / 底部导航 / 素材引用反查（§16.2-06 / §16.3-12 / §16.4-02） ──
+export interface PageTabbarItem {
+  path: string;
+  text: string;
+  icon: string;
+  visible?: boolean;
+}
+
+export interface PageTabbar {
+  channel: string;
+  draft_version: number;
+  items: PageTabbarItem[];
+}
+
+export interface PagePreviewCode {
+  channel: string;
+  code: string;
+  path: string;
+  draft_version: number;
+  expires_at: string;
+}
+
+export interface PageAssetUsage {
+  channel: string;
+  version_no: number;
+  scope: string;
+  component_index: number;
+  component_type: string;
+  prop_path: string;
+}
+
+export interface PageAssetUsages {
+  asset_id: number;
+  name: string;
+  url: string;
+  stale: boolean;
+  usages: PageAssetUsage[];
+}
+
+export const createPagePreviewCode = (channel: string) =>
+  axios.post<ApiResponse<PagePreviewCode>>(
+    `${base}/pages/${channel}/preview-code`
+  );
+
+export const getPageTabbar = (channel: string) =>
+  axios.get<ApiResponse<PageTabbar>>(`${base}/pages/${channel}/tabbar`);
+
+export const savePageTabbar = (
+  channel: string,
+  items: PageTabbarItem[],
+  expectedVersion: number
+) =>
+  axios.put<ApiResponse<PageDocument>>(`${base}/pages/${channel}/tabbar`, {
+    items,
+    expected_version: expectedVersion,
+  });
+
+export const getPageAssetUsages = (id: number) =>
+  axios.get<ApiResponse<PageAssetUsages>>(`${base}/page-assets/${id}/usages`);
+
+// ── 报表导出历史（§17） ──
+export interface ReportExport {
+  id: number;
+  report_type: string;
+  format: string;
+  admin_id: number;
+  admin_name: string;
+  filter_snapshot: Record<string, unknown> | null;
+  row_count: number;
+  file_name: string;
+  checksum: string;
+  created_at: string;
+}
+
+// 统一导出历史：非超管仅见本人记录，可按报表类型过滤。
+export const listReportExports = (type?: ReportType) =>
+  axios.get<ApiResponse<ReportExport[]>>(`${base}/report-exports`, {
+    params: { type },
+  });
+
+// 某报表类型的导出历史。
+export const listReportTypeExports = (type: ReportType) =>
+  axios.get<ApiResponse<ReportExport[]>>(`${base}/reports/${type}/exports`);

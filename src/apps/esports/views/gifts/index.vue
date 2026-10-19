@@ -72,7 +72,7 @@
       </a-table>
     </a-card>
 
-    <a-card class="general-card" title="待确认礼物">
+    <a-card class="general-card" title="礼物意向">
       <a-space class="toolbar">
         <a-button :loading="intentLoading" @click="loadIntents"
           >刷新确认单</a-button
@@ -81,58 +81,135 @@
           >发起客户确认</a-button
         >
       </a-space>
-      <a-table
-        :data="intents"
-        :loading="intentLoading"
-        row-key="id"
-        :pagination="{ pageSize: 10 }"
-      >
-        <template #columns>
-          <a-table-column data-index="id" title="确认单 ID" />
-          <a-table-column data-index="customer_id" title="客户 ID" />
-          <a-table-column title="礼物 / 收礼陪玩">
-            <template #cell="{ record }"
-              >{{ record.gift_name }} × {{ record.quantity }} →
-              {{ record.player_name }}</template
-            >
-          </a-table-column>
-          <a-table-column title="客户确认金额">
-            <template #cell="{ record }">{{
-              yuan(record.amount_cents)
-            }}</template>
-          </a-table-column>
-          <a-table-column title="付款来源">
-            <template #cell="{ record }">{{
-              record.stored_value_card_id
-                ? `储值卡 ${record.stored_value_card_no} 本金`
-                : '客户余额本金'
-            }}</template>
-          </a-table-column>
-          <a-table-column title="状态">
-            <template #cell="{ record }">{{
-              intentStatus(record.status)
-            }}</template>
-          </a-table-column>
-          <a-table-column title="到期时间">
-            <template #cell="{ record }">{{ record.expires_at }}</template>
-          </a-table-column>
-          <a-table-column title="操作">
-            <template #cell="{ record }">
-              <a-button
-                v-if="canManage && record.status === 'confirmed'"
-                type="text"
-                @click="executeIntent(record)"
-                >执行送礼</a-button
-              >
-              <span v-else>-</span>
+      <a-tabs v-model:active-key="intentTab">
+        <a-tab-pane key="list" title="确认单列表">
+          <a-table
+            :data="intents"
+            :loading="intentLoading"
+            row-key="id"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column data-index="id" title="确认单 ID" />
+              <a-table-column data-index="customer_id" title="客户 ID" />
+              <a-table-column title="礼物 / 收礼陪玩">
+                <template #cell="{ record }"
+                  >{{ record.gift_name }} × {{ record.quantity }} →
+                  {{ record.player_name }}</template
+                >
+              </a-table-column>
+              <a-table-column title="客户确认金额">
+                <template #cell="{ record }">{{
+                  yuan(record.amount_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="付款来源">
+                <template #cell="{ record }">{{
+                  record.stored_value_card_id
+                    ? `储值卡 ${record.stored_value_card_no} 本金`
+                    : '客户余额本金'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="收款状态">
+                <template #cell="{ record }">{{
+                  paymentText(record)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="状态">
+                <template #cell="{ record }">{{
+                  intentStatus(record.status)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="到期时间">
+                <template #cell="{ record }">{{
+                  fmtMinute(record.expires_at)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="操作" :width="180">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="canManage && record.status === 'confirmed'"
+                    type="text"
+                    @click="executeIntent(record)"
+                    >执行送礼</a-button
+                  >
+                  <a-popconfirm
+                    v-if="canStartPayment && paymentStartable(record)"
+                    content="确认对该确认单发起收款？渠道未开通时后端会明确失败。"
+                    @ok="openPayment(record)"
+                  >
+                    <a-button type="text">发起收款</a-button>
+                  </a-popconfirm>
+                  <span
+                    v-if="
+                      !(canManage && record.status === 'confirmed') &&
+                      !(canStartPayment && paymentStartable(record))
+                    "
+                    >-</span
+                  >
+                </template>
+              </a-table-column>
             </template>
-          </a-table-column>
-        </template>
-      </a-table>
-      <div class="hint"
-        >客户在移动端核对礼物、收礼人、数量和金额后确认；确认单 30
-        分钟内有效。</div
-      >
+          </a-table>
+          <div class="hint"
+            >客户在移动端核对礼物、收礼人、数量和金额后确认；确认单 30
+            分钟内有效。余额与储值卡本金都不足时，由客服对确认单发起收款，收款核销后成单。</div
+          >
+        </a-tab-pane>
+        <a-tab-pane key="payment" title="收款核验">
+          <a-table
+            :data="awaitingPaymentIntents"
+            :loading="intentLoading"
+            row-key="id"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column data-index="id" title="确认单 ID" />
+              <a-table-column data-index="customer_id" title="客户 ID" />
+              <a-table-column title="礼物">
+                <template #cell="{ record }"
+                  >{{ record.gift_name }} × {{ record.quantity }}</template
+                >
+              </a-table-column>
+              <a-table-column title="应收">
+                <template #cell="{ record }">{{
+                  yuan(record.amount_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="收款渠道">
+                <template #cell="{ record }">{{
+                  channelText(record.payment_channel)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="收款单号">
+                <template #cell="{ record }">{{
+                  record.payment_intent_no || '-'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="收款到期">
+                <template #cell="{ record }">{{
+                  fmtMinute(record.payment_expires_at)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="操作" :width="120">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="canVerifyPayment"
+                    type="text"
+                    @click="openVerify(record)"
+                    >核销 / 驳回</a-button
+                  >
+                  <span v-else>-</span>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+          <div class="hint"
+            >人工核销须填写到账凭证号与不少于 8
+            字的到账说明，实收金额须与应收一致；创建该确认单的经办人不得自行核销。驳回后收款意图置为失败，可让客户重新发起。</div
+          >
+        </a-tab-pane>
+      </a-tabs>
     </a-card>
 
     <a-card class="general-card" title="送礼单据">
@@ -519,6 +596,215 @@
           <a-input-number v-model="form.sortOrder" :min="0" />
         </a-form-item>
       </a-form>
+
+      <template v-if="formTarget && canReadTiers">
+        <a-divider>价格档位</a-divider>
+        <a-space class="toolbar">
+          <a-button
+            v-if="canCreateTier"
+            type="primary"
+            size="small"
+            @click="openTierCreate"
+            >新增档位</a-button
+          >
+          <a-button size="small" :loading="tierLoading" @click="loadTiers"
+            >刷新档位</a-button
+          >
+        </a-space>
+        <a-table
+          :data="tiers"
+          :loading="tierLoading"
+          row-key="id"
+          :pagination="false"
+          size="small"
+        >
+          <template #columns>
+            <a-table-column data-index="tier_code" title="档位编码" />
+            <a-table-column data-index="name" title="名称" />
+            <a-table-column title="价格">
+              <template #cell="{ record }">{{
+                yuan(record.price_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="高额档" :width="80">
+              <template #cell="{ record }">{{
+                record.high_value ? '是' : '否'
+              }}</template>
+            </a-table-column>
+            <a-table-column title="年龄限制" :width="90">
+              <template #cell="{ record }">{{
+                record.require_age ? '是' : '否'
+              }}</template>
+            </a-table-column>
+            <a-table-column title="默认" :width="70">
+              <template #cell="{ record }">{{
+                record.is_default ? '是' : '否'
+              }}</template>
+            </a-table-column>
+            <a-table-column data-index="sort_order" title="排序" :width="70" />
+            <a-table-column title="状态" :width="80">
+              <template #cell="{ record }">
+                <a-tag
+                  :color="record.status === 'enabled' ? 'green' : 'gray'"
+                  >{{ record.status === 'enabled' ? '启用' : '停用' }}</a-tag
+                >
+              </template>
+            </a-table-column>
+            <a-table-column title="操作" :width="140">
+              <template #cell="{ record }">
+                <a-button
+                  v-if="canUpdateTier"
+                  type="text"
+                  @click="openTierEdit(record)"
+                  >编辑</a-button
+                >
+                <a-popconfirm
+                  v-if="canDeleteTier"
+                  content="确认删除该档位？已被礼物单引用的档位只能停用。"
+                  @ok="removeTier(record)"
+                >
+                  <a-button type="text" status="danger">删除</a-button>
+                </a-popconfirm>
+              </template>
+            </a-table-column>
+          </template>
+        </a-table>
+        <div class="hint"
+          >同一礼物下档位编码与价格唯一，至多一个默认档；已被引用的档位不可删除，只能停用。</div
+        >
+      </template>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="tierVisible"
+      :title="tierTarget ? '编辑价格档位' : '新增价格档位'"
+      :width="560"
+      @ok="submitTier"
+      @cancel="tierVisible = false"
+    >
+      <a-form :model="tierForm">
+        <a-form-item label="档位编码" required>
+          <a-input
+            v-model="tierForm.tierCode"
+            :max-length="48"
+            :disabled="!!tierTarget"
+          />
+          <div class="hint">创建后不可修改，同一礼物下不可重复。</div>
+        </a-form-item>
+        <a-form-item label="名称" required>
+          <a-input v-model="tierForm.name" :max-length="120" />
+        </a-form-item>
+        <a-form-item label="价格（元）" required>
+          <a-input-number
+            v-model="tierForm.priceYuan"
+            :min="0.01"
+            :precision="2"
+          />
+          <div class="hint">同一礼物下价格不可重复。</div>
+        </a-form-item>
+        <a-form-item label="高额档（需二次确认）">
+          <a-switch v-model="tierForm.highValue" />
+        </a-form-item>
+        <a-form-item label="仅成年客户可送">
+          <a-switch v-model="tierForm.requireAge" />
+        </a-form-item>
+        <a-form-item label="默认档">
+          <a-switch v-model="tierForm.isDefault" />
+          <div class="hint">设为默认会清除同礼物的其它默认档。</div>
+        </a-form-item>
+        <a-form-item label="排序">
+          <a-input-number v-model="tierForm.sortOrder" :min="0" />
+        </a-form-item>
+        <a-form-item label="状态">
+          <a-radio-group v-model="tierForm.status">
+            <a-radio value="enabled">启用</a-radio>
+            <a-radio value="disabled">停用</a-radio>
+          </a-radio-group>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="paymentVisible"
+      title="发起礼物收款"
+      :width="560"
+      :ok-loading="paymentSubmitting"
+      :mask-closable="!paymentSubmitting"
+      @ok="submitPaymentStart"
+      @cancel="paymentVisible = false"
+    >
+      <a-form :model="paymentForm">
+        <a-form-item label="确认单">
+          <span v-if="paymentTarget"
+            >#{{ paymentTarget.id }} · {{ paymentTarget.gift_name }} ×
+            {{ paymentTarget.quantity }} · 应收
+            {{ yuan(paymentTarget.amount_cents) }}</span
+          >
+        </a-form-item>
+        <a-form-item label="收款渠道" required>
+          <a-select v-model="paymentForm.channel">
+            <a-option value="wechat_work">企业微信收款</a-option>
+            <a-option value="merchant_qr">工作室商户码</a-option>
+            <a-option value="corporate_transfer">对公转账</a-option>
+          </a-select>
+          <div class="hint"
+            >企业微信收款走在线网关（须有启用中的收款账户）；商户码与对公转账按人工核销。渠道未开通时后端明确失败，不会伪成功。</div
+          >
+        </a-form-item>
+        <template v-if="paymentResult">
+          <a-form-item label="收款结果">
+            <div>
+              收款单号：{{ paymentResult.payment_intent_no }}（{{
+                paymentResult.payment_status
+              }}）
+            </div>
+            <div>应收金额：{{ yuan(paymentResult.payable_cents) }}</div>
+            <div>收款到期：{{ fmtMinute(paymentResult.expires_at) }}</div>
+            <div v-if="paymentResult.pay_url" class="pay-url">
+              支付链接：{{ paymentResult.pay_url }}
+            </div>
+          </a-form-item>
+        </template>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="verifyVisible"
+      title="核销礼物收款"
+      :width="560"
+      @ok="submitVerify"
+      @cancel="verifyVisible = false"
+    >
+      <a-form :model="verifyForm">
+        <a-form-item label="确认单">
+          <span v-if="verifyTarget"
+            >#{{ verifyTarget.id }} · {{ verifyTarget.gift_name }} ×
+            {{ verifyTarget.quantity }} · 应收
+            {{ yuan(verifyTarget.amount_cents) }}</span
+          >
+        </a-form-item>
+        <a-form-item label="核验结论" required>
+          <a-radio-group v-model="verifyForm.approve">
+            <a-radio :value="true">到账通过并成单</a-radio>
+            <a-radio :value="false">驳回（未收到款）</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item v-if="verifyForm.approve" label="到账凭证号" required>
+          <a-input v-model="verifyForm.paymentRef" :max-length="128" />
+        </a-form-item>
+        <a-form-item v-if="verifyForm.approve" label="实收金额（元）">
+          <a-input-number :model-value="verifyYuan" disabled :precision="2" />
+          <div class="hint">实收须与应收一致，否则后端拒绝核销。</div>
+        </a-form-item>
+        <a-form-item label="到账说明" required>
+          <a-textarea
+            v-model="verifyForm.evidenceNote"
+            :max-length="255"
+            :auto-size="{ minRows: 2 }"
+          />
+          <div class="hint">不少于 8 字，作为核销留痕。</div>
+        </a-form-item>
+      </a-form>
     </a-modal>
 
     <a-modal
@@ -599,10 +885,13 @@
   import {
     createGift,
     createGiftDisputeByAdmin,
+    createGiftTier,
+    deleteGiftTier,
     executeGiftDispute,
     getGiftLeaderboard,
     listGiftDisputes,
     listGiftOrders,
+    listGiftTiers,
     listGifts,
     refundGift,
     reviewGift,
@@ -611,9 +900,13 @@
     createGiftIntent,
     executeGiftIntent,
     setGiftStatus,
+    startGiftPayment,
     updateGift,
+    updateGiftTier,
+    verifyGiftPayment,
   } from '../../api';
   import type {
+    EsportsGiftTier,
     Gift,
     GiftDispute,
     GiftDisputeKind,
@@ -621,12 +914,36 @@
     GiftIntent,
     GiftLeaderboardRow,
     GiftOrder,
+    GiftPaymentStartView,
     GiftReviewStatus,
     GiftStatus,
+    GiftTierInput,
   } from '../../api';
 
   const { hasButtonPermission } = usePermission();
   const canManage = computed(() => hasButtonPermission('esports:gifts:manage'));
+  // 档位与收款入口的权限码取自 app.go 已声明项：esports:gifts:tiers / tier_create /
+  // tier_update / tier_delete / payment_start / payment_verify。这些是 PermAPI 码，
+  // hasButtonPermission 只命中 PermButton，故与「礼物管理按钮」取或，避免有管理权限的
+  // 客服看不到入口；接口侧仍由后端鉴权兜底。
+  const hasGiftPerm = (code: string) =>
+    canManage.value || hasButtonPermission(code);
+  const canReadTiers = computed(() => hasGiftPerm('esports:gifts:tiers'));
+  const canCreateTier = computed(() =>
+    hasGiftPerm('esports:gifts:tier_create')
+  );
+  const canUpdateTier = computed(() =>
+    hasGiftPerm('esports:gifts:tier_update')
+  );
+  const canDeleteTier = computed(() =>
+    hasGiftPerm('esports:gifts:tier_delete')
+  );
+  const canStartPayment = computed(() =>
+    hasGiftPerm('esports:gifts:payment_start')
+  );
+  const canVerifyPayment = computed(() =>
+    hasGiftPerm('esports:gifts:payment_verify')
+  );
 
   const statusMap: Record<GiftStatus, string> = {
     draft: '草稿',
@@ -666,6 +983,49 @@
     const { response } = err as { response?: { data?: { message?: string } } };
     return response?.data?.message || fallback;
   };
+  const pad = (value: number) => String(value).padStart(2, '0');
+  // 本地时区展示到分钟。
+  const fmtMinute = (value: string | null | undefined) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+      d.getDate()
+    )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  // 礼物确认单视图已返回收款字段与档位快照（§9.2-01 / §9.1-02），api.ts 的 GiftIntent
+  // 尚未收录，页面侧就地补齐只读字段。
+  type GiftIntentRow = GiftIntent & {
+    payment_channel?: string;
+    payment_status?: string;
+    payment_intent_no?: string | null;
+    payment_ref?: string;
+    payment_expires_at?: string | null;
+  };
+  const paymentChannelMap: Record<string, string> = {
+    wechat_work: '企业微信收款',
+    merchant_qr: '工作室商户码',
+    corporate_transfer: '对公转账',
+  };
+  const paymentStatusMap: Record<string, string> = {
+    not_required: '未发起收款',
+    awaiting_payment: '待核销',
+    verified: '已核销',
+    failed: '核销驳回',
+  };
+  const channelText = (value?: string) =>
+    value ? paymentChannelMap[value] || value : '-';
+  const paymentText = (row: GiftIntentRow) => {
+    const status = row.payment_status || 'not_required';
+    if (status === 'not_required') return '未发起收款';
+    const channel = channelText(row.payment_channel);
+    return `${channel} / ${paymentStatusMap[status] || status}`;
+  };
+  // 仅未终态、尚未发起收款且未过期的确认单可发起收款。
+  const paymentStartable = (row: GiftIntentRow) =>
+    row.status !== 'consumed' &&
+    row.status !== 'cancelled' &&
+    new Date(row.expires_at).getTime() > Date.now() &&
+    (row.payment_status || 'not_required') === 'not_required';
 
   // ── 礼物目录 ──
   const loading = ref(false);
@@ -700,6 +1060,128 @@
     sortOrder: 0,
   });
 
+  // ── 礼物价格档位（§9.1-02）：随礼物编辑弹窗维护，gift_id / tier_code 创建后不可改 ──
+  const tiers = ref<EsportsGiftTier[]>([]);
+  const tierLoading = ref(false);
+  const tierVisible = ref(false);
+  const tierTarget = ref<EsportsGiftTier | null>(null);
+  const tierForm = reactive({
+    tierCode: '',
+    name: '',
+    priceYuan: 0,
+    highValue: false,
+    requireAge: false,
+    isDefault: false,
+    sortOrder: 0,
+    status: 'enabled' as 'enabled' | 'disabled',
+  });
+
+  async function loadTiers() {
+    const gift = formTarget.value;
+    if (!gift) {
+      tiers.value = [];
+      return;
+    }
+    tierLoading.value = true;
+    try {
+      tiers.value = (await listGiftTiers(gift.id)).data.data || [];
+    } catch (err) {
+      Message.error(errorText(err, '加载礼物档位失败'));
+    } finally {
+      tierLoading.value = false;
+    }
+  }
+
+  function openTierCreate() {
+    tierTarget.value = null;
+    Object.assign(tierForm, {
+      tierCode: '',
+      name: '',
+      priceYuan: 0,
+      highValue: false,
+      requireAge: false,
+      isDefault: false,
+      sortOrder: 0,
+      status: 'enabled',
+    });
+    tierVisible.value = true;
+  }
+
+  function openTierEdit(record: EsportsGiftTier) {
+    tierTarget.value = record;
+    Object.assign(tierForm, {
+      tierCode: record.tier_code,
+      name: record.name,
+      priceYuan: record.price_cents / 100,
+      highValue: record.high_value,
+      requireAge: record.require_age,
+      isDefault: record.is_default,
+      sortOrder: record.sort_order,
+      status: record.status,
+    });
+    tierVisible.value = true;
+  }
+
+  function buildTierInput(): GiftTierInput | null {
+    const tierCode = tierForm.tierCode.trim();
+    const name = tierForm.name.trim();
+    if (!tierCode || !name) {
+      Message.warning('请填写档位编码与名称');
+      return null;
+    }
+    if (!tierForm.priceYuan || tierForm.priceYuan <= 0) {
+      Message.warning('请填写档位价格');
+      return null;
+    }
+    return {
+      tier_code: tierCode,
+      name,
+      price_cents: Math.round(tierForm.priceYuan * 100),
+      high_value: tierForm.highValue,
+      require_age: tierForm.requireAge,
+      is_default: tierForm.isDefault,
+      sort_order: tierForm.sortOrder || 0,
+      status: tierForm.status,
+    };
+  }
+
+  async function submitTier() {
+    const gift = formTarget.value;
+    if (!gift) return;
+    const input = buildTierInput();
+    if (!input) return;
+    const target = tierTarget.value;
+    try {
+      if (target) {
+        // 编辑不提交 tier_code 改动（编码创建后不可变），按当前版本做乐观锁。
+        await updateGiftTier(target.id, {
+          ...input,
+          tier_code: target.tier_code,
+          expected_version: target.version,
+        });
+      } else {
+        await createGiftTier(gift.id, input);
+      }
+      tierVisible.value = false;
+      Message.success(target ? '已更新档位' : '已新增档位');
+      await loadTiers();
+    } catch (err) {
+      Message.error(
+        errorText(err, '保存档位失败：编码或价格重复、版本已变化或参数无效')
+      );
+    }
+  }
+
+  async function removeTier(record: EsportsGiftTier) {
+    try {
+      await deleteGiftTier(record.id, record.version);
+      Message.success('已删除档位');
+      await loadTiers();
+    } catch (err) {
+      Message.error(errorText(err, '删除失败：档位已被礼物单引用，只能停用'));
+    }
+  }
+
   function openCreate() {
     formTarget.value = null;
     Object.assign(form, {
@@ -714,6 +1196,7 @@
       requireAge: false,
       sortOrder: 0,
     });
+    tiers.value = [];
     formVisible.value = true;
   }
 
@@ -732,6 +1215,7 @@
       sortOrder: record.sort_order,
     });
     formVisible.value = true;
+    loadTiers();
   }
 
   async function submitForm() {
@@ -808,7 +1292,12 @@
 
   const sendVisible = ref(false);
   const intentLoading = ref(false);
-  const intents = ref<GiftIntent[]>([]);
+  const intents = ref<GiftIntentRow[]>([]);
+  const intentTab = ref('list');
+  // 已发起收款、等待财务核销的确认单。
+  const awaitingPaymentIntents = computed(() =>
+    intents.value.filter((item) => item.payment_status === 'awaiting_payment')
+  );
   const intentStatus = (value: GiftIntent['status']) =>
     ({
       pending: '待客户确认',
@@ -835,6 +1324,92 @@
     } catch (err) {
       Message.error(
         errorText(err, '执行失败：确认单过期、明细已变化或余额不足')
+      );
+    }
+  }
+
+  // ── 礼物意向直接支付（§9.2-01）：发起收款 → 财务核销成单 ──
+  const paymentVisible = ref(false);
+  const paymentSubmitting = ref(false);
+  const paymentTarget = ref<GiftIntentRow | null>(null);
+  const paymentResult = ref<GiftPaymentStartView | null>(null);
+  const paymentForm = reactive({ channel: 'wechat_work' });
+
+  function openPayment(intent: GiftIntentRow) {
+    paymentTarget.value = intent;
+    paymentResult.value = null;
+    paymentForm.channel = 'wechat_work';
+    paymentVisible.value = true;
+  }
+
+  async function submitPaymentStart() {
+    const target = paymentTarget.value;
+    if (!target || paymentSubmitting.value) return;
+    paymentSubmitting.value = true;
+    try {
+      paymentResult.value = (
+        await startGiftPayment(target.id, { channel: paymentForm.channel })
+      ).data.data;
+      Message.success('已发起收款');
+      await loadIntents();
+    } catch (err) {
+      // 渠道未开通 / 无启用账户时后端明确失败（503），原样透出中文提示。
+      Message.error(
+        errorText(err, '发起收款失败：收款渠道未开通、无可用账户或确认单已过期')
+      );
+    } finally {
+      paymentSubmitting.value = false;
+    }
+  }
+
+  const verifyVisible = ref(false);
+  const verifyTarget = ref<GiftIntentRow | null>(null);
+  const verifyForm = reactive({
+    approve: true,
+    paymentRef: '',
+    evidenceNote: '',
+  });
+  const verifyYuan = computed(() =>
+    verifyTarget.value ? verifyTarget.value.amount_cents / 100 : 0
+  );
+
+  function openVerify(intent: GiftIntentRow) {
+    verifyTarget.value = intent;
+    verifyForm.approve = true;
+    verifyForm.paymentRef = '';
+    verifyForm.evidenceNote = '';
+    verifyVisible.value = true;
+  }
+
+  async function submitVerify() {
+    const target = verifyTarget.value;
+    if (!target) return;
+    const note = verifyForm.evidenceNote.trim();
+    if (note.length < 8) {
+      Message.warning('到账说明不少于 8 字');
+      return;
+    }
+    const paymentRef = verifyForm.paymentRef.trim();
+    if (verifyForm.approve && !paymentRef) {
+      Message.warning('请填写到账凭证号');
+      return;
+    }
+    try {
+      await verifyGiftPayment(target.id, {
+        approve: verifyForm.approve,
+        payment_ref: paymentRef,
+        received_cents: verifyForm.approve ? target.amount_cents : 0,
+        evidence_note: note,
+      });
+      verifyVisible.value = false;
+      Message.success(
+        verifyForm.approve ? '核销通过并已生成礼物单' : '已驳回该笔收款'
+      );
+      await loadIntents();
+      if (verifyForm.approve) await loadOrders();
+    } catch (err) {
+      Message.error(
+        errorText(err, '核销失败：凭证号或实收金额不符、已超时或不得自审')
       );
     }
   }
@@ -1165,5 +1740,9 @@
   .hint {
     color: var(--color-text-3);
     font-size: 12px;
+  }
+
+  .pay-url {
+    word-break: break-all;
   }
 </style>

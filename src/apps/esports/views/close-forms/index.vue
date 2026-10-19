@@ -121,21 +121,26 @@
                   {{ templateStatusLabel(record.status) }}</template
                 >
               </a-table-column>
-              <a-table-column title="操作" :width="140">
+              <a-table-column title="操作" :width="200">
                 <template #cell="{ record }">
-                  <a-button
-                    v-if="canManage && record.status === 'draft'"
-                    type="text"
-                    status="success"
-                    @click="doActivateTemplate(record)"
-                    >生效</a-button
-                  >
-                  <a-button
+                  <template v-if="canManage && record.status === 'draft'">
+                    <a-button type="text" @click="openTemplateEdit(record)"
+                      >编辑</a-button
+                    >
+                    <a-popconfirm
+                      content="确认让该草稿模板生效？同层现有生效版本会转为历史版本。"
+                      @ok="doActivateTemplate(record)"
+                    >
+                      <a-button type="text" status="success">生效</a-button>
+                    </a-popconfirm>
+                  </template>
+                  <a-popconfirm
                     v-else-if="canManage && record.status === 'history'"
-                    type="text"
-                    @click="doRollbackTemplate(record)"
-                    >回滚</a-button
+                    content="确认以该历史版本为模板回滚？会生成并生效一个更高版本。"
+                    @ok="doRollbackTemplate(record)"
                   >
+                    <a-button type="text">回滚</a-button>
+                  </a-popconfirm>
                   <span v-else>—</span>
                 </template>
               </a-table-column>
@@ -197,21 +202,26 @@
                   {{ templateStatusLabel(record.status) }}</template
                 >
               </a-table-column>
-              <a-table-column title="操作" :width="140">
+              <a-table-column title="操作" :width="200">
                 <template #cell="{ record }">
-                  <a-button
-                    v-if="canManage && record.status === 'draft'"
-                    type="text"
-                    status="success"
-                    @click="doActivateSubmitRule(record)"
-                    >生效</a-button
-                  >
-                  <a-button
+                  <template v-if="canManage && record.status === 'draft'">
+                    <a-button type="text" @click="openSubmitEdit(record)"
+                      >编辑</a-button
+                    >
+                    <a-popconfirm
+                      content="确认让该草稿提交规则生效？同层现有生效版本会转为历史版本。"
+                      @ok="doActivateSubmitRule(record)"
+                    >
+                      <a-button type="text" status="success">生效</a-button>
+                    </a-popconfirm>
+                  </template>
+                  <a-popconfirm
                     v-else-if="canManage && record.status === 'history'"
-                    type="text"
-                    @click="doRollbackSubmitRule(record)"
-                    >回滚</a-button
+                    content="确认以该历史版本为模板回滚？会生成并生效一个更高版本。"
+                    @ok="doRollbackSubmitRule(record)"
                   >
+                    <a-button type="text">回滚</a-button>
+                  </a-popconfirm>
                   <span v-else>—</span>
                 </template>
               </a-table-column>
@@ -270,21 +280,26 @@
                   {{ templateStatusLabel(record.status) }}</template
                 >
               </a-table-column>
-              <a-table-column title="操作" :width="140">
+              <a-table-column title="操作" :width="200">
                 <template #cell="{ record }">
-                  <a-button
-                    v-if="canManage && record.status === 'draft'"
-                    type="text"
-                    status="success"
-                    @click="doActivateApprovalFlow(record)"
-                    >生效</a-button
-                  >
-                  <a-button
+                  <template v-if="canManage && record.status === 'draft'">
+                    <a-button type="text" @click="openApprovalEdit(record)"
+                      >编辑</a-button
+                    >
+                    <a-popconfirm
+                      content="确认让该草稿审批流生效？同层现有生效版本会转为历史版本。"
+                      @ok="doActivateApprovalFlow(record)"
+                    >
+                      <a-button type="text" status="success">生效</a-button>
+                    </a-popconfirm>
+                  </template>
+                  <a-popconfirm
                     v-else-if="canManage && record.status === 'history'"
-                    type="text"
-                    @click="doRollbackApprovalFlow(record)"
-                    >回滚</a-button
+                    content="确认以该历史版本为模板回滚？会生成并生效一个更高版本。"
+                    @ok="doRollbackApprovalFlow(record)"
                   >
+                    <a-button type="text">回滚</a-button>
+                  </a-popconfirm>
                   <span v-else>—</span>
                 </template>
               </a-table-column>
@@ -355,26 +370,48 @@
 
     <a-modal
       v-model:visible="templateVisible"
-      title="新建结单表单模板（§3.4）"
+      :title="
+        templateEditing
+          ? '编辑结单表单模板（§3.4）'
+          : '新建结单表单模板（§3.4）'
+      "
       @ok="submitTemplate"
       @cancel="templateVisible = false"
     >
       <a-form :model="templateForm">
         <a-form-item label="模板编号" required>
-          <a-input v-model="templateForm.code" :max-length="48" />
+          <a-input
+            v-model="templateForm.code"
+            :max-length="48"
+            :disabled="templateEditing !== null"
+          />
         </a-form-item>
         <a-form-item label="名称" required>
           <a-input v-model="templateForm.name" :max-length="64" />
         </a-form-item>
         <a-form-item label="适用范围" required>
-          <a-select v-model="templateForm.scope">
+          <a-select
+            v-model="templateForm.scope"
+            @change="onTemplateScopeChange"
+          >
             <a-option value="global">全局</a-option>
             <a-option value="game">按游戏分区</a-option>
             <a-option value="sku">按 SKU</a-option>
+            <a-option value="order_type">按订单类型（即时 / 预约）</a-option>
           </a-select>
         </a-form-item>
         <a-form-item
-          v-if="templateForm.scope !== 'global'"
+          v-if="templateForm.scope === 'order_type'"
+          label="订单类型"
+          required
+        >
+          <a-select v-model="templateForm.scopeKey">
+            <a-option value="instant">即时单（instant）</a-option>
+            <a-option value="request">预约单（request）</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item
+          v-else-if="templateForm.scope !== 'global'"
           label="范围键"
           required
         >
@@ -428,13 +465,19 @@
 
     <a-modal
       v-model:visible="submitVisible"
-      title="新建结单提交规则（§3.4）"
+      :title="
+        submitEditing ? '编辑结单提交规则（§3.4）' : '新建结单提交规则（§3.4）'
+      "
       @ok="submitSubmitRule"
       @cancel="submitVisible = false"
     >
       <a-form :model="submitForm">
         <a-form-item label="规则编号" required>
-          <a-input v-model="submitForm.code" :max-length="48" />
+          <a-input
+            v-model="submitForm.code"
+            :max-length="48"
+            :disabled="submitEditing !== null"
+          />
         </a-form-item>
         <a-form-item label="名称" required>
           <a-input v-model="submitForm.name" :max-length="64" />
@@ -499,14 +542,20 @@
 
     <a-modal
       v-model:visible="approvalVisible"
-      title="新建结单审批流（§3.4）"
+      :title="
+        approvalEditing ? '编辑结单审批流（§3.4）' : '新建结单审批流（§3.4）'
+      "
       width="640px"
       @ok="submitApprovalFlow"
       @cancel="approvalVisible = false"
     >
       <a-form :model="approvalForm">
         <a-form-item label="流程编号" required>
-          <a-input v-model="approvalForm.code" :max-length="48" />
+          <a-input
+            v-model="approvalForm.code"
+            :max-length="48"
+            :disabled="approvalEditing !== null"
+          />
         </a-form-item>
         <a-form-item label="名称" required>
           <a-input v-model="approvalForm.name" :max-length="64" />
@@ -613,20 +662,32 @@
     rollbackCloseFormTemplate,
     rollbackCloseSubmitRule,
     setCloseFormFieldStatus,
+    updateCloseApprovalFlow,
     updateCloseFormField,
+    updateCloseFormTemplate,
+    updateCloseSubmitRule,
   } from '../../api';
   import type {
+    CloseApprovalFlowInput,
     CloseApprovalRole,
     CloseFormFieldType,
     CloseFormScope,
     CloseFormStatus,
+    CloseFormTemplateInput,
     CloseSubmitMode,
     CloseSubmitOnMissing,
+    CloseSubmitRuleInput,
     EsportsCloseApprovalFlow,
     EsportsCloseFormField,
     EsportsCloseFormTemplate,
     EsportsCloseSubmitRule,
   } from '../../api';
+
+  // 模板适用范围在后端 schema（esports_close_form.scope）里多一个 order_type（§3.4-07），
+  // api.ts 的 CloseFormScope 尚未声明（本轮不改 api.ts），这里在视图内扩展。
+  // 提交规则 / 审批流的 scope 枚举仍只有 global / game / sku。
+  type CloseFormScopeExt = CloseFormScope | 'order_type';
+  const orderTypeScopeKeys = ['instant', 'request'];
 
   const fieldTypeLabels: Record<CloseFormFieldType, string> = {
     text: '文本',
@@ -686,10 +747,15 @@
           }）`
       )
       .join(' → ') || '—';
-  const templateScopeLabel = (item: EsportsCloseFormTemplate) =>
-    item.scope === 'global'
-      ? '全局'
-      : `${item.scope === 'game' ? '游戏分区' : 'SKU'}：${item.scope_key}`;
+  const templateScopeLabel = (item: EsportsCloseFormTemplate) => {
+    const scope = item.scope as CloseFormScopeExt;
+    if (scope === 'global') return '全局';
+    if (scope === 'order_type')
+      return `订单类型：${
+        item.scope_key === 'request' ? '预约单' : '即时单'
+      }（${item.scope_key}）`;
+    return `${scope === 'game' ? '游戏分区' : 'SKU'}：${item.scope_key}`;
+  };
   const amountRangeLabel = (item: EsportsCloseFormTemplate) => {
     const min =
       item.min_cents > 0 ? `¥${(item.min_cents / 100).toFixed(2)}` : '不限';
@@ -838,10 +904,11 @@
 
   // ── 表单模板 ──
   const templateVisible = ref(false);
+  const templateEditing = ref<EsportsCloseFormTemplate | null>(null);
   const templateForm = reactive({
     code: '',
     name: '',
-    scope: 'global' as CloseFormScope,
+    scope: 'global' as CloseFormScopeExt,
     scopeKey: '',
     minYuan: 0,
     maxYuan: 0,
@@ -874,6 +941,7 @@
   }
 
   function openTemplateCreate() {
+    templateEditing.value = null;
     templateForm.code = '';
     templateForm.name = '';
     templateForm.scope = 'global';
@@ -885,39 +953,86 @@
     templateVisible.value = true;
   }
 
+  // 编辑草稿：后端只允许 draft 修改（生效后须「新建同 code 新版本」或回滚）。
+  function openTemplateEdit(record: EsportsCloseFormTemplate) {
+    templateEditing.value = record;
+    templateForm.code = record.code;
+    templateForm.name = record.name;
+    templateForm.scope = record.scope as CloseFormScopeExt;
+    templateForm.scopeKey = record.scope_key;
+    templateForm.minYuan = record.min_cents / 100;
+    templateForm.maxYuan = record.max_cents / 100;
+    templateForm.bindings = (record.fields || [])
+      .slice()
+      .sort((a, b) => a.sort - b.sort)
+      .map((binding) => ({
+        fieldKey: binding.field_key,
+        required: binding.required,
+      }));
+    templateForm.note = record.note;
+    templateVisible.value = true;
+  }
+
+  // 切换范围时清掉旧的 scope_key，避免把 SKU 编号当成订单类型提交被后端拒绝。
+  function onTemplateScopeChange() {
+    if (templateForm.scope === 'global') {
+      templateForm.scopeKey = '';
+    } else if (templateForm.scope === 'order_type') {
+      if (!orderTypeScopeKeys.includes(templateForm.scopeKey))
+        templateForm.scopeKey = 'instant';
+    } else {
+      templateForm.scopeKey = '';
+    }
+  }
+
   async function submitTemplate() {
     if (!templateForm.code.trim() || !templateForm.name.trim()) {
       Message.warning('请填写模板编号与名称');
       return;
     }
     if (templateForm.scope !== 'global' && !templateForm.scopeKey.trim()) {
-      Message.warning('请填写范围键');
+      Message.warning(
+        templateForm.scope === 'order_type' ? '请选择订单类型' : '请填写范围键'
+      );
       return;
     }
     if (templateForm.bindings.length === 0) {
       Message.warning('请至少绑定一个字段');
       return;
     }
+    const payload: CloseFormTemplateInput = {
+      code: templateForm.code.trim(),
+      name: templateForm.name.trim(),
+      // 模板 scope 在后端已支持 order_type，api.ts 的联合类型尚未包含，此处显式断言。
+      scope: templateForm.scope as CloseFormScope,
+      scope_key: templateForm.scopeKey.trim(),
+      min_cents: Math.round(templateForm.minYuan * 100),
+      max_cents: Math.round(templateForm.maxYuan * 100),
+      fields: templateForm.bindings.map((binding, index) => ({
+        field_key: binding.fieldKey,
+        required: binding.required,
+        sort: index + 1,
+      })),
+      note: templateForm.note.trim(),
+    };
     try {
-      await createCloseFormTemplate({
-        code: templateForm.code.trim(),
-        name: templateForm.name.trim(),
-        scope: templateForm.scope,
-        scope_key: templateForm.scopeKey.trim(),
-        min_cents: Math.round(templateForm.minYuan * 100),
-        max_cents: Math.round(templateForm.maxYuan * 100),
-        fields: templateForm.bindings.map((binding, index) => ({
-          field_key: binding.fieldKey,
-          required: binding.required,
-          sort: index + 1,
-        })),
-        note: templateForm.note.trim(),
-      });
+      if (templateEditing.value) {
+        await updateCloseFormTemplate(
+          templateEditing.value.id,
+          templateEditing.value.version,
+          { ...payload, code: templateEditing.value.code }
+        );
+        Message.success('已保存模板草稿（须「生效」后才作用于结单）');
+      } else {
+        await createCloseFormTemplate(payload);
+        Message.success('已创建草稿模板，需“生效”后才会作用于结单');
+      }
       templateVisible.value = false;
-      Message.success('已创建草稿模板，需“生效”后才会作用于结单');
       await loadTemplates();
     } catch (err) {
-      Message.error(errorText(err, '创建失败：字段已停用或参数非法'));
+      Message.error(
+        errorText(err, '保存失败：仅草稿可编辑，或字段已停用 / 参数非法')
+      );
     }
   }
 
@@ -945,6 +1060,7 @@
   const submitRules = ref<EsportsCloseSubmitRule[]>([]);
   const submitLoading = ref(false);
   const submitVisible = ref(false);
+  const submitEditing = ref<EsportsCloseSubmitRule | null>(null);
   const submitForm = reactive({
     code: '',
     name: '',
@@ -969,6 +1085,7 @@
   }
 
   function openSubmitCreate() {
+    submitEditing.value = null;
     submitForm.code = '';
     submitForm.name = '';
     submitForm.scope = 'global';
@@ -981,6 +1098,21 @@
     submitVisible.value = true;
   }
 
+  // 编辑草稿提交规则：code 不可改，须带 expected_version（后端只允许 draft 修改）。
+  function openSubmitEdit(record: EsportsCloseSubmitRule) {
+    submitEditing.value = record;
+    submitForm.code = record.code;
+    submitForm.name = record.name;
+    submitForm.scope = record.scope;
+    submitForm.scopeKey = record.scope_key;
+    submitForm.mode = record.mode;
+    submitForm.ratioPercent = record.min_submit_ratio_bp / 100;
+    submitForm.allowSubstitute = record.allow_substitute;
+    submitForm.onMissing = record.on_missing;
+    submitForm.note = record.note;
+    submitVisible.value = true;
+  }
+
   async function submitSubmitRule() {
     if (!submitForm.code.trim() || !submitForm.name.trim()) {
       Message.warning('请填写规则编号与名称');
@@ -990,27 +1122,37 @@
       Message.warning('请填写范围键');
       return;
     }
+    const payload: CloseSubmitRuleInput = {
+      code: submitForm.code.trim(),
+      name: submitForm.name.trim(),
+      scope: submitForm.scope,
+      scope_key: submitForm.scopeKey.trim(),
+      mode: submitForm.mode,
+      min_submit_ratio_bp:
+        submitForm.mode === 'custom'
+          ? Math.round(submitForm.ratioPercent * 100)
+          : 0,
+      allow_substitute: submitForm.allowSubstitute,
+      on_missing: submitForm.onMissing,
+      note: submitForm.note.trim(),
+    };
     try {
-      await createCloseSubmitRule({
-        code: submitForm.code.trim(),
-        name: submitForm.name.trim(),
-        scope: submitForm.scope,
-        scope_key: submitForm.scopeKey.trim(),
-        mode: submitForm.mode,
-        min_submit_ratio_bp:
-          submitForm.mode === 'custom'
-            ? Math.round(submitForm.ratioPercent * 100)
-            : 0,
-        allow_substitute: submitForm.allowSubstitute,
-        on_missing: submitForm.onMissing,
-        note: submitForm.note.trim(),
-      });
+      if (submitEditing.value) {
+        await updateCloseSubmitRule(
+          submitEditing.value.id,
+          submitEditing.value.version,
+          { ...payload, code: submitEditing.value.code }
+        );
+        Message.success('已保存规则草稿（须「生效」后才作用于结单）');
+      } else {
+        await createCloseSubmitRule(payload);
+        Message.success('已创建草稿规则，需“生效”后才会作用于结单');
+      }
       submitVisible.value = false;
-      Message.success('已创建草稿规则，需“生效”后才会作用于结单');
       await loadSubmitRules();
     } catch (err) {
       Message.error(
-        errorText(err, '创建失败：自定义模式须填提交比例或参数非法')
+        errorText(err, '保存失败：仅草稿可编辑，或自定义模式须填提交比例')
       );
     }
   }
@@ -1039,6 +1181,7 @@
   const approvalFlows = ref<EsportsCloseApprovalFlow[]>([]);
   const approvalLoading = ref(false);
   const approvalVisible = ref(false);
+  const approvalEditing = ref<EsportsCloseApprovalFlow | null>(null);
   const approvalForm = reactive<{
     code: string;
     name: string;
@@ -1100,6 +1243,7 @@
   }
 
   function openApprovalCreate() {
+    approvalEditing.value = null;
     approvalForm.code = '';
     approvalForm.name = '';
     approvalForm.scope = 'global';
@@ -1107,6 +1251,28 @@
     approvalForm.minYuan = 0;
     approvalForm.nodes = [emptyNode()];
     approvalForm.note = '';
+    approvalVisible.value = true;
+  }
+
+  // 编辑草稿审批流：节点回填为可编辑行，code 不可改，须带 expected_version。
+  function openApprovalEdit(record: EsportsCloseApprovalFlow) {
+    approvalEditing.value = record;
+    approvalForm.code = record.code;
+    approvalForm.name = record.name;
+    approvalForm.scope = record.scope;
+    approvalForm.scopeKey = record.scope_key;
+    approvalForm.minYuan = record.min_cents / 100;
+    approvalForm.nodes = (record.nodes || [])
+      .slice()
+      .sort((a, b) => a.seq - b.seq)
+      .map((node) => ({
+        name: node.name,
+        role: node.role,
+        timeoutHours: node.timeout_hours,
+        autoPassOnTimeout: node.auto_pass_on_timeout,
+        involvesFunds: node.involves_funds,
+      }));
+    approvalForm.note = record.note;
     approvalVisible.value = true;
   }
 
@@ -1127,28 +1293,40 @@
       Message.warning('请填写每个节点的名称');
       return;
     }
+    const payload: CloseApprovalFlowInput = {
+      code: approvalForm.code.trim(),
+      name: approvalForm.name.trim(),
+      scope: approvalForm.scope,
+      scope_key: approvalForm.scopeKey.trim(),
+      min_cents: Math.round(approvalForm.minYuan * 100),
+      nodes: approvalForm.nodes.map((node, index) => ({
+        seq: index + 1,
+        name: node.name.trim(),
+        role: node.role,
+        timeout_hours: node.timeoutHours,
+        auto_pass_on_timeout: node.autoPassOnTimeout,
+        involves_funds: node.involvesFunds,
+      })),
+      note: approvalForm.note.trim(),
+    };
     try {
-      await createCloseApprovalFlow({
-        code: approvalForm.code.trim(),
-        name: approvalForm.name.trim(),
-        scope: approvalForm.scope,
-        scope_key: approvalForm.scopeKey.trim(),
-        min_cents: Math.round(approvalForm.minYuan * 100),
-        nodes: approvalForm.nodes.map((node, index) => ({
-          seq: index + 1,
-          name: node.name.trim(),
-          role: node.role,
-          timeout_hours: node.timeoutHours,
-          auto_pass_on_timeout: node.autoPassOnTimeout,
-          involves_funds: node.involvesFunds,
-        })),
-        note: approvalForm.note.trim(),
-      });
+      if (approvalEditing.value) {
+        await updateCloseApprovalFlow(
+          approvalEditing.value.id,
+          approvalEditing.value.version,
+          { ...payload, code: approvalEditing.value.code }
+        );
+        Message.success('已保存审批流草稿（须「生效」后才作用于结单）');
+      } else {
+        await createCloseApprovalFlow(payload);
+        Message.success('已创建草稿审批流，需“生效”后才会作用于结单');
+      }
       approvalVisible.value = false;
-      Message.success('已创建草稿审批流，需“生效”后才会作用于结单');
       await loadApprovalFlows();
     } catch (err) {
-      Message.error(errorText(err, '创建失败：资金节点不能自动通过或参数非法'));
+      Message.error(
+        errorText(err, '保存失败：仅草稿可编辑，资金节点不能自动通过')
+      );
     }
   }
 

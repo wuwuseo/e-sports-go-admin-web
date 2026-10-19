@@ -1,312 +1,412 @@
 <template>
   <div class="container page-container">
-    <a-card class="general-card" title="排单看板">
-      <a-space class="toolbar" wrap>
-        <a-button :loading="loading" @click="load()">刷新</a-button>
-        <a-tag color="arcoblue">在线陪玩：{{ onlinePlayers }}</a-tag>
-        <a-checkbox v-model="remindPrioritySort" @change="toggleRemindSort"
-          >按催单优先级排序</a-checkbox
-        >
-        <a-typography-text type="secondary" class="hint"
-          >状态变更后看板每 5 秒自动刷新一次</a-typography-text
-        >
-      </a-space>
-
-      <a-tabs v-model:active-key="activeBucket">
-        <a-tab-pane
-          v-for="bucket in buckets"
-          :key="bucket.key"
-          :title="`${bucket.title}（${countOf(bucket.key)}）`"
-        />
-      </a-tabs>
-
-      <a-table
-        :data="currentOrders"
-        :loading="loading"
-        row-key="id"
-        :pagination="{ pageSize: 20 }"
-      >
-        <template #columns>
-          <a-table-column data-index="order_no" title="订单号" />
-          <a-table-column title="客户 / 商品">
-            <template #cell="{ record }">
-              <template v-if="maskedPoolIds.includes(record.id)"
-                >*** / {{ record.sku_id }}</template
-              >
-              <template v-else
-                >{{ record.customer_id }} / {{ record.sku_id }}</template
-              >
-            </template>
-          </a-table-column>
-          <a-table-column title="应付金额">
-            <template #cell="{ record }">
-              <template v-if="maskedPoolIds.includes(record.id)">***</template>
-              <template v-else>{{ money(record.payable_cents) }}</template>
-            </template>
-          </a-table-column>
-          <a-table-column data-index="fulfillment_status" title="履约状态" />
-          <a-table-column title="优先通知">
-            <template #cell="{ record }">
-              <template v-if="record.priority_notice_status === 'pending'">
-                <a-tag color="orangered"
-                  >通知中 · 至
-                  {{ fmtMinute(record.priority_notice_until) }}</a-tag
-                >
-              </template>
-              <template
-                v-else-if="record.priority_notice_status === 'accepted'"
-              >
-                <a-tag color="green">名单内已接单</a-tag>
-              </template>
-              <template
-                v-else-if="record.priority_notice_status === 'released'"
-              >
-                <a-tag color="gray">已释放到大厅</a-tag>
-              </template>
-              <span v-else>—</span>
-            </template>
-          </a-table-column>
-          <a-table-column title="会员优先" :width="100">
-            <template #cell="{ record }">
-              <a-tag v-if="memberPriorityIds.includes(record.id)" color="gold"
-                >会员优先</a-tag
-              >
-              <span v-else>—</span>
-            </template>
-          </a-table-column>
-          <a-table-column title="负责客服">
-            <template #cell="{ record }">{{
-              record.responsible_admin_id || '—'
-            }}</template>
-          </a-table-column>
-          <a-table-column title="操作" :width="380">
-            <template #cell="{ record }">
-              <a-button type="text" @click="openSeats(record)">席位</a-button>
-              <a-button
-                v-if="record.priority_notice_status !== 'none'"
-                type="text"
-                @click="openNotices(record)"
-                >通知明细</a-button
-              >
-              <template v-if="canOperate">
-                <a-button
-                  v-if="
-                    record.fulfillment_status === 'pending_dispatch' &&
-                    !record.responsible_admin_id
-                  "
-                  type="text"
-                  status="success"
-                  @click="handleClaim(record)"
-                  >认领</a-button
-                >
-                <a-button type="text" @click="openAssign(record)"
-                  >指派</a-button
-                >
-                <a-button
-                  v-if="record.priority_notice_status === 'pending'"
-                  type="text"
-                  status="danger"
-                  @click="handleReleasePriority(record)"
-                  >释放到大厅</a-button
-                >
-                <a-button
-                  v-if="
-                    record.fulfillment_status === 'pending_dispatch' &&
-                    record.priority_notice_status !== 'pending' &&
-                    record.required_seats === 1
-                  "
-                  type="text"
-                  status="warning"
-                  @click="handlePublishGrab(record)"
-                  >发布抢单</a-button
-                >
-                <a-button type="text" @click="openTransfer(record)"
-                  >转单</a-button
-                >
-                <a-button type="text" @click="openRemind(record)"
-                  >催单</a-button
-                >
-                <a-button
-                  v-if="record.fulfillment_status === 'pending_close'"
-                  type="text"
-                  status="success"
-                  @click="handleApproveClose(record)"
-                  >复核结单</a-button
-                >
-                <a-button
-                  v-if="record.fulfillment_status === 'pending_close'"
-                  type="text"
-                  status="danger"
-                  @click="openCloseReject(record)"
-                  >驳回结单</a-button
-                >
-                <a-button
-                  v-if="record.fulfillment_status === 'in_service'"
-                  type="text"
-                  status="warning"
-                  @click="openAddon(record)"
-                  >加钟</a-button
-                >
-              </template>
-            </template>
-          </a-table-column>
-        </template>
-      </a-table>
-    </a-card>
-
-    <a-card class="general-card card-block" title="优先派单权（§5.4）">
-      <a-space class="toolbar" wrap>
-        <a-input
-          v-model="priorityFilters.game"
-          placeholder="游戏分区"
-          :style="{ width: '180px' }"
-        />
-        <a-select
-          v-model="priorityFilters.status"
-          placeholder="状态"
-          allow-clear
-          :style="{ width: '140px' }"
-        >
-          <a-option
-            v-for="option in priorityStatusOptions"
-            :key="option.value"
-            :value="option.value"
-            >{{ option.label }}</a-option
-          >
-        </a-select>
-        <a-button :loading="priorityLoading" @click="loadPriority"
-          >查询</a-button
-        >
-        <a-button v-if="canOperate" type="primary" @click="openPriorityGrant"
-          >授予优先派单权</a-button
-        >
-      </a-space>
-      <a-typography-text type="secondary" class="toolbar">
-        订单进入待派单时只通知本游戏分区名单内的陪玩，**其他人看不到该单**；名单内全部拒绝或超过通知时长（
-        <code>app.esports.dispatch_priority_notice_minutes</code>
-        ）后订单才释放到抢单大厅给所有人抢。每游戏每期名额上限取
-        <code>app.esports.dispatch_priority_quota</code>，周期重算任务
-        <code>esports_rebuild_dispatch_priority</code>，超时释放任务
-        <code>esports_expire_dispatch_priority_notice</code>。
-      </a-typography-text>
-      <a-table
-        :data="priorityGrants"
-        :loading="priorityLoading"
-        row-key="id"
-        :pagination="{ pageSize: 10 }"
-      >
-        <template #columns>
-          <a-table-column data-index="game" title="游戏分区" />
-          <a-table-column data-index="player_id" title="陪玩" :width="80" />
-          <a-table-column data-index="period" title="周期" :width="100" />
-          <a-table-column title="生效区间">
-            <template #cell="{ record }"
-              >{{ fmtMinute(record.period_start) }} ~
-              {{ fmtMinute(record.period_end) }}</template
+    <a-tabs v-model:active-key="mainTab">
+      <a-tab-pane key="board" title="派单看板">
+        <a-card class="general-card" title="排单看板">
+          <a-space class="toolbar" wrap>
+            <a-button :loading="loading" @click="load()">刷新</a-button>
+            <a-tag color="arcoblue">在线陪玩：{{ onlinePlayers }}</a-tag>
+            <a-checkbox v-model="remindPrioritySort" @change="toggleRemindSort"
+              >按催单优先级排序</a-checkbox
             >
-          </a-table-column>
-          <a-table-column data-index="rank" title="排名" :width="70" />
-          <a-table-column title="获得方式">
-            <template #cell="{ record }">{{
-              prioritySourceLabel(record.source)
-            }}</template>
-          </a-table-column>
-          <a-table-column title="状态">
-            <template #cell="{ record }">
-              <a-tag :color="priorityStatusColor(record.status)">{{
-                priorityStatusLabel(record.status)
-              }}</a-tag>
-            </template>
-          </a-table-column>
-          <a-table-column data-index="note" title="备注" />
-          <a-table-column title="操作" :width="100">
-            <template #cell="{ record }">
-              <a-button
-                v-if="
-                  canOperate &&
-                  (record.status === 'active' || record.status === 'pending')
-                "
-                type="text"
-                status="danger"
-                @click="openPriorityRevoke(record)"
-                >移出名单</a-button
-              >
-              <span v-else>-</span>
-            </template>
-          </a-table-column>
-        </template>
-      </a-table>
-    </a-card>
+            <a-typography-text type="secondary" class="hint"
+              >状态变更后看板每 5 秒自动刷新一次</a-typography-text
+            >
+          </a-space>
 
-    <a-card class="general-card card-block" title="陪玩转单申请（§5.7）">
-      <a-space class="toolbar" wrap>
-        <a-select
-          v-model="transferFilters.status"
-          placeholder="状态"
-          allow-clear
-          :style="{ width: '160px' }"
-        >
-          <a-option
-            v-for="option in transferStatusOptions"
-            :key="option.value"
-            :value="option.value"
-            >{{ option.label }}</a-option
+          <a-tabs v-model:active-key="activeBucket">
+            <a-tab-pane
+              v-for="bucket in buckets"
+              :key="bucket.key"
+              :title="`${bucket.title}（${countOf(bucket.key)}）`"
+            />
+          </a-tabs>
+
+          <a-table
+            :data="currentOrders"
+            :loading="loading"
+            row-key="id"
+            :pagination="{ pageSize: 20 }"
           >
-        </a-select>
-        <a-button :loading="transfersLoading" @click="loadTransfers"
-          >查询</a-button
-        >
-      </a-space>
-      <a-typography-text type="secondary" class="toolbar">
-        陪玩接单后未开始服务时方可发起转单；**确认前席位与订单状态都不变**，确认通过才释放该席位为待补位。
-        已开始服务的转单属售后补履约范畴，不在此处理。
-      </a-typography-text>
-      <a-table
-        :data="transfers"
-        :loading="transfersLoading"
-        row-key="id"
-        :pagination="{ pageSize: 10 }"
-      >
-        <template #columns>
-          <a-table-column data-index="order_id" title="订单" :width="90" />
-          <a-table-column data-index="seat_index" title="席位" :width="70" />
-          <a-table-column data-index="player_id" title="陪玩" :width="80" />
-          <a-table-column data-index="reason" title="转单原因" />
-          <a-table-column title="状态">
-            <template #cell="{ record }">
-              <a-tag :color="transferStatusColor(record.status)">{{
-                transferStatusLabel(record.status)
-              }}</a-tag>
+            <template #columns>
+              <a-table-column data-index="order_no" title="订单号" />
+              <a-table-column title="客户 / 商品">
+                <template #cell="{ record }">
+                  <template v-if="maskedPoolIds.includes(record.id)"
+                    >*** / {{ record.sku_id }}</template
+                  >
+                  <template v-else
+                    >{{ record.customer_id }} / {{ record.sku_id }}</template
+                  >
+                </template>
+              </a-table-column>
+              <a-table-column title="应付金额">
+                <template #cell="{ record }">
+                  <template v-if="maskedPoolIds.includes(record.id)"
+                    >***</template
+                  >
+                  <template v-else>{{ money(record.payable_cents) }}</template>
+                </template>
+              </a-table-column>
+              <a-table-column
+                data-index="fulfillment_status"
+                title="履约状态"
+              />
+              <a-table-column title="优先通知">
+                <template #cell="{ record }">
+                  <template v-if="record.priority_notice_status === 'pending'">
+                    <a-tag color="orangered"
+                      >通知中 · 至
+                      {{ fmtMinute(record.priority_notice_until) }}</a-tag
+                    >
+                  </template>
+                  <template
+                    v-else-if="record.priority_notice_status === 'accepted'"
+                  >
+                    <a-tag color="green">名单内已接单</a-tag>
+                  </template>
+                  <template
+                    v-else-if="record.priority_notice_status === 'released'"
+                  >
+                    <a-tag color="gray">已释放到大厅</a-tag>
+                  </template>
+                  <span v-else>—</span>
+                </template>
+              </a-table-column>
+              <a-table-column title="会员优先" :width="100">
+                <template #cell="{ record }">
+                  <a-tag
+                    v-if="memberPriorityIds.includes(record.id)"
+                    color="gold"
+                    >会员优先</a-tag
+                  >
+                  <span v-else>—</span>
+                </template>
+              </a-table-column>
+              <a-table-column title="负责客服">
+                <template #cell="{ record }">{{
+                  record.responsible_admin_id || '—'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="操作" :width="380">
+                <template #cell="{ record }">
+                  <a-button type="text" @click="openSeats(record)"
+                    >席位</a-button
+                  >
+                  <a-button
+                    v-if="record.priority_notice_status !== 'none'"
+                    type="text"
+                    @click="openNotices(record)"
+                    >通知明细</a-button
+                  >
+                  <template v-if="canOperate">
+                    <a-button
+                      v-if="
+                        record.fulfillment_status === 'pending_dispatch' &&
+                        !record.responsible_admin_id
+                      "
+                      type="text"
+                      status="success"
+                      @click="handleClaim(record)"
+                      >认领</a-button
+                    >
+                    <a-button type="text" @click="openAssign(record)"
+                      >指派</a-button
+                    >
+                    <a-button
+                      v-if="record.priority_notice_status === 'pending'"
+                      type="text"
+                      status="danger"
+                      @click="handleReleasePriority(record)"
+                      >释放到大厅</a-button
+                    >
+                    <a-button
+                      v-if="
+                        record.fulfillment_status === 'pending_dispatch' &&
+                        record.priority_notice_status !== 'pending' &&
+                        record.required_seats === 1
+                      "
+                      type="text"
+                      status="warning"
+                      @click="handlePublishGrab(record)"
+                      >发布抢单</a-button
+                    >
+                    <a-button type="text" @click="openTransfer(record)"
+                      >转单</a-button
+                    >
+                    <a-button type="text" @click="openRemind(record)"
+                      >催单</a-button
+                    >
+                    <a-button
+                      v-if="record.fulfillment_status === 'pending_close'"
+                      type="text"
+                      status="success"
+                      @click="handleApproveClose(record)"
+                      >复核结单</a-button
+                    >
+                    <a-button
+                      v-if="record.fulfillment_status === 'pending_close'"
+                      type="text"
+                      status="danger"
+                      @click="openCloseReject(record)"
+                      >驳回结单</a-button
+                    >
+                    <a-button
+                      v-if="record.fulfillment_status === 'in_service'"
+                      type="text"
+                      status="warning"
+                      @click="openAddon(record)"
+                      >加钟</a-button
+                    >
+                  </template>
+                </template>
+              </a-table-column>
             </template>
-          </a-table-column>
-          <a-table-column title="处理时间">
-            <template #cell="{ record }">{{
-              fmtMinute(record.decided_at)
-            }}</template>
-          </a-table-column>
-          <a-table-column data-index="decision_note" title="处理备注" />
-          <a-table-column title="操作" :width="140">
-            <template #cell="{ record }">
-              <template v-if="canOperate && record.status === 'pending'">
-                <a-button
-                  type="text"
-                  status="success"
-                  @click="doDecideTransfer(record, true)"
-                  >通过</a-button
+          </a-table>
+        </a-card>
+
+        <a-card class="general-card card-block" title="客服坐班状态（§1.1-08）">
+          <a-space class="toolbar" wrap>
+            <a-select
+              v-model="presenceForm.presence"
+              :style="{ width: '140px' }"
+              :disabled="!canWritePresence"
+              placeholder="坐班状态"
+            >
+              <a-option
+                v-for="option in csPresenceOptions"
+                :key="option.value"
+                :value="option.value"
+                >{{ option.label }}</a-option
+              >
+            </a-select>
+            <a-select
+              v-if="isSuperAdmin"
+              v-model="presenceForm.adminId"
+              :style="{ width: '180px' }"
+              placeholder="代打点客服（留空即本人）"
+              allow-clear
+            >
+              <a-option
+                v-for="admin in presences?.admins || []"
+                :key="admin.admin_id"
+                :value="admin.admin_id"
+                >{{ admin.nickname || admin.username }}</a-option
+              >
+            </a-select>
+            <a-popconfirm
+              v-if="canWritePresence"
+              :content="`确认把${presenceTargetLabel}的坐班状态改为「${csPresenceLabel(
+                presenceForm.presence
+              )}」？`"
+              @ok="submitPresence"
+            >
+              <a-button type="primary" :loading="presenceSaving"
+                >更新坐班状态</a-button
+              >
+            </a-popconfirm>
+            <a-button :loading="presencesLoading" @click="loadPresences"
+              >刷新在线状态</a-button
+            >
+          </a-space>
+          <a-typography-text type="secondary" class="toolbar">
+            在线状态以 presence 表为权威，超过
+            {{ presences?.offline_timeout_minutes ?? '—' }}
+            分钟无活动按离线口径展示；只有超管可代他人打点，客服只能改本人状态。
+            人工置为离线后**不会被下一次心跳自动改回在线**（自动上线只对心跳超时被动下线的陪玩生效）。
+          </a-typography-text>
+          <a-space class="toolbar" wrap>
+            <a-tag
+              v-for="admin in presences?.admins || []"
+              :key="admin.admin_id"
+              :color="csPresenceColor(admin.presence)"
+              >{{ admin.nickname || admin.username }} ·
+              {{ csPresenceLabel(admin.presence) }}</a-tag
+            >
+            <a-typography-text
+              v-if="!(presences?.admins || []).length"
+              type="secondary"
+              >暂无客服在线档案</a-typography-text
+            >
+          </a-space>
+        </a-card>
+      </a-tab-pane>
+
+      <a-tab-pane key="priority" title="优先派单名单">
+        <a-card class="general-card card-block" title="优先派单权（§5.4）">
+          <a-space class="toolbar" wrap>
+            <a-select
+              v-model="priorityFilters.game"
+              placeholder="游戏分区"
+              allow-clear
+              :style="{ width: '180px' }"
+            >
+              <a-option v-for="game in gameOptions" :key="game" :value="game">{{
+                game
+              }}</a-option>
+            </a-select>
+            <a-select
+              v-model="priorityFilters.status"
+              placeholder="状态"
+              allow-clear
+              :style="{ width: '140px' }"
+            >
+              <a-option
+                v-for="option in priorityStatusOptions"
+                :key="option.value"
+                :value="option.value"
+                >{{ option.label }}</a-option
+              >
+            </a-select>
+            <a-button :loading="priorityLoading" @click="loadPriority"
+              >查询</a-button
+            >
+            <a-button
+              v-if="canManagePriority"
+              type="primary"
+              @click="openPriorityGrant"
+              >授予优先派单权</a-button
+            >
+          </a-space>
+          <a-typography-text type="secondary" class="toolbar">
+            订单进入待派单时只通知本游戏分区名单内的陪玩，**其他人看不到该单**；名单内全部拒绝或超过通知时长（
+            <code>app.esports.dispatch_priority_notice_minutes</code>
+            ）后订单才释放到抢单大厅给所有人抢。每游戏每期名额上限取
+            <code>app.esports.dispatch_priority_quota</code>，周期重算任务
+            <code>esports_rebuild_dispatch_priority</code>，超时释放任务
+            <code>esports_expire_dispatch_priority_notice</code>。
+            名单的「游戏分区」是**准入校验字段**：必须与启用中的商品分类一致，填错后端直接拒绝。
+            连接异常（<code>protected_abnormal</code>，心跳超时且仍在途）的陪玩**不会**进入优先通知名单，也不会被派单。
+          </a-typography-text>
+          <a-table
+            :data="priorityGrants"
+            :loading="priorityLoading"
+            row-key="id"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column data-index="game" title="游戏分区" />
+              <a-table-column data-index="player_id" title="陪玩" :width="80" />
+              <a-table-column data-index="period" title="周期" :width="100" />
+              <a-table-column title="生效区间">
+                <template #cell="{ record }"
+                  >{{ fmtMinute(record.period_start) }} ~
+                  {{ fmtMinute(record.period_end) }}</template
                 >
-                <a-button
-                  type="text"
-                  status="danger"
-                  @click="openTransferReject(record)"
-                  >驳回</a-button
-                >
-              </template>
-              <span v-else>-</span>
+              </a-table-column>
+              <a-table-column data-index="rank" title="排名" :width="70" />
+              <a-table-column title="获得方式">
+                <template #cell="{ record }">{{
+                  prioritySourceLabel(record.source)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="状态">
+                <template #cell="{ record }">
+                  <a-tag :color="priorityStatusColor(record.status)">{{
+                    priorityStatusLabel(record.status)
+                  }}</a-tag>
+                </template>
+              </a-table-column>
+              <a-table-column data-index="note" title="备注" />
+              <a-table-column title="操作" :width="100">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="
+                      canManagePriority &&
+                      (record.status === 'active' ||
+                        record.status === 'pending')
+                    "
+                    type="text"
+                    status="danger"
+                    @click="openPriorityRevoke(record)"
+                    >移出名单</a-button
+                  >
+                  <span v-else>-</span>
+                </template>
+              </a-table-column>
             </template>
-          </a-table-column>
-        </template>
-      </a-table>
-    </a-card>
+          </a-table>
+        </a-card>
+      </a-tab-pane>
+
+      <a-tab-pane key="transfers" title="转单申请">
+        <a-card class="general-card card-block" title="陪玩转单申请（§5.7）">
+          <a-space class="toolbar" wrap>
+            <a-select
+              v-model="transferFilters.status"
+              placeholder="状态"
+              allow-clear
+              :style="{ width: '160px' }"
+            >
+              <a-option
+                v-for="option in transferStatusOptions"
+                :key="option.value"
+                :value="option.value"
+                >{{ option.label }}</a-option
+              >
+            </a-select>
+            <a-button :loading="transfersLoading" @click="loadTransfers"
+              >查询</a-button
+            >
+          </a-space>
+          <a-typography-text type="secondary" class="toolbar">
+            陪玩接单后未开始服务时方可发起转单；**确认前席位与订单状态都不变**，确认通过才释放该席位为待补位。
+            已开始服务的转单属售后补履约范畴，不在此处理。
+          </a-typography-text>
+          <a-table
+            :data="transfers"
+            :loading="transfersLoading"
+            row-key="id"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column data-index="order_id" title="订单" :width="90" />
+              <a-table-column
+                data-index="seat_index"
+                title="席位"
+                :width="70"
+              />
+              <a-table-column data-index="player_id" title="陪玩" :width="80" />
+              <a-table-column data-index="reason" title="转单原因" />
+              <a-table-column title="状态">
+                <template #cell="{ record }">
+                  <a-tag :color="transferStatusColor(record.status)">{{
+                    transferStatusLabel(record.status)
+                  }}</a-tag>
+                </template>
+              </a-table-column>
+              <a-table-column title="处理时间">
+                <template #cell="{ record }">{{
+                  fmtMinute(record.decided_at)
+                }}</template>
+              </a-table-column>
+              <a-table-column data-index="decision_note" title="处理备注" />
+              <a-table-column title="操作" :width="140">
+                <template #cell="{ record }">
+                  <template
+                    v-if="canManageTransfer && record.status === 'pending'"
+                  >
+                    <a-popconfirm
+                      content="确认通过该转单？通过后该席位立即释放为待补位。"
+                      @ok="doDecideTransfer(record, true)"
+                    >
+                      <a-button type="text" status="success">通过</a-button>
+                    </a-popconfirm>
+                    <a-button
+                      type="text"
+                      status="danger"
+                      @click="openTransferReject(record)"
+                      >驳回</a-button
+                    >
+                  </template>
+                  <span v-else>-</span>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+        </a-card>
+      </a-tab-pane>
+    </a-tabs>
 
     <a-drawer
       v-model:visible="seatsVisible"
@@ -404,6 +504,13 @@
       :footer="false"
     >
       <a-descriptions :column="1" size="small" bordered class="toolbar">
+        <a-descriptions-item label="窗口状态">
+          <a-tag
+            :color="priorityNoticeColor(noticeOrder?.priority_notice_status)"
+          >
+            {{ priorityNoticeLabel(noticeOrder?.priority_notice_status) }}
+          </a-tag>
+        </a-descriptions-item>
         <a-descriptions-item label="游戏分区">{{
           noticeOrder?.priority_game || '—'
         }}</a-descriptions-item>
@@ -414,6 +521,22 @@
           noticeOrder?.priority_release_reason || '—'
         }}</a-descriptions-item>
       </a-descriptions>
+      <a-space class="toolbar" wrap>
+        <a-popconfirm
+          v-if="
+            canOperate &&
+            noticeOrder &&
+            noticeOrder.priority_notice_status === 'pending'
+          "
+          content="确认提前释放该订单的优先通知窗口？释放后立即对抢单大厅全部陪玩开放。"
+          @ok="releaseNoticeWindow"
+        >
+          <a-button type="primary" status="danger">提前释放窗口</a-button>
+        </a-popconfirm>
+        <a-typography-text type="secondary">
+          窗口内只通知名单内陪玩；人工指派或固排成队确定陪玩后窗口**立即关闭**，不再计入「通知中」。
+        </a-typography-text>
+      </a-space>
       <a-table
         :data="notices"
         :loading="noticesLoading"
@@ -456,6 +579,45 @@
         <a-form-item label="陪玩档案 ID" required>
           <a-input-number v-model="assignForm.playerId" :min="1" />
         </a-form-item>
+        <a-form-item label="陪玩档期（§10.4-04）">
+          <a-space direction="vertical" fill>
+            <a-space>
+              <a-button :loading="availabilityLoading" @click="loadAvailability"
+                >查该陪玩档期</a-button
+              >
+              <a-typography-text v-if="availability" type="secondary">
+                {{ availability.player_name }}：已占用
+                {{ availability.occupied_count }} 段 / 可预约
+                {{ availability.available_count }} 段
+              </a-typography-text>
+            </a-space>
+            <a-table
+              v-if="(availability?.slots || []).length"
+              :data="availability?.slots || []"
+              size="small"
+              row-key="start"
+              :pagination="false"
+            >
+              <template #columns>
+                <a-table-column title="时段">
+                  <template #cell="{ record }"
+                    >{{ fmtMinute(record.start) }} ~
+                    {{ fmtMinute(record.end) }}</template
+                  >
+                </a-table-column>
+                <a-table-column data-index="status" title="状态" />
+                <a-table-column title="可预约">
+                  <template #cell="{ record }">{{
+                    record.bookable ? '可约' : record.reason || '不可约'
+                  }}</template>
+                </a-table-column>
+              </template>
+            </a-table>
+          </a-space>
+        </a-form-item>
+        <a-typography-text type="secondary" class="grant-tip">
+          连接异常（protected_abnormal）的陪玩不进候选，人工指派同样会被后端拒绝并给出中文原因。
+        </a-typography-text>
         <a-form-item label="候选推荐（§5.5）">
           <a-space direction="vertical" fill>
             <a-space>
@@ -488,6 +650,9 @@
                       color="orangered"
                       >优先通知内</a-tag
                     >
+                    <a-tag size="small" color="gray">{{
+                      presenceLabel(record.presence)
+                    }}</a-tag>
                   </template>
                 </a-table-column>
                 <a-table-column title="评分">
@@ -621,8 +786,22 @@
     >
       <a-form :model="priorityGrantForm">
         <a-form-item label="游戏分区" required>
-          <a-input v-model="priorityGrantForm.game" :max-length="64" />
+          <a-select v-model="priorityGrantForm.game" placeholder="选择游戏分区">
+            <a-option v-for="game in gameOptions" :key="game" :value="game">{{
+              game
+            }}</a-option>
+          </a-select>
         </a-form-item>
+        <a-typography-text type="secondary" class="grant-tip">
+          游戏分区取自启用的商品分类（<code>category.game</code>）；填错会被后端**直接拒绝**并提示「找不到对应的启用游戏分区」，不会静默落库。
+        </a-typography-text>
+        <a-typography-text
+          v-if="!gameOptions.length"
+          type="warning"
+          class="grant-tip"
+        >
+          未取到任何游戏分区：当前账号可能缺少「查看产品分类」权限，或商品分类里还没有启用分区。请先在商品分类维护游戏分区后再授予。
+        </a-typography-text>
         <a-form-item label="陪玩档案 ID" required>
           <a-input-number v-model="priorityGrantForm.playerId" :min="1" />
         </a-form-item>
@@ -696,6 +875,7 @@
   import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import useUserStore from '@/store/modules/user';
   import {
     approveCloseReview,
     assignOrderSeat,
@@ -703,9 +883,12 @@
     createOrderAddon,
     getDispatchBoard,
     getDispatchCandidates,
+    getPlayerAvailability,
     getTeammateCandidates,
     decideSeatTransfer,
     grantDispatchPriority,
+    listCategories,
+    listCsPresences,
     listDispatchPriority,
     listOrderPriorityNotices,
     listOrderSeats,
@@ -716,10 +899,13 @@
     remindOrder,
     revokeDispatchPriority,
     revokeOrderSeat,
+    setCsPresence,
     teamDispatch,
     transferOrder,
   } from '../../api';
   import type {
+    CsPresence,
+    CsPresenceList,
     DispatchBoardSort,
     DispatchCandidate,
     DispatchPriorityGrant,
@@ -727,7 +913,10 @@
     DispatchPriorityPeriod,
     DispatchPrioritySource,
     DispatchPriorityStatus,
+    EsportsProductCategory,
+    PlayerAvailabilityView,
     PriorityNoticeItemStatus,
+    PriorityNoticeStatus,
     SeatTransferRequest,
     SeatTransferStatus,
     TeammateDispatchCandidate,
@@ -760,10 +949,24 @@
     { key: 'abnormal', title: '异常' },
   ];
 
-  const { hasButtonPermission } = usePermission();
+  const { hasButtonPermission, hasAnyPermission } = usePermission();
+  const userStore = useUserStore();
   const canOperate = computed(() =>
     hasButtonPermission('esports:dispatch:operate')
   );
+  // 优先名单维护与转单确认各有独立按钮码，未分配时回落到排单操作按钮；后端仍兜底鉴权。
+  const canManagePriority = computed(
+    () =>
+      hasButtonPermission('esports:dispatch:priority_manage') ||
+      hasButtonPermission('esports:dispatch:operate')
+  );
+  const canManageTransfer = computed(
+    () =>
+      hasButtonPermission('esports:dispatch:transfer_manage') ||
+      hasButtonPermission('esports:dispatch:operate')
+  );
+  // 页面顶层的功能页签：看板 / 优先名单 / 转单申请。
+  const mainTab = ref('board');
 
   const loading = ref(false);
   const board = ref<EsportsDispatchBoard | null>(null);
@@ -804,6 +1007,79 @@
   const maskedPoolIds = computed(
     () => board.value?.masked_public_pool_ids ?? []
   );
+
+  // ── 客服坐班在线状态（§1.1-08）──
+  // presence 表是权威口径；看板顶部的 online_players 是陪玩在线数，两者不要混用。
+  const presences = ref<CsPresenceList | null>(null);
+  const presencesLoading = ref(false);
+  const presenceSaving = ref(false);
+  const presenceForm = reactive<{ presence: CsPresence; adminId?: number }>({
+    presence: 'online',
+  });
+  const csPresenceOptions: { value: CsPresence; label: string }[] = [
+    { value: 'online', label: '坐班在线' },
+    { value: 'busy', label: '忙碌' },
+    { value: 'offline', label: '离线' },
+  ];
+  const csPresenceLabel = (value: string | undefined) =>
+    csPresenceOptions.find((option) => option.value === value)?.label ||
+    value ||
+    '—';
+  const csPresenceColor = (value: string | undefined) => {
+    switch (value) {
+      case 'online':
+        return 'green';
+      case 'busy':
+        return 'orangered';
+      default:
+        return 'gray';
+    }
+  };
+  const isSuperAdmin = computed(() => userStore.isSuperAdmin);
+  // 权限码取 app.go 真实声明：presence_write 是 PermAPI 码（权限树类型为 api），
+  // 与排单操作按钮码并集，避免非超管账号的按钮被误隐藏；后端仍兜底鉴权。
+  const canWritePresence = computed(
+    () =>
+      hasAnyPermission(['esports:cs:presence_write']) ||
+      hasButtonPermission('esports:dispatch:operate')
+  );
+  const presenceTargetLabel = computed(() => {
+    if (!presenceForm.adminId) return '本人';
+    const admin = (presences.value?.admins || []).find(
+      (item) => item.admin_id === presenceForm.adminId
+    );
+    return admin
+      ? admin.nickname || admin.username
+      : `客服 #${presenceForm.adminId}`;
+  });
+
+  async function loadPresences() {
+    presencesLoading.value = true;
+    try {
+      presences.value = (await listCsPresences()).data.data || null;
+    } catch (err) {
+      Message.error(errorText(err, '加载客服在线状态失败'));
+    } finally {
+      presencesLoading.value = false;
+    }
+  }
+
+  async function submitPresence() {
+    presenceSaving.value = true;
+    try {
+      await setCsPresence({
+        presence: presenceForm.presence,
+        admin_id: presenceForm.adminId || undefined,
+      });
+      Message.success('坐班状态已更新');
+      await loadPresences();
+    } catch (err) {
+      Message.error(errorText(err, '更新坐班状态失败：非超管只能修改本人状态'));
+    } finally {
+      presenceSaving.value = false;
+    }
+  }
+
   const activeBucket = ref<BucketKey>('pending_dispatch');
   const seatsVisible = ref(false);
   const seatsLoading = ref(false);
@@ -845,6 +1121,29 @@
       Message.error(errorText(err, '加载派单候选失败'));
     } finally {
       candidatesLoading.value = false;
+    }
+  }
+
+  // ── 游戏分区下拉（优先名单的准入口径） ──
+  // 后端授予名单时校验 game 必须对上「启用中的商品分类」（category.game），
+  // 因此这里直接从商品分类取启用分区，避免手工输入必然被拒的错值。
+  const gameOptions = ref<string[]>([]);
+
+  async function loadGameOptions() {
+    try {
+      const categories = (await listCategories()).data.data || [];
+      gameOptions.value = Array.from(
+        new Set(
+          categories
+            .filter((item: EsportsProductCategory) => item.status === 'enabled')
+            .map((item: EsportsProductCategory) => item.game)
+            .filter(Boolean)
+        )
+      );
+    } catch (err) {
+      Message.error(
+        errorText(err, '加载游戏分区失败，可直接输入分区名但须与商品分类一致')
+      );
     }
   }
 
@@ -1015,6 +1314,76 @@
         return 'gray';
     }
   };
+
+  // 订单级窗口状态（§5.4）：pending 才是「通知中」；人工指派 / 固排成队确定陪玩后后端立即闭合。
+  const priorityNoticeOptions: {
+    value: PriorityNoticeStatus;
+    label: string;
+  }[] = [
+    { value: 'none', label: '无优先窗口' },
+    { value: 'pending', label: '通知中' },
+    { value: 'released', label: '已释放到大厅' },
+    { value: 'accepted', label: '名单内已接单' },
+  ];
+  const priorityNoticeLabel = (value: PriorityNoticeStatus | undefined) =>
+    priorityNoticeOptions.find((option) => option.value === value)?.label ||
+    value ||
+    '—';
+  const priorityNoticeColor = (value: PriorityNoticeStatus | undefined) => {
+    switch (value) {
+      case 'pending':
+        return 'orangered';
+      case 'accepted':
+        return 'green';
+      case 'released':
+        return 'gray';
+      default:
+        return 'arcoblue';
+    }
+  };
+
+  // 从看板各桶里取最新订单（释放窗口 / 指派后同步抽屉用）。
+  function findBoardOrder(orderId: number) {
+    const data = board.value as unknown as Record<
+      string,
+      DispatchOrder[] | undefined
+    > | null;
+    if (!data) return undefined;
+    const rows = buckets.reduce<DispatchOrder[]>(
+      (acc, bucket) => acc.concat(data[bucket.key] || []),
+      []
+    );
+    return rows.find((item) => item.id === orderId);
+  }
+
+  // 指派 / 固排成队后窗口立即闭合：抽屉开着就同步最新状态与明细。
+  async function syncNoticeDrawer(orderId: number) {
+    if (!noticesVisible.value || noticeOrder.value?.id !== orderId) return;
+    const fresh = findBoardOrder(orderId);
+    if (fresh) noticeOrder.value = fresh;
+    try {
+      notices.value = (await listOrderPriorityNotices(orderId)).data.data || [];
+    } catch {
+      // 抽屉同步失败不影响主流程，保留原明细。
+    }
+  }
+
+  async function releaseNoticeWindow() {
+    const order = noticeOrder.value;
+    if (!order) return;
+    try {
+      const updated = (
+        await releaseOrderPriority(order.id, '客服在通知明细内提前释放')
+      ).data.data;
+      if (updated) noticeOrder.value = { ...order, ...updated };
+      notices.value =
+        (await listOrderPriorityNotices(order.id)).data.data || [];
+      Message.success('已释放到抢单大厅');
+      await load(true);
+    } catch (err) {
+      Message.error(errorText(err, '释放失败：窗口已结束或状态已变化'));
+    }
+  }
 
   async function openNotices(order: DispatchOrder) {
     noticeOrder.value = order;
@@ -1220,6 +1589,8 @@
       Message.success('已一次成队并发出邀请');
       await reloadSeats();
       await load();
+      // 固排成队确定陪玩后优先通知窗口立即闭合。
+      await syncNoticeDrawer(order.id);
     } catch (err) {
       Message.error(errorText(err, '成队失败：固排关系、资格或空席位不足'));
     }
@@ -1235,8 +1606,40 @@
     ({ novice: '新手', skilled: '熟练', senior: '资深', mentor: '导师' }[
       level
     ] || level);
-  const presenceLabel = (presence: string) =>
-    presence === 'online' ? '在线' : '离线';
+  const presenceLabel = (presence: string) => {
+    switch (presence) {
+      case 'online':
+        return '在线';
+      case 'protected_abnormal':
+        // P1-01：心跳超时但有在途订单，显示为「连接异常（受保护）」，不是已下线。
+        return '连接异常（受保护）';
+      default:
+        return '离线';
+    }
+  };
+
+  // ── 指派前查陪玩档期（§10.4-04）──
+  const availability = ref<PlayerAvailabilityView | null>(null);
+  const availabilityLoading = ref(false);
+
+  async function loadAvailability() {
+    const { playerId } = assignForm;
+    if (playerId < 1) {
+      Message.warning('请先填写陪玩档案 ID');
+      return;
+    }
+    availabilityLoading.value = true;
+    try {
+      availability.value =
+        (await getPlayerAvailability(playerId)).data.data || null;
+      if (!availability.value) Message.info('该陪玩暂无档期数据');
+    } catch (err) {
+      availability.value = null;
+      Message.error(errorText(err, '加载陪玩档期失败'));
+    } finally {
+      availabilityLoading.value = false;
+    }
+  }
 
   function openAssign(order: DispatchOrder) {
     activeOrder.value = order;
@@ -1244,6 +1647,7 @@
     assignForm.playerId = 1;
     candidates.value = [];
     preferredPlayerId.value = 0;
+    availability.value = null;
     assignVisible.value = true;
   }
 
@@ -1263,8 +1667,15 @@
       assignVisible.value = false;
       Message.success('已指派并发出邀请');
       await load();
-    } catch {
-      Message.error('指派失败：陪玩资格不符、席位不可用或订单状态已变化');
+      // 指派后优先通知窗口立即闭合，抽屉开着就同步。
+      await syncNoticeDrawer(order.id);
+    } catch (err) {
+      Message.error(
+        errorText(
+          err,
+          '指派失败：陪玩资格不符、连接异常（受保护）、席位不可用或订单状态已变化'
+        )
+      );
     }
   }
 
@@ -1440,6 +1851,8 @@
     await load();
     await loadPriority();
     await loadTransfers();
+    await loadPresences();
+    await loadGameOptions();
     refreshTimer = setInterval(() => {
       if (!loading.value && document.visibilityState === 'visible') {
         load(true);
@@ -1458,5 +1871,10 @@
 
   .toolbar {
     margin-bottom: 16px;
+  }
+
+  .grant-tip {
+    display: block;
+    margin-bottom: 12px;
   }
 </style>

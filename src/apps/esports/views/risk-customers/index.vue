@@ -36,13 +36,13 @@
               <a-button v-if="canMark" type="text" @click="openMark(record)"
                 >标记 / 修改</a-button
               >
-              <a-button
+              <a-popconfirm
                 v-if="canMark && record.risk_status !== 'normal'"
-                type="text"
-                status="success"
-                @click="doClear(record)"
-                >解除</a-button
+                content="解除后该客户恢复为正常状态（不再标记复核 / 不再拦截自助下单），确认继续？"
+                @ok="doClear(record)"
               >
+                <a-button type="text" status="success">解除</a-button>
+              </a-popconfirm>
             </template>
           </a-table-column>
         </template>

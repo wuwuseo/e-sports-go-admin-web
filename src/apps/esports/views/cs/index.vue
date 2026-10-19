@@ -36,6 +36,71 @@
             >
           </a-space>
 
+          <a-divider>会员优先预约（§10.4）</a-divider>
+          <a-space class="toolbar" wrap>
+            <a-button :loading="bookingLoading" @click="loadBookings"
+              >刷新预约</a-button
+            >
+            <a-typography-text type="secondary">
+              会员提交的专属预约意向按会员等级置顶、同等级按提交时间排序；处理结果只能是「已处理」或「已取消」，期望时段已过或久未处理的意向会由过期任务自动取消。
+            </a-typography-text>
+          </a-space>
+          <a-table
+            :data="bookings"
+            :loading="bookingLoading"
+            row-key="id"
+            :pagination="{ pageSize: 5 }"
+            class="sub-card"
+          >
+            <template #columns>
+              <a-table-column data-index="customer_name" title="客户" />
+              <a-table-column title="会员等级">
+                <template #cell="{ record }">{{
+                  record.member_level_name ||
+                  record.member_level_code ||
+                  '未定级'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="陪玩">
+                <template #cell="{ record }">{{
+                  record.player_name || record.player_id
+                }}</template>
+              </a-table-column>
+              <a-table-column title="期望时段">
+                <template #cell="{ record }">{{
+                  fmtMinute(record.requested_start_at)
+                }}</template>
+              </a-table-column>
+              <a-table-column data-index="note" title="备注" />
+              <a-table-column title="提交时间">
+                <template #cell="{ record }">{{
+                  fmtMinute(record.created_at)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="操作" :width="180">
+                <template #cell="{ record }">
+                  <template v-if="canProcessBooking">
+                    <a-popconfirm
+                      content="确认标记为已处理？仅在线下已与客户/陪玩约好档期后使用。"
+                      @ok="processBooking(record, 'processed')"
+                    >
+                      <a-button type="text" status="success"
+                        >标记已处理</a-button
+                      >
+                    </a-popconfirm>
+                    <a-popconfirm
+                      content="确认取消该预约意向？取消后不再计入客服待办。"
+                      @ok="processBooking(record, 'cancelled')"
+                    >
+                      <a-button type="text" status="danger">取消</a-button>
+                    </a-popconfirm>
+                  </template>
+                  <span v-else>—</span>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+
           <a-table
             v-for="pool in pools"
             :key="pool.key"
@@ -204,10 +269,21 @@
                   fmtMinute(record.last_contact_at)
                 }}</template>
               </a-table-column>
-              <a-table-column title="操作" :width="90">
+              <a-table-column title="归属客服" :width="100">
+                <template #cell="{ record }">{{
+                  record.owner_admin_id || '—'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="操作" :width="150">
                 <template #cell="{ record }">
                   <a-button type="text" @click="openProfile(record)"
                     >档案</a-button
+                  >
+                  <a-button
+                    v-if="canTransferOwner"
+                    type="text"
+                    @click="openOwnerTransfer(record)"
+                    >转移归属</a-button
                   >
                 </template>
               </a-table-column>
@@ -311,6 +387,9 @@
           <a-descriptions-item label="建档来源">{{
             sourceLabel(profile.source)
           }}</a-descriptions-item>
+          <a-descriptions-item label="归属客服">{{
+            profile.customer.owner_admin_id || '无归属'
+          }}</a-descriptions-item>
         </a-descriptions>
 
         <a-form class="sub-card" :model="profileForm">
@@ -360,6 +439,18 @@
         </a-form>
 
         <a-divider>历史订单明细</a-divider>
+        <a-space class="toolbar" wrap>
+          <a-button
+            v-if="canBackfill"
+            type="primary"
+            :disabled="!backfillAllowed"
+            @click="openBackfill"
+            >补录历史订单</a-button
+          >
+          <a-typography-text type="secondary" class="order-tip">{{
+            backfillHint
+          }}</a-typography-text>
+        </a-space>
         <a-typography-text type="secondary" class="order-tip">
           仅展示当前账号可见的订单（负责或已授权协作），越权订单不会出现在此明细中。
         </a-typography-text>
@@ -491,6 +582,124 @@
         </a-typography-text>
       </a-form>
     </a-modal>
+
+    <a-modal
+      v-model:visible="ownerTransferVisible"
+      title="转移客户归属"
+      :ok-loading="ownerTransferSaving"
+      @ok="submitOwnerTransfer"
+      @cancel="ownerTransferVisible = false"
+    >
+      <a-form :model="ownerTransferForm">
+        <a-form-item label="客户">
+          <a-typography-text
+            >{{ ownerTransferTarget?.display_name || '—' }}（#{{
+              ownerTransferTarget?.id || '—'
+            }}，当前归属客服
+            {{
+              ownerTransferTarget?.owner_admin_id || '无归属'
+            }}）</a-typography-text
+          >
+        </a-form-item>
+        <a-form-item label="目标客服" required>
+          <a-select
+            v-model="ownerTransferForm.targetAdminId"
+            placeholder="选择目标客服"
+          >
+            <a-option
+              v-for="admin in transferAdminOptions"
+              :key="admin.admin_id"
+              :value="admin.admin_id"
+              >{{ admin.nickname || admin.username }}（{{
+                optionPresenceLabel(admin.presence)
+              }}）</a-option
+            >
+          </a-select>
+        </a-form-item>
+        <a-form-item label="转移原因" required>
+          <a-textarea
+            v-model="ownerTransferForm.reason"
+            :max-length="200"
+            show-word-limit
+          />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          转移归属只追加交接留痕，历史跟进与订单归属不变；目标客服不能是当前归属人。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="backfillVisible"
+      title="补录历史订单"
+      :ok-loading="backfillSubmitting"
+      @ok="submitBackfill"
+      @cancel="backfillVisible = false"
+    >
+      <a-form :model="backfillForm">
+        <a-form-item label="客户">
+          <a-typography-text
+            >{{ profileTarget?.display_name || '—' }}（#{{
+              profileTarget?.id || '—'
+            }}）</a-typography-text
+          >
+        </a-form-item>
+        <a-form-item label="SKU ID" required>
+          <a-input-number
+            v-model="backfillForm.skuId"
+            :min="1"
+            :precision="0"
+          />
+        </a-form-item>
+        <a-form-item label="数量" required>
+          <a-input-number
+            v-model="backfillForm.quantity"
+            :min="1"
+            :precision="0"
+          />
+        </a-form-item>
+        <a-form-item label="实际成交单价（元，留空按 SKU 价）">
+          <a-input-number
+            v-model="backfillForm.unitPriceYuan"
+            :min="0"
+            :precision="2"
+            placeholder="留空按 SKU 当前规格价"
+          />
+        </a-form-item>
+        <a-form-item label="实际成交时间" required>
+          <a-date-picker
+            v-model="backfillForm.settledAt"
+            show-time
+            format="YYYY-MM-DD HH:mm:ss"
+          />
+        </a-form-item>
+        <a-form-item label="履约状态" required>
+          <a-radio-group v-model="backfillForm.fulfillmentStatus">
+            <a-radio value="completed">已完成</a-radio>
+            <a-radio value="cancelled">已取消</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item label="补录原因" required>
+          <a-textarea
+            v-model="backfillForm.reason"
+            :max-length="255"
+            show-word-limit
+            placeholder="填写补录原因（4-255 字）"
+          />
+        </a-form-item>
+        <a-form-item label="计入客服提成">
+          <a-space>
+            <a-switch
+              v-model="backfillForm.countCsCommission"
+              :disabled="backfillForm.fulfillmentStatus !== 'completed'"
+            />
+            <a-typography-text type="secondary">
+              仅影响客服提成；陪玩分成与成长值始终按补录单计提
+            </a-typography-text>
+          </a-space>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -498,7 +707,9 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import useUserStore from '@/store/modules/user';
   import {
+    backfillOrder,
     createCustomer,
     createEsportsCustomerFollowUp,
     createEsportsScript,
@@ -506,17 +717,22 @@
     getEsportsCustomerFollowUps,
     getEsportsCustomerProfile,
     getEsportsScripts,
+    listCsPresences,
     listCustomers,
     listOfflinePaymentProofs,
     listOrders,
+    listPriorityBookings,
+    processPriorityBooking,
     rejectOfflinePaymentProof,
     setEsportsScriptStatus,
+    transferCustomerOwner,
     updateEsportsCustomerProfile,
     updateEsportsScript,
     verifyOfflinePaymentProof,
     wecomIntakeCustomer,
   } from '../../api';
   import type {
+    CsPresenceList,
     CsScript,
     CsWorkbench,
     CustomerFollowStatus,
@@ -527,10 +743,32 @@
     FollowChannel,
     OfflinePaymentProof,
     OfflinePaymentProofStatus,
+    PriorityBooking,
   } from '../../api';
 
-  const { hasButtonPermission } = usePermission();
+  const { hasButtonPermission, hasAnyPermission } = usePermission();
+  const userStore = useUserStore();
   const canManage = computed(() => hasButtonPermission('esports:cs:manage'));
+  const isSuperAdmin = computed(() => userStore.isSuperAdmin);
+  const currentAdminId = computed(() => Number(userStore.accountId || 0));
+  // 权限码取 app.go 真实声明：这些码在权限树里是 PermAPI（类型 api），
+  // 故与「客服工作台操作按钮」并集，避免非超管账号的按钮被误隐藏；后端仍兜底鉴权。
+  const canTransferOwner = computed(
+    () =>
+      hasAnyPermission(['esports:customers:transfer_owner']) ||
+      hasButtonPermission('esports:cs:manage')
+  );
+  const canProcessBooking = computed(
+    () =>
+      hasAnyPermission(['esports:members:priority_booking_process']) ||
+      hasButtonPermission('esports:cs:manage')
+  );
+  // 补录复用「历史订单补录」PermAPI 码与「客服报单按钮」码。
+  const canBackfill = computed(
+    () =>
+      hasAnyPermission(['esports:orders:backfill']) ||
+      hasButtonPermission('esports:orders:add')
+  );
   // 核销 / 驳回（§4.3-04）：与财务核销权限对齐，服务端仍是唯一防线。
   const canVerifyProof = computed(() =>
     hasButtonPermission('esports:payments:proof_verify')
@@ -630,6 +868,40 @@
       Message.error(errorText(err, '加载客服工作台失败'));
     } finally {
       loading.value = false;
+    }
+  }
+
+  // ── 会员优先预约处理（§10.4）──
+  const bookingLoading = ref(false);
+  const bookings = ref<PriorityBooking[]>([]);
+
+  async function loadBookings() {
+    bookingLoading.value = true;
+    try {
+      bookings.value = (await listPriorityBookings()).data.data || [];
+    } catch (err) {
+      Message.error(errorText(err, '加载会员优先预约失败'));
+    } finally {
+      bookingLoading.value = false;
+    }
+  }
+
+  // 处理结果只能置为 processed（已处理）或 cancelled（已取消），其余取值后端拒绝。
+  async function processBooking(
+    record: PriorityBooking,
+    status: 'processed' | 'cancelled'
+  ) {
+    try {
+      await processPriorityBooking(record.id, { status });
+      Message.success(
+        status === 'processed' ? '已标记为已处理' : '已取消该预约意向'
+      );
+      await loadBookings();
+      await loadWorkbench();
+    } catch (err) {
+      Message.error(
+        errorText(err, '处理失败：该预约意向已处理或已取消，请刷新后重试')
+      );
     }
   }
 
@@ -857,6 +1129,191 @@
     }
   }
 
+  // ── 历史订单补录（§3.3 / §4.1 / §12.5）──
+  // 数据边界（P0-13）：超管可为任意客户补录；非超管只能补录本人负责客户的订单。
+  const backfillVisible = ref(false);
+  const backfillSubmitting = ref(false);
+  const backfillForm = reactive<{
+    skuId: number;
+    quantity: number;
+    unitPriceYuan?: number;
+    settledAt: string;
+    fulfillmentStatus: 'completed' | 'cancelled';
+    reason: string;
+    countCsCommission: boolean;
+  }>({
+    skuId: 1,
+    quantity: 1,
+    settledAt: '',
+    fulfillmentStatus: 'completed',
+    reason: '',
+    countCsCommission: false,
+  });
+  const backfillAllowed = computed(
+    () =>
+      isSuperAdmin.value ||
+      (currentAdminId.value > 0 &&
+        profileTarget.value?.owner_admin_id === currentAdminId.value)
+  );
+  const backfillHint = computed(() => {
+    if (isSuperAdmin.value) {
+      return '超管身份：可为任意客户补录历史订单（责任客服仍记客户归属人，业绩与提成不会错记到补录人名下）。';
+    }
+    if (backfillAllowed.value) {
+      return '非超管：只能为本人负责的客户补录历史订单。';
+    }
+    return '该客户不归你负责：非超管不能为其补录，请由客户归属客服或超管操作。';
+  });
+
+  function openBackfill() {
+    if (!backfillAllowed.value) {
+      Message.warning('非超管只能为本人负责的客户补录历史订单');
+      return;
+    }
+    backfillForm.skuId = 1;
+    backfillForm.quantity = 1;
+    backfillForm.unitPriceYuan = undefined;
+    backfillForm.settledAt = '';
+    backfillForm.fulfillmentStatus = 'completed';
+    backfillForm.reason = '';
+    backfillForm.countCsCommission = false;
+    backfillVisible.value = true;
+  }
+
+  async function submitBackfill() {
+    const customer = profileTarget.value;
+    if (!customer) return;
+    if (!Number.isSafeInteger(backfillForm.skuId) || backfillForm.skuId <= 0) {
+      Message.warning('请填写 SKU ID');
+      return;
+    }
+    if (
+      !Number.isSafeInteger(backfillForm.quantity) ||
+      backfillForm.quantity <= 0
+    ) {
+      Message.warning('请填写数量（大于 0）');
+      return;
+    }
+    if (!backfillForm.settledAt) {
+      Message.warning('请选择实际成交时间');
+      return;
+    }
+    const reason = backfillForm.reason.trim();
+    if (reason.length < 4 || reason.length > 255) {
+      Message.warning('补录原因须为 4-255 字');
+      return;
+    }
+    backfillSubmitting.value = true;
+    try {
+      await backfillOrder(
+        {
+          customer_id: customer.id,
+          sku_id: backfillForm.skuId,
+          quantity: backfillForm.quantity,
+          unit_price_cents:
+            backfillForm.unitPriceYuan == null
+              ? 0
+              : Math.round(backfillForm.unitPriceYuan * 100),
+          settled_at: new Date(backfillForm.settledAt).toISOString(),
+          fulfillment_status: backfillForm.fulfillmentStatus,
+          payment_status: 'paid',
+          reason,
+          count_cs_commission:
+            backfillForm.fulfillmentStatus === 'completed' &&
+            backfillForm.countCsCommission,
+        },
+        crypto.randomUUID()
+      );
+      backfillVisible.value = false;
+      Message.success('补录成功');
+      await loadProfileOrders(customer.id);
+      await loadWorkbench();
+    } catch (err) {
+      Message.error(
+        errorText(err, '补录失败：补录原因、成交时间或客户归属不满足要求')
+      );
+    } finally {
+      backfillSubmitting.value = false;
+    }
+  }
+
+  // ── 客户归属转移（§8.3-02）──
+  // 客服清单复用排单看板口径（listCsPresences 返回 admins），无需另建管理员查询接口。
+  const presenceAdmins = ref<CsPresenceList | null>(null);
+  const ownerTransferVisible = ref(false);
+  const ownerTransferSaving = ref(false);
+  const ownerTransferTarget = ref<EsportsCustomer | null>(null);
+  const ownerTransferForm = reactive<{
+    targetAdminId?: number;
+    reason: string;
+  }>({ reason: '' });
+  const optionPresenceLabel = (presence: string | undefined) => {
+    switch (presence) {
+      case 'online':
+        return '在线';
+      case 'busy':
+        return '忙碌';
+      default:
+        return '离线';
+    }
+  };
+  const transferAdminOptions = computed(() =>
+    (presenceAdmins.value?.admins || []).filter(
+      (admin) => admin.admin_id !== ownerTransferTarget.value?.owner_admin_id
+    )
+  );
+
+  async function loadPresenceAdmins() {
+    try {
+      presenceAdmins.value = (await listCsPresences()).data.data || null;
+    } catch (err) {
+      Message.error(errorText(err, '加载客服清单失败'));
+    }
+  }
+
+  async function openOwnerTransfer(customer: EsportsCustomer) {
+    ownerTransferTarget.value = customer;
+    ownerTransferForm.targetAdminId = undefined;
+    ownerTransferForm.reason = '';
+    ownerTransferVisible.value = true;
+    if (!presenceAdmins.value) await loadPresenceAdmins();
+  }
+
+  async function submitOwnerTransfer() {
+    const customer = ownerTransferTarget.value;
+    if (!customer) return;
+    if (!ownerTransferForm.targetAdminId) {
+      Message.warning('请选择目标客服');
+      return;
+    }
+    if (!ownerTransferForm.reason.trim()) {
+      Message.warning('请填写转移原因');
+      return;
+    }
+    ownerTransferSaving.value = true;
+    try {
+      await transferCustomerOwner(
+        customer.id,
+        ownerTransferForm.targetAdminId,
+        ownerTransferForm.reason.trim()
+      );
+      ownerTransferVisible.value = false;
+      Message.success('客户归属已转移');
+      await loadCustomers();
+      await loadWorkbench();
+      if (profileTarget.value?.id === customer.id) {
+        const detail = (await getEsportsCustomerProfile(customer.id)).data.data;
+        if (detail) profile.value = detail;
+      }
+    } catch (err) {
+      Message.error(
+        errorText(err, '转移失败：目标客服已是归属人或归属已被他人变更')
+      );
+    } finally {
+      ownerTransferSaving.value = false;
+    }
+  }
+
   // ── 话术库 ──
   const scriptLoading = ref(false);
   const scripts = ref<CsScript[]>([]);
@@ -966,7 +1423,12 @@
 
   onMounted(async () => {
     await loadWorkbench();
-    await Promise.all([loadCustomers(), loadScripts(), loadProofs()]);
+    await Promise.all([
+      loadCustomers(),
+      loadScripts(),
+      loadProofs(),
+      loadBookings(),
+    ]);
   });
 </script>
 

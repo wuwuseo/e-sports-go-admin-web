@@ -46,6 +46,11 @@
           <a-table-column title="适用客户">
             <template #cell="{ record }">{{ audienceText(record) }}</template>
           </a-table-column>
+          <a-table-column title="奖励账户">
+            <template #cell="{ record }">{{
+              targetAccountLabel(record.target_account_type)
+            }}</template>
+          </a-table-column>
           <a-table-column title="活动期">
             <template #cell="{ record }">{{ periodText(record) }}</template>
           </a-table-column>
@@ -118,6 +123,18 @@
             <a-option value="limited">限时</a-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="奖励发放账户" required>
+          <a-select
+            v-model="form.targetAccountType"
+            @change="onTargetAccountChange"
+          >
+            <a-option value="customer_balance">客户余额</a-option>
+            <a-option value="player_catfood">陪玩猫粮</a-option>
+          </a-select>
+          <div class="hint">
+            猫粮奖励只能发给陪玩受众；客户余额活动不接受陪玩受众（§11.2）。
+          </div>
+        </a-form-item>
         <a-form-item label="阶梯档位（元）" required>
           <div
             v-for="(tier, index) in form.tiers"
@@ -153,10 +170,11 @@
           </a-select>
         </a-form-item>
         <a-form-item label="适用客户" required>
-          <a-select v-model="form.audience">
+          <a-select v-model="form.audience" @change="onAudienceChange">
             <a-option value="all">全部客户</a-option>
             <a-option value="new_customer">新客</a-option>
             <a-option value="specified">指定客户</a-option>
+            <a-option value="player">指定陪玩（猫粮奖励）</a-option>
           </a-select>
         </a-form-item>
         <a-form-item
@@ -167,6 +185,17 @@
           <a-input-tag
             v-model="form.audienceCustomerIds"
             placeholder="输入客户档案 ID，回车添加"
+            allow-clear
+          />
+        </a-form-item>
+        <a-form-item
+          v-if="form.audience === 'player'"
+          label="指定陪玩 ID"
+          required
+        >
+          <a-input-tag
+            v-model="form.audiencePlayerIds"
+            placeholder="输入陪玩档案 ID，回车添加"
             allow-clear
           />
         </a-form-item>
@@ -221,6 +250,16 @@
     hasButtonPermission('esports:campaigns:manage')
   );
 
+  // 奖励目标账户（§11.2-01）与陪玩受众在 app.go / 后端 campaignInput 已支持，
+  // api.ts 的 RechargeCampaign / CampaignInput 尚未声明这两个字段（本轮不改 api.ts），
+  // 因此按扩展交集类型读取，提交时单独带上。
+  type CampaignExt = RechargeCampaign & {
+    target_account_type?: 'customer_balance' | 'player_catfood';
+    audience_player_ids?: number[];
+  };
+  type CampaignTargetAccount = 'customer_balance' | 'player_catfood';
+  type CampaignAudienceExt = CampaignAudience | 'player';
+
   const loading = ref(false);
   const statusFilter = ref('');
   const items = ref<RechargeCampaign[]>([]);
@@ -256,7 +295,14 @@
     all: '全部客户',
     new_customer: '新客',
     specified: '指定客户',
+    player: '指定陪玩',
   };
+  const targetAccountMap: Record<string, string> = {
+    customer_balance: '客户余额',
+    player_catfood: '陪玩猫粮',
+  };
+  const targetAccountLabel = (value?: string) =>
+    (value && targetAccountMap[value]) || targetAccountMap.customer_balance;
   const statusLabel = (value: string) => statusMap[value] || value;
   const statusColor = (value: string) => statusColorMap[value] || 'gray';
   const activityLabel = (value: string) => activityMap[value] || value;
@@ -289,6 +335,9 @@
     const label = audienceLabel(record.audience);
     if (record.audience === 'specified' && record.audience_customer_ids.length)
       return `${label}（${record.audience_customer_ids.join('、')}）`;
+    const playerIds = (record as CampaignExt).audience_player_ids || [];
+    if ((record.audience as string) === 'player' && playerIds.length)
+      return `${label}（${playerIds.join('、')}）`;
     return label;
   };
   const periodText = (record: RechargeCampaign) =>
@@ -313,8 +362,10 @@
     activityType: CampaignActivityType;
     tiers: CampaignTierForm[];
     stackRule: CampaignStackRule;
-    audience: CampaignAudience;
+    audience: CampaignAudienceExt;
     audienceCustomerIds: string[];
+    audiencePlayerIds: string[];
+    targetAccountType: CampaignTargetAccount;
     bonusValidDays: number;
     startsAt?: number;
     endsAt?: number;
@@ -326,6 +377,8 @@
     stackRule: 'exclusive',
     audience: 'all',
     audienceCustomerIds: [],
+    audiencePlayerIds: [],
+    targetAccountType: 'customer_balance',
     bonusValidDays: 0,
     startsAt: undefined,
     endsAt: undefined,
@@ -347,6 +400,25 @@
     if (form.tiers.length > 1) form.tiers.splice(index, 1);
   };
 
+  // 账户类型与受众互斥约束（后端 validateCampaignInput）：猫粮只能发陪玩，
+  // 客户余额活动不接受陪玩受众；切换时任一侧自动纠正，避免提交后才 400。
+  function onTargetAccountChange() {
+    if (form.targetAccountType === 'player_catfood') {
+      if (form.audience !== 'player' && form.audience !== 'all')
+        form.audience = 'player';
+    } else if (form.audience === 'player') {
+      form.audience = 'all';
+    }
+  }
+
+  function onAudienceChange() {
+    if (form.audience === 'player') {
+      form.targetAccountType = 'player_catfood';
+    } else if (form.targetAccountType === 'player_catfood') {
+      form.targetAccountType = 'customer_balance';
+    }
+  }
+
   function openCreate() {
     formTarget.value = null;
     form.name = '';
@@ -356,6 +428,8 @@
     form.stackRule = 'exclusive';
     form.audience = 'all';
     form.audienceCustomerIds = [];
+    form.audiencePlayerIds = [];
+    form.targetAccountType = 'customer_balance';
     form.bonusValidDays = 0;
     form.startsAt = undefined;
     form.endsAt = undefined;
@@ -363,6 +437,7 @@
   }
 
   function openEdit(record: RechargeCampaign) {
+    const ext = record as CampaignExt;
     formTarget.value = record;
     form.name = record.name;
     form.code = record.code;
@@ -376,6 +451,13 @@
     form.audienceCustomerIds = record.audience_customer_ids.map((id) =>
       String(id)
     );
+    form.audiencePlayerIds = (ext.audience_player_ids || []).map((id) =>
+      String(id)
+    );
+    form.targetAccountType =
+      ext.target_account_type === 'player_catfood'
+        ? 'player_catfood'
+        : 'customer_balance';
     form.bonusValidDays = record.bonus_valid_days;
     form.startsAt = record.starts_at
       ? new Date(record.starts_at).getTime()
@@ -386,7 +468,12 @@
     formVisible.value = true;
   }
 
-  function buildInput(): CampaignInput | null {
+  function buildInput():
+    | (CampaignInput & {
+        audience_player_ids: number[];
+        target_account_type: CampaignTargetAccount;
+      })
+    | null {
     const name = form.name.trim();
     const code = form.code.trim();
     if (!name || !code) {
@@ -411,6 +498,22 @@
       Message.warning('请填写指定客户 ID');
       return null;
     }
+    if (form.audience === 'player' && !form.audiencePlayerIds.length) {
+      Message.warning('请填写指定陪玩 ID');
+      return null;
+    }
+    // 与后端同一套自洽校验：猫粮奖励只能配陪玩 / 全部受众，客户余额不接受陪玩受众。
+    if (form.targetAccountType === 'player_catfood') {
+      if (form.audience !== 'player' && form.audience !== 'all') {
+        Message.warning(
+          '陪玩猫粮奖励只能发给陪玩受众（含「指定陪玩」或「全部」）'
+        );
+        return null;
+      }
+    } else if (form.audience === 'player') {
+      Message.warning('客户余额活动不接受陪玩受众，请改选「陪玩猫粮」账户');
+      return null;
+    }
     if (!form.startsAt || !form.endsAt) {
       Message.warning('请填写活动开始与结束时间');
       return null;
@@ -424,13 +527,22 @@
       name,
       activity_type: form.activityType,
       tiers,
-      audience: form.audience,
+      // 受众取值为 api.ts 的 CampaignAudience 之外新增的 player，故此处显式断言；
+      // 后端 campaignInput.Audience 已接受 player（§11.2-01）。
+      audience: form.audience as CampaignAudience,
       audience_customer_ids:
         form.audience === 'specified'
           ? form.audienceCustomerIds
               .map((id) => Number(id))
               .filter((id) => id > 0)
           : [],
+      audience_player_ids:
+        form.audience === 'player'
+          ? form.audiencePlayerIds
+              .map((id) => Number(id))
+              .filter((id) => id > 0)
+          : [],
+      target_account_type: form.targetAccountType,
       stack_rule: form.stackRule,
       bonus_valid_days: form.bonusValidDays || 0,
       starts_at: new Date(form.startsAt).toISOString(),

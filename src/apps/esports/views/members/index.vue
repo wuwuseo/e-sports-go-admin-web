@@ -60,12 +60,22 @@
             <template #cell="{ record }">
               <template v-if="canManage">
                 <a-button type="text" @click="openEdit(record)">编辑</a-button>
-                <a-button
-                  type="text"
-                  :status="record.status === 'enabled' ? 'danger' : 'success'"
-                  @click="changeStatus(record)"
-                  >{{ record.status === 'enabled' ? '停用' : '启用' }}</a-button
+                <a-popconfirm
+                  :content="
+                    record.status === 'enabled'
+                      ? '确认停用该会员等级？停用后该等级不再参与取级。'
+                      : '确认启用该会员等级？'
+                  "
+                  @ok="changeStatus(record)"
                 >
+                  <a-button
+                    type="text"
+                    :status="record.status === 'enabled' ? 'danger' : 'success'"
+                    >{{
+                      record.status === 'enabled' ? '停用' : '启用'
+                    }}</a-button
+                  >
+                </a-popconfirm>
               </template>
               <span v-else>-</span>
             </template>
@@ -101,6 +111,7 @@
           <span>折扣：{{ discountText(member.discount_bps) }}</span>
           <span>累计成长值：{{ member.growth_total }}</span>
           <span>待降级：{{ pendingText(member) }}</span>
+          <span>调级覆盖：{{ overrideText(member) }}</span>
         </a-space>
 
         <a-card title="成长值流水" :bordered="true" class="sub-card">
@@ -160,6 +171,171 @@
           </a-table>
         </a-card>
       </template>
+    </a-card>
+
+    <a-card class="general-card" title="专属预约（会员优先预约）">
+      <a-space class="toolbar">
+        <a-input-number
+          v-model="bookingLimit"
+          :min="1"
+          :max="200"
+          placeholder="条数"
+          :style="{ width: '120px' }"
+        />
+        <a-button type="primary" :loading="bookingLoading" @click="loadBookings"
+          >刷新预约</a-button
+        >
+      </a-space>
+      <a-tabs v-model:active-key="bookingTab">
+        <a-tab-pane key="pending" title="待处理预约">
+          <a-table
+            :data="bookings"
+            :loading="bookingLoading"
+            row-key="id"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column data-index="id" title="意向 ID" :width="90" />
+              <a-table-column title="客户">
+                <template #cell="{ record }"
+                  >{{ record.customer_name }}（{{
+                    record.customer_id
+                  }}）</template
+                >
+              </a-table-column>
+              <a-table-column title="会员等级">
+                <template #cell="{ record }"
+                  >{{ record.member_level_name || '未定级' }}（{{
+                    record.member_level_code || '-'
+                  }}）</template
+                >
+              </a-table-column>
+              <a-table-column title="指定陪玩">
+                <template #cell="{ record }"
+                  >{{ record.player_name }}（{{ record.player_id }}）</template
+                >
+              </a-table-column>
+              <a-table-column title="期望时段">
+                <template #cell="{ record }">{{
+                  fmtMinute(record.requested_start_at)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="备注">
+                <template #cell="{ record }">{{ record.note || '-' }}</template>
+              </a-table-column>
+              <a-table-column title="状态" :width="90">
+                <template #cell="{ record }">
+                  <a-tag :color="bookingStatusColor(record.status)">{{
+                    bookingStatusText(record.status)
+                  }}</a-tag>
+                </template>
+              </a-table-column>
+              <a-table-column title="提交时间">
+                <template #cell="{ record }">{{
+                  fmtMinute(record.created_at)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="操作" :width="120">
+                <template #cell="{ record }">
+                  <a-button type="text" @click="inspectAvailability(record)"
+                    >查档期</a-button
+                  >
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+          <div class="hint"
+            >预约意向按会员等级置顶（等级越高越靠前），非超管只看本人归属客户的意向。
+            客服确认后在报单链路转正式订单；「已处理 /
+            已取消」处理入口后端尚未注册管理端路由，当前仅提供查询与档期查看。</div
+          >
+        </a-tab-pane>
+        <a-tab-pane key="availability" title="陪玩档期">
+          <a-space class="toolbar" wrap>
+            <a-input-number
+              v-model="availabilityPlayerId"
+              :min="1"
+              placeholder="陪玩 ID"
+              :style="{ width: '140px' }"
+            />
+            <a-date-picker
+              v-model="availabilityFrom"
+              value-format="YYYY-MM-DD"
+              placeholder="开始日期"
+              :style="{ width: '150px' }"
+            />
+            <a-date-picker
+              v-model="availabilityTo"
+              value-format="YYYY-MM-DD"
+              placeholder="结束日期"
+              :style="{ width: '150px' }"
+            />
+            <a-select
+              v-model="availabilitySlotMinutes"
+              :style="{ width: '150px' }"
+            >
+              <a-option :value="30">30 分钟 / 档</a-option>
+              <a-option :value="60">60 分钟 / 档</a-option>
+              <a-option :value="90">90 分钟 / 档</a-option>
+              <a-option :value="120">120 分钟 / 档</a-option>
+            </a-select>
+            <a-button
+              type="primary"
+              :loading="availabilityLoading"
+              @click="queryAvailability"
+              >查询档期</a-button
+            >
+          </a-space>
+          <template v-if="availability">
+            <a-space class="summary" size="large" wrap>
+              <span
+                >陪玩：{{ availability.player_name }}（{{
+                  availability.player_id
+                }}）</span
+              >
+              <span>可约 {{ availability.available_count }} 档</span>
+              <span>已占用 {{ availability.occupied_count }} 档</span>
+              <span>档期粒度：{{ availability.slot_minutes }} 分钟</span>
+            </a-space>
+            <a-table
+              :data="availability.slots"
+              row-key="start"
+              :pagination="{ pageSize: 10 }"
+              size="small"
+            >
+              <template #columns>
+                <a-table-column title="时段">
+                  <template #cell="{ record }"
+                    >{{ fmtMinute(record.start) }} ~
+                    {{ fmtMinute(record.end) }}</template
+                  >
+                </a-table-column>
+                <a-table-column data-index="status" title="状态" :width="110" />
+                <a-table-column title="可预约" :width="90">
+                  <template #cell="{ record }">
+                    <a-tag :color="record.bookable ? 'green' : 'gray'">{{
+                      record.bookable ? '可约' : '不可约'
+                    }}</a-tag>
+                  </template>
+                </a-table-column>
+                <a-table-column title="占用原因">
+                  <template #cell="{ record }">{{
+                    record.reason || '-'
+                  }}</template>
+                </a-table-column>
+                <a-table-column title="关联订单" :width="180">
+                  <template #cell="{ record }">{{
+                    record.order_no || '-'
+                  }}</template>
+                </a-table-column>
+              </template>
+            </a-table>
+          </template>
+          <div class="hint"
+            >档期来自陪玩排期与已接订单；会员期望时段不可约时据此改约或指派其他陪玩。</div
+          >
+        </a-tab-pane>
+      </a-tabs>
     </a-card>
 
     <a-modal
@@ -237,6 +413,11 @@
         <a-form-item label="调级原因" required>
           <a-textarea v-model="levelForm.reason" :max-length="255" />
         </a-form-item>
+        <div class="hint"
+          >手动调级写入只增覆盖记录并立即生效，覆盖期内成长值重算不会把它顶回；覆盖期长度由系统配置
+          app.esports.member_override_guard_days 决定（默认 90
+          天），后端手动调级接口暂不支持逐次指定覆盖期。</div
+        >
       </a-form>
     </a-modal>
   </div>
@@ -249,7 +430,9 @@
   import {
     createMemberLevel,
     getCustomerMember,
+    getPlayerAvailability,
     listMemberLevels,
+    listPriorityBookings,
     setCustomerMemberLevel,
     setMemberLevelStatus,
     updateMemberLevel,
@@ -259,6 +442,8 @@
     MemberLevel,
     MemberLevelInput,
     MemberGrowthSourceType,
+    PlayerAvailabilityView,
+    PriorityBooking,
   } from '../../api';
 
   const { hasButtonPermission } = usePermission();
@@ -305,6 +490,19 @@
     detail.pending_level_code
       ? `${detail.pending_level_code}（${fmtMinute(detail.downgrade_after)}）`
       : '-';
+  // 后端 memberView 已返回手动调级覆盖状态（P1-10）：覆盖期内 override_active=true，
+  // 到期由惰性判定回落；api.ts 的 CustomerMemberDetail 尚未收录这三个字段，页面侧就地补齐。
+  type MemberDetail = CustomerMemberDetail & {
+    override_level_code?: string;
+    override_expires_at?: string | null;
+    override_active?: boolean;
+  };
+  const overrideText = (detail: MemberDetail) =>
+    detail.override_active
+      ? `${detail.override_level_code}（覆盖至 ${fmtMinute(
+          detail.override_expires_at ?? null
+        )}）`
+      : '无生效覆盖';
   // 透出后端返回的中文错误信息，取不到时回退默认文案。
   const errorText = (err: unknown, fallback: string) => {
     const { response } = err as { response?: { data?: { message?: string } } };
@@ -420,7 +618,7 @@
 
   // ── 客户会员 ──
   const customerId = ref<number | undefined>(undefined);
-  const member = ref<CustomerMemberDetail | null>(null);
+  const member = ref<MemberDetail | null>(null);
   const memberLoading = ref(false);
 
   async function queryMember() {
@@ -477,7 +675,86 @@
     }
   }
 
-  onMounted(load);
+  // ── 专属预约（会员优先预约，§10.4） ──
+  const bookingTab = ref('pending');
+  const bookingLimit = ref(50);
+  const bookings = ref<PriorityBooking[]>([]);
+  const bookingLoading = ref(false);
+  const bookingStatusMap: Record<string, string> = {
+    pending: '待处理',
+    processed: '已处理',
+    cancelled: '已取消',
+  };
+  const bookingStatusColorMap: Record<string, string> = {
+    pending: 'orange',
+    processed: 'green',
+    cancelled: 'gray',
+  };
+  const bookingStatusText = (value: string) => bookingStatusMap[value] || value;
+  const bookingStatusColor = (value: string) =>
+    bookingStatusColorMap[value] || 'gray';
+
+  async function loadBookings() {
+    bookingLoading.value = true;
+    try {
+      bookings.value =
+        (await listPriorityBookings(bookingLimit.value)).data.data || [];
+    } catch (err) {
+      Message.error(errorText(err, '加载专属预约失败'));
+    } finally {
+      bookingLoading.value = false;
+    }
+  }
+
+  // ── 陪玩档期可用性（§10.4-04）：会员约前 / 客服派单前查看可约时段 ──
+  const availability = ref<PlayerAvailabilityView | null>(null);
+  const availabilityLoading = ref(false);
+  const availabilityPlayerId = ref<number | undefined>(undefined);
+  const availabilityFrom = ref<string | undefined>(undefined);
+  const availabilityTo = ref<string | undefined>(undefined);
+  const availabilitySlotMinutes = ref(60);
+
+  // 日期选择器按本地时区补全为 RFC3339；结束日期取当日 23:59:59 以覆盖整天。
+  const dayStart = (value: string) =>
+    new Date(`${value}T00:00:00`).toISOString();
+  const dayEnd = (value: string) => new Date(`${value}T23:59:59`).toISOString();
+
+  async function queryAvailability() {
+    const playerId = availabilityPlayerId.value;
+    if (!playerId) {
+      Message.warning('请填写陪玩 ID');
+      return;
+    }
+    availabilityLoading.value = true;
+    try {
+      availability.value = (
+        await getPlayerAvailability(playerId, {
+          from: availabilityFrom.value
+            ? dayStart(availabilityFrom.value)
+            : undefined,
+          to: availabilityTo.value ? dayEnd(availabilityTo.value) : undefined,
+          slot_minutes: availabilitySlotMinutes.value,
+        })
+      ).data.data;
+    } catch (err) {
+      availability.value = null;
+      Message.error(errorText(err, '查询陪玩档期失败：陪玩不存在或参数无效'));
+    } finally {
+      availabilityLoading.value = false;
+    }
+  }
+
+  // 从预约意向直接查看该陪玩的档期，切到档期页签。
+  function inspectAvailability(record: PriorityBooking) {
+    availabilityPlayerId.value = record.player_id;
+    bookingTab.value = 'availability';
+    queryAvailability();
+  }
+
+  onMounted(async () => {
+    await load();
+    await loadBookings();
+  });
 </script>
 
 <style scoped>

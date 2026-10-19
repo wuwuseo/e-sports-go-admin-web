@@ -91,6 +91,29 @@
                 @click="confirmAppointment(record)"
                 >确认档期</a-button
               >
+              <!-- 在线收款（§4.3-02）：待付款订单由客服选渠道发起收款，未配置渠道时后端 503。 -->
+              <a-button
+                v-if="canStartPayment && isUnpaid(record)"
+                type="text"
+                status="success"
+                @click="openPayment(record)"
+                >在线收款</a-button
+              >
+              <!-- 已付款改期（§3.3）：付费档期已被席位占用，必须走限时提案，不能直改。 -->
+              <a-button
+                v-if="canProposeReschedule && canProposeRescheduleFor(record)"
+                type="text"
+                @click="openProposal(record)"
+                >改期提案</a-button
+              >
+              <!-- 档期确认超时处置（§5.5-06）：超时挂起后只能退款或改期。 -->
+              <a-button
+                v-if="canDisposeAppointment && isAppointmentExpired(record)"
+                type="text"
+                status="warning"
+                @click="openAppointmentDisposal(record)"
+                >档期超时处置</a-button
+              >
               <a-button
                 v-if="
                   canOperate && record.fulfillment_status === 'pending_close'
@@ -157,6 +180,13 @@
                 type="text"
                 @click="restore(record)"
                 >恢复</a-button
+              >
+              <!-- 转公共池（§5.1）：待派单订单由负责客服交回公共池，清空负责客服。 -->
+              <a-button
+                v-if="canReleasePool && isPendingDispatch(record)"
+                type="text"
+                @click="openReleasePool(record)"
+                >转公共池</a-button
               >
             </template>
           </a-table-column>
@@ -246,7 +276,7 @@
       v-model:visible="detailVisible"
       title="订单详情"
       :footer="false"
-      width="520px"
+      width="900px"
     >
       <a-descriptions v-if="detail" :column="1" bordered>
         <a-descriptions-item label="订单号">{{
@@ -373,6 +403,144 @@
           </template>
         </a-table>
       </template>
+      <!-- 席位与服务段（§5.5 / §3.3）：席位来自派单看板同一接口，服务段代操作按事件留痕。 -->
+      <template v-if="detail && canViewSeats">
+        <a-divider>席位与服务段</a-divider>
+        <div class="seat-toolbar">
+          <a-button :loading="seatsLoading" @click="loadSeats(detail.id)"
+            >刷新席位</a-button
+          >
+          <a-button
+            v-if="canTeamDispatch"
+            type="primary"
+            @click="openTeamDispatch(detail.id)"
+            >固排成队</a-button
+          >
+        </div>
+        <a-table
+          :data="seats"
+          :loading="seatsLoading"
+          row-key="id"
+          :pagination="false"
+          size="small"
+        >
+          <template #columns>
+            <a-table-column data-index="seat_index" title="席位" :width="60" />
+            <a-table-column title="陪玩" :width="70">
+              <template #cell="{ record }">{{
+                record.player_id || '—'
+              }}</template>
+            </a-table-column>
+            <a-table-column data-index="source" title="来源" :width="90" />
+            <a-table-column title="状态" :width="90">
+              <template #cell="{ record }">
+                <a-tag>{{ record.status }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="服务段操作" :width="230">
+              <template #cell="{ record }">
+                <template v-if="record.player_id">
+                  <a-button
+                    v-if="canPauseService"
+                    type="text"
+                    @click="openServiceOps(record, 'pause')"
+                    >暂停</a-button
+                  >
+                  <a-button
+                    v-if="canResumeService"
+                    type="text"
+                    @click="openServiceOps(record, 'resume')"
+                    >恢复</a-button
+                  >
+                  <a-button
+                    v-if="canTerminateService"
+                    type="text"
+                    status="danger"
+                    @click="openServiceOps(record, 'terminate')"
+                    >终止</a-button
+                  >
+                  <a-button
+                    v-if="canCorrectTiming"
+                    type="text"
+                    @click="openServiceOps(record, 'correction')"
+                    >时长更正</a-button
+                  >
+                </template>
+                <span v-else>—</span>
+              </template>
+            </a-table-column>
+          </template>
+        </a-table>
+      </template>
+      <!-- 席位角色快照（§15.1）：多人规格订单的逐席角色与承诺量，派单与结单校验同口径。 -->
+      <template v-if="detail && canViewSeatRoles">
+        <a-divider>席位角色</a-divider>
+        <a-typography-text v-if="seatRoles.length === 0" type="secondary"
+          >该单无席位角色快照（历史单或未配置多人规格）</a-typography-text
+        >
+        <a-space v-else wrap>
+          <a-tag
+            v-for="role in seatRoles"
+            :key="role.seat_index"
+            color="arcoblue"
+          >
+            第 {{ role.seat_index }} 席 · {{ role.role || '不限' }} · 需
+            {{ role.promised_units }} 服务量 ·
+            {{ role.substitutable ? '可替代' : '不可替代' }}
+          </a-tag>
+        </a-space>
+      </template>
+      <!-- 改期提案（§3.3）：已付款改期须客户与已接单成员逐人确认，撤回后订单档期不变。 -->
+      <template v-if="detail && canListProposals">
+        <a-divider>改期提案</a-divider>
+        <a-table
+          :data="proposals"
+          :loading="proposalLoading"
+          row-key="id"
+          :pagination="false"
+          size="small"
+        >
+          <template #columns>
+            <a-table-column data-index="proposal_no" title="提案号" />
+            <a-table-column title="原档期">
+              <template #cell="{ record }">
+                {{ dateTimeText(record.from_start_at || '') }} /
+                {{ record.from_service_duration_minutes }} 分钟
+              </template>
+            </a-table-column>
+            <a-table-column title="新档期">
+              <template #cell="{ record }">
+                {{ dateTimeText(record.to_start_at) }} /
+                {{ record.to_service_duration_minutes }} 分钟
+              </template>
+            </a-table-column>
+            <a-table-column title="状态" :width="90">
+              <template #cell="{ record }">
+                <a-tag :color="proposalStatusColor(record.status)">{{
+                  proposalStatusLabel(record.status)
+                }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="确认进度">
+              <template #cell="{ record }">{{
+                proposalProgress(record)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="操作" :width="80">
+              <template #cell="{ record }">
+                <a-popconfirm
+                  v-if="canWithdrawProposal && record.status === 'pending'"
+                  content="确认撤回该改期提案？撤回后订单档期保持不变。"
+                  @ok="withdrawProposal(record)"
+                >
+                  <a-button type="text" status="danger">撤回</a-button>
+                </a-popconfirm>
+                <span v-else>—</span>
+              </template>
+            </a-table-column>
+          </template>
+        </a-table>
+      </template>
     </a-modal>
 
     <a-modal
@@ -410,6 +578,40 @@
           >人工调整超过 {{ repriceQuote.approval_threshold_bp / 100 }}%
           免审幅度，提交后先由其他管理员审批。</div
         >
+        <!-- 取消试算（§3.3 公示取消政策）：先展示免费窗口、手续费与退款构成，再确认取消。 -->
+        <template v-if="opsAction === 'cancel'">
+          <a-divider>取消试算</a-divider>
+          <a-spin v-if="cancelPreviewLoading" />
+          <template v-else-if="cancelQuote">
+            <a-descriptions :column="1" size="small" bordered>
+              <a-descriptions-item label="取消政策">
+                免费取消窗口
+                {{ cancelQuote.policy.free_hours }} 小时，超窗手续费
+                {{ cancelQuote.policy.fee_bp / 100 }}%
+              </a-descriptions-item>
+              <a-descriptions-item label="免费截止">{{
+                dateTimeText(cancelQuote.free_until)
+              }}</a-descriptions-item>
+              <a-descriptions-item label="已付 / 已退 / 退款中">
+                {{ money(cancelQuote.payable_cents) }} /
+                {{ money(cancelQuote.refunded_cents) }} /
+                {{ money(cancelQuote.refund_reserved_cents) }}
+              </a-descriptions-item>
+              <a-descriptions-item label="手续费 / 应退">
+                {{ money(cancelQuote.fee_cents) }} /
+                {{ money(cancelQuote.refund_cents) }}
+              </a-descriptions-item>
+            </a-descriptions>
+            <a-typography-text v-if="!cancelQuote.cancelable" type="danger">
+              当前不可取消：{{
+                cancelQuote.blocked_reason || '后端未给出拦截原因'
+              }}
+            </a-typography-text>
+          </template>
+          <a-typography-text v-else-if="cancelPreviewError" type="danger">{{
+            cancelPreviewError
+          }}</a-typography-text>
+        </template>
         <a-form-item :label="opsAction === 'close' ? '备注' : '原因（必填）'">
           <a-textarea v-model="opsForm.reason" :max-length="255" />
         </a-form-item>
@@ -544,6 +746,77 @@
               />
             </a-space>
           </a-form-item>
+        </template>
+        <!-- 查看服务凭证（§3.4-03）：后端要求结单回传覆盖全部图片附件的 viewed_evidence_attachment_ids。 -->
+        <template
+          v-if="opsAction === 'close' && evidenceAttachmentIds.length > 0"
+        >
+          <a-divider>
+            查看服务凭证（§3.4-03）：共
+            {{ evidenceAttachmentIds.length }} 张，已确认
+            {{ viewedEvidenceIds.length }} 张
+          </a-divider>
+          <a-typography-text type="secondary">
+            结单前须逐张查看陪玩上传的凭证图片，点击图片或「标记已查看」计为确认；未全部确认时后端会拒绝结单并列出还差的附件
+            ID。
+          </a-typography-text>
+          <div class="evidence-list">
+            <div
+              v-for="attachmentId in evidenceAttachmentIds"
+              :key="attachmentId"
+              class="evidence-item"
+            >
+              <div class="evidence-head">
+                <span>附件 #{{ attachmentId }}</span>
+                <a-tag
+                  :color="
+                    viewedEvidenceIds.includes(attachmentId)
+                      ? 'green'
+                      : 'orange'
+                  "
+                >
+                  {{
+                    viewedEvidenceIds.includes(attachmentId)
+                      ? '已查看'
+                      : '未查看'
+                  }}
+                </a-tag>
+              </div>
+              <a
+                v-if="evidenceUrlOf(attachmentId)"
+                :href="evidenceUrlOf(attachmentId)"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img
+                  :src="evidenceUrlOf(attachmentId)"
+                  class="evidence-thumb"
+                  alt="服务凭证"
+                  @click="markEvidenceViewed(attachmentId)"
+                />
+              </a>
+              <a-typography-text v-else type="danger"
+                >附件地址获取失败，请重新打开结单弹窗重试</a-typography-text
+              >
+              <a-button
+                size="mini"
+                type="text"
+                @click="toggleEvidenceViewed(attachmentId)"
+                >{{
+                  viewedEvidenceIds.includes(attachmentId)
+                    ? '取消确认'
+                    : '标记已查看'
+                }}</a-button
+              >
+            </div>
+          </div>
+          <a-button
+            class="evidence-all"
+            type="outline"
+            status="success"
+            @click="markAllEvidenceViewed"
+            >全部我已查看</a-button
+          >
         </template>
       </a-form>
     </a-modal>
@@ -809,15 +1082,307 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 在线收款（§4.3-02）：渠道配置态来自 /admin/payment-channels，未开通渠道由后端 503 明确失败。 -->
+    <a-modal
+      v-model:visible="paymentVisible"
+      title="在线收款（§4.3）"
+      :ok-loading="paymentLoading"
+      ok-text="发起收款"
+      @ok="submitPayment"
+      @cancel="paymentVisible = false"
+    >
+      <a-form :model="paymentForm">
+        <a-form-item label="订单号">
+          <a-typography-text>{{ paymentForm.orderNo }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="收款渠道" required>
+          <a-select
+            v-model="paymentForm.channel"
+            placeholder="选择收款渠道"
+            :loading="paymentChannelsLoading"
+          >
+            <a-option
+              v-for="option in paymentChannelOptions"
+              :key="option.value"
+              :value="option.value"
+              :disabled="option.disabled"
+            >
+              {{ option.label }}
+            </a-option>
+          </a-select>
+        </a-form-item>
+        <a-typography-text
+          v-if="paymentChannelsError"
+          type="warning"
+          class="hint"
+          >{{ paymentChannelsError }}</a-typography-text
+        >
+        <template v-if="paymentResult">
+          <a-divider>收款信息</a-divider>
+          <a-descriptions :column="1" size="small" bordered>
+            <a-descriptions-item label="支付意图号">{{
+              paymentResult.intent_no
+            }}</a-descriptions-item>
+            <a-descriptions-item label="渠道">{{
+              channelLabel(paymentResult.channel)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="收款金额">{{
+              money(paymentResult.amount_cents)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="有效期至">{{
+              dateTimeText(paymentResult.expires_at)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="收银台地址">
+              <a
+                :href="paymentResult.pay_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                >{{ paymentResult.pay_url || '渠道未返回地址' }}</a
+              >
+            </a-descriptions-item>
+          </a-descriptions>
+          <a-typography-text type="secondary" class="hint">
+            把收银台地址发给客户即可扫码支付；到账以渠道回调验签为准，本页不改成订单状态。
+          </a-typography-text>
+        </template>
+        <a-typography-text v-else type="secondary" class="hint">
+          发起后由后端校验渠道开通、启用收款账户、支付时限与金额口径；未配置渠道会明确返回中文原因，不会假装成功。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <!-- 档期确认超时处置（§5.5-06）：只提供后端契约里的退还 / 改期两种处置。 -->
+    <a-modal
+      v-model:visible="appointmentVisible"
+      title="档期确认超时处置（§5.5-06）"
+      :ok-loading="appointmentLoading"
+      ok-text="确认处置"
+      @ok="submitAppointmentDisposal"
+      @cancel="appointmentVisible = false"
+    >
+      <a-form :model="appointmentForm">
+        <a-descriptions :column="1" size="small" bordered>
+          <a-descriptions-item label="订单号">{{
+            appointmentForm.orderNo
+          }}</a-descriptions-item>
+          <a-descriptions-item label="预约开始">{{
+            dateTimeText(appointmentForm.requestedStartAt)
+          }}</a-descriptions-item>
+          <a-descriptions-item label="确认时限">{{
+            dateTimeText(appointmentForm.confirmDeadline)
+          }}</a-descriptions-item>
+          <a-descriptions-item label="超时挂起时间">{{
+            dateTimeText(appointmentForm.suspendedAt)
+          }}</a-descriptions-item>
+          <a-descriptions-item label="后端处置选项">
+            退还（全额退款）/ 改期（重开待确认档期）— 具体放行哪几种由服务端配置
+            app.esports.appointment_expire_action 决定
+          </a-descriptions-item>
+        </a-descriptions>
+        <a-form-item label="处置方式" required>
+          <a-radio-group v-model="appointmentForm.action">
+            <a-radio value="refund">全额退还（平台责任，不收手续费）</a-radio>
+            <a-radio value="reschedule">改期（回到待确认档期）</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item
+          v-if="appointmentForm.action === 'reschedule'"
+          label="新的预约开始时间"
+          required
+        >
+          <a-date-picker
+            v-model="appointmentForm.startAt"
+            show-time
+            format="YYYY-MM-DD HH:mm:ss"
+          />
+        </a-form-item>
+        <a-form-item label="处置原因（必填）">
+          <a-textarea v-model="appointmentForm.reason" :max-length="255" />
+        </a-form-item>
+        <a-typography-text v-if="appointmentError" type="danger">{{
+          appointmentError
+        }}</a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <!-- 释放到公共池（§5.1）：清空负责客服并留痕，订单回到待派单公共池。 -->
+    <a-modal
+      v-model:visible="releasePoolVisible"
+      title="转公共池（§5.1）"
+      :ok-loading="releasePoolLoading"
+      ok-text="确认转池"
+      @ok="submitReleasePool"
+      @cancel="releasePoolVisible = false"
+    >
+      <a-form :model="releasePoolForm">
+        <a-form-item label="订单号">
+          <a-typography-text>{{ releasePoolForm.orderNo }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="转池原因（必填）">
+          <a-textarea v-model="releasePoolForm.reason" :max-length="255" />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          仅待派单订单可转池；转池后清空负责客服，订单回到公共池等待其他客服认领。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <!-- 限时改期提案（§3.3）：已付款订单改期须客户与已接单成员逐人确认，提案本身不改订单。 -->
+    <a-modal
+      v-model:visible="proposalVisible"
+      title="发起改期提案（§3.3）"
+      :ok-loading="proposalSubmitting"
+      ok-text="提交提案"
+      @ok="submitProposal"
+      @cancel="proposalVisible = false"
+    >
+      <a-form :model="proposalForm">
+        <a-form-item label="订单号">
+          <a-typography-text>{{ proposalForm.orderNo }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="新的开始时间" required>
+          <a-date-picker
+            v-model="proposalForm.startAt"
+            show-time
+            format="YYYY-MM-DD HH:mm:ss"
+          />
+        </a-form-item>
+        <a-form-item label="服务时长（分钟）" required>
+          <a-input-number v-model="proposalForm.durationMinutes" :min="1" />
+        </a-form-item>
+        <a-form-item label="改期原因（必填）">
+          <a-textarea v-model="proposalForm.reason" :max-length="255" />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          提案提交后进入限时确认，客户与已接单成员逐人确认后才原子切换档期；未确认前可撤回。未付款订单仍走直接改期。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <!-- 服务段代操作（§3.3）：暂停 / 恢复 / 终止 / 时长更正，全部按事件留痕。 -->
+    <a-modal
+      v-model:visible="serviceVisible"
+      :title="serviceTitle"
+      :ok-loading="serviceLoading"
+      :ok-text="serviceOkText"
+      @ok="submitServiceOps"
+      @cancel="serviceVisible = false"
+    >
+      <a-form :model="serviceForm">
+        <a-form-item label="订单 / 席位 / 陪玩">
+          <a-typography-text>
+            #{{ serviceForm.orderId }} · 第 {{ serviceForm.seatIndex }} 席 ·
+            陪玩 {{ serviceForm.playerId }}
+          </a-typography-text>
+        </a-form-item>
+        <template v-if="serviceAction === 'terminate'">
+          <a-form-item label="已履约服务量" required>
+            <a-input-number v-model="serviceForm.terminatedUnits" :min="0" />
+          </a-form-item>
+          <a-form-item label="责任方" required>
+            <a-select v-model="serviceForm.responsibility">
+              <a-option
+                v-for="party in responsibilityOptions"
+                :key="party.value"
+                :value="party.value"
+                >{{ party.label }}</a-option
+              >
+            </a-select>
+          </a-form-item>
+        </template>
+        <template v-if="serviceAction === 'correction'">
+          <a-form-item label="更正后有效秒数" required>
+            <a-input-number v-model="serviceForm.effectiveSeconds" :min="1" />
+          </a-form-item>
+          <a-form-item label="更正后暂停秒数" required>
+            <a-input-number v-model="serviceForm.pausedSeconds" :min="0" />
+          </a-form-item>
+          <a-form-item label="责任方" required>
+            <a-select v-model="serviceForm.responsibility">
+              <a-option
+                v-for="party in responsibilityOptions"
+                :key="party.value"
+                :value="party.value"
+                >{{ party.label }}</a-option
+              >
+            </a-select>
+          </a-form-item>
+          <a-typography-text type="secondary" class="hint">
+            仅已结束的服务段可更正；有效秒数上限由服务端校验（min(服务段墙钟跨度,
+            订单标准时长 × 系数)），越界会原样返回可更正区间与实际跨度。
+          </a-typography-text>
+          <a-typography-text v-if="serviceForm.lastTimingText" type="secondary">
+            服务端最近一次返回的计时：{{ serviceForm.lastTimingText }}
+          </a-typography-text>
+        </template>
+        <a-form-item label="原因（必填）">
+          <a-textarea v-model="serviceForm.reason" :max-length="255" />
+        </a-form-item>
+        <a-typography-text v-if="serviceError" type="danger">{{
+          serviceError
+        }}</a-typography-text>
+        <a-descriptions
+          v-if="serviceResultText"
+          :column="1"
+          size="small"
+          bordered
+          class="hint"
+        >
+          <a-descriptions-item label="服务端结果">{{
+            serviceResultText
+          }}</a-descriptions-item>
+        </a-descriptions>
+      </a-form>
+    </a-modal>
+
+    <!-- 固排成队（§5.3）：主陪玩 + 其固排一次占满空席位，候选由后端过滤资格/在线/分区。 -->
+    <a-modal
+      v-model:visible="teamVisible"
+      title="固排成队（§5.3）"
+      :ok-button-props="{ disabled: teamSelected.length === 0 }"
+      @ok="submitTeamDispatch"
+      @cancel="closeTeamDispatch"
+    >
+      <a-form :model="teamForm" layout="vertical">
+        <a-form-item label="主陪玩档案 ID" required>
+          <a-space>
+            <a-input-number v-model="teamForm.mainPlayerId" :min="1" />
+            <a-button type="outline" @click="loadTeamCandidates"
+              >加载固排候选</a-button
+            >
+          </a-space>
+        </a-form-item>
+        <a-form-item v-if="teamCandidatesLoaded">
+          <a-typography-text v-if="teamCandidates.length === 0" type="secondary"
+            >该主陪玩在本单无可成队的固排（须已建立固排且资格 / 在线 / 分区 /
+            等级满足）</a-typography-text
+          >
+          <a-checkbox-group v-else v-model="teamSelected">
+            <a-checkbox
+              v-for="candidate in teamCandidates"
+              :key="candidate.player_id"
+              :value="candidate.player_id"
+            >
+              {{ candidate.display_name }}（{{ candidate.level }} ·
+              {{ candidate.presence }}）
+            </a-checkbox>
+          </a-checkbox-group>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
+  import axios from 'axios';
   import usePermission from '@/hooks/permission';
   import useUserStore from '@/store/modules/user';
   import { getAdmins } from '@/api/user';
+  import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
+  import type { ApiResponse } from '@/types/api';
   import {
     addOrderCollaborator,
     approveCloseReview,
@@ -825,20 +1390,36 @@
     cancelOrder,
     cancelOrderAddon,
     closeOrder,
+    correctOrderPlayerServiceTiming,
     createOrderAddon,
     depositOrder,
+    disposeExpiredAppointment,
     getOrder,
     getOrderCloseApproval,
     getOrderCloseConditions,
     getOrderCloseForm,
+    getOrderSeatRoles,
+    getTeammateCandidates,
     listOrderAddons,
     listOrderCollaborators,
+    listOrderRescheduleProposals,
+    listOrderSeats,
     listOrders,
+    listPaymentChannels,
     payEsportsOrderByStoredValueCard,
     payOrderAddonByBalance,
     payOrderWithBalance,
+    pauseOrderPlayerService,
+    previewCancelOrder,
     previewReprice,
+    proposeOrderReschedule,
+    releaseOrderToPool,
     requestPriceAdjustment,
+    resumeOrderPlayerService,
+    startOrderPayment,
+    teamDispatch,
+    terminateOrderPlayerService,
+    withdrawRescheduleProposal,
     listPriceAdjustments,
     decidePriceAdjustment,
     rejectCloseReview,
@@ -852,16 +1433,26 @@
     confirmOrderAppointment,
   } from '../../api';
   import type {
+    CancelQuote,
     CloseConditionStatus,
+    CloseSubstituteReport,
     CommissionRule,
     EsportsCloseFormField,
+    EsportsDispatchSeat,
     EsportsOrder,
     EsportsOrderAddon,
     EsportsOrderCollaborator,
+    EsportsSeatSpec,
     OrderCloseApprovalView,
     OrderCloseFormView,
+    OrderPaymentStartView,
+    PaymentChannel,
+    PaymentChannelView,
+    PlayerServiceTiming,
     RepriceQuote,
     PriceAdjustment,
+    RescheduleProposalView,
+    TeammateDispatchCandidate,
   } from '../../api';
 
   type OpsAction = 'reprice' | 'reschedule' | 'cancel' | 'close';
@@ -888,6 +1479,49 @@
   );
   const canRemoveCollaborator = computed(() =>
     hasButtonPermission('esports:orders:collaborator_remove')
+  );
+  // 订单动作入口的权限码逐一取自 app.go 的 PermAPI 声明，前端隐藏不替代后端鉴权。
+  const canStartPayment = computed(() =>
+    hasButtonPermission('esports:payments:order_start')
+  );
+  const canDisposeAppointment = computed(() =>
+    hasButtonPermission('esports:orders:appointment_dispose')
+  );
+  const canReleasePool = computed(() =>
+    hasButtonPermission('esports:dispatch:release_pool')
+  );
+  const canPreviewCancel = computed(() =>
+    hasButtonPermission('esports:orders:cancel_preview')
+  );
+  const canProposeReschedule = computed(() =>
+    hasButtonPermission('esports:orders:reschedule_propose')
+  );
+  const canListProposals = computed(() =>
+    hasButtonPermission('esports:orders:reschedule_list')
+  );
+  const canWithdrawProposal = computed(() =>
+    hasButtonPermission('esports:orders:reschedule_withdraw')
+  );
+  const canViewSeatRoles = computed(() =>
+    hasButtonPermission('esports:orders:seat_roles')
+  );
+  const canViewSeats = computed(() =>
+    hasButtonPermission('esports:dispatch:seats')
+  );
+  const canTeamDispatch = computed(() =>
+    hasButtonPermission('esports:dispatch:team_dispatch')
+  );
+  const canPauseService = computed(() =>
+    hasButtonPermission('esports:orders:service_pause_admin')
+  );
+  const canResumeService = computed(() =>
+    hasButtonPermission('esports:orders:service_resume_admin')
+  );
+  const canTerminateService = computed(() =>
+    hasButtonPermission('esports:orders:service_terminate')
+  );
+  const canCorrectTiming = computed(() =>
+    hasButtonPermission('esports:orders:service_timing_correction')
   );
 
   const loading = ref(false);
@@ -1032,6 +1666,21 @@
   const isUnpaid = (order: EsportsOrder) =>
     order.payment_status === 'unpaid' &&
     order.fulfillment_status === 'pending_payment';
+  const isPendingDispatch = (order: EsportsOrder) =>
+    order.fulfillment_status === 'pending_dispatch';
+  // 档期超时挂起时间由后端拆单 / 到期任务写入，api.ts 的 EsportsOrder 未声明该字段。
+  const appointmentSuspendedAt = (order: EsportsOrder) =>
+    (order as EsportsOrder & { appointment_suspended_at?: string | null })
+      .appointment_suspended_at || '';
+  // 档期确认超时（§5.5-06）：只有挂起态才开放退还 / 改期处置入口。
+  const isAppointmentExpired = (order: EsportsOrder) =>
+    order.appointment_status === 'pending_confirm' &&
+    !!appointmentSuspendedAt(order);
+  // 已付款订单改期必须走限时提案（后端对直改返回 409），未付款仍走直接改期。
+  const canProposeRescheduleFor = (order: EsportsOrder) =>
+    order.payment_status === 'paid' &&
+    order.fulfillment_status !== 'completed' &&
+    order.fulfillment_status !== 'cancelled';
 
   // ── 加钟（§3.3 / §6.2 / §12.5）：客服对服务中订单发起，陪玩确认后累加并生成加钟分成 ──
   const addonVisible = ref(false);
@@ -1423,6 +2072,620 @@
     }
   }
 
+  // ── 在线收款（§4.3-02）：渠道枚举与启停态来自 /admin/payment-channels ──
+  const paymentVisible = ref(false);
+  const paymentLoading = ref(false);
+  const paymentResult = ref<OrderPaymentStartView | null>(null);
+  const paymentChannels = ref<PaymentChannelView[]>([]);
+  const paymentChannelsLoading = ref(false);
+  const paymentChannelsError = ref('');
+  const paymentForm = reactive({
+    orderId: 0,
+    orderNo: '',
+    channel: 'wechat_work' as PaymentChannel,
+  });
+  const paymentChannelLabels: Record<string, string> = {
+    wechat_work: '企业微信收款',
+    merchant_qr: '工作室商户码',
+    corporate_transfer: '对公转账',
+  };
+  const channelLabel = (channel: string) =>
+    paymentChannelLabels[channel] || channel;
+  const paymentChannelOptions = computed(() => {
+    if (paymentChannels.value.length > 0) {
+      return paymentChannels.value.map((item) => ({
+        value: item.channel,
+        label: `${channelLabel(item.channel)}（${
+          item.enabled ? '启用中' : '已停用'
+        } · ${item.active_accounts} 个启用账户）`,
+        // 停用渠道后端必然拒绝，前端直接置灰；启停态读不到时全部可选，由后端如实判定。
+        disabled: !item.enabled,
+      }));
+    }
+    return Object.keys(paymentChannelLabels).map((value) => ({
+      value,
+      label: channelLabel(value),
+      disabled: false,
+    }));
+  });
+
+  async function loadPaymentChannels() {
+    if (paymentChannelsLoading.value) return;
+    paymentChannelsLoading.value = true;
+    paymentChannelsError.value = '';
+    try {
+      paymentChannels.value = (await listPaymentChannels()).data.data || [];
+    } catch (err) {
+      paymentChannels.value = [];
+      paymentChannelsError.value = errorText(
+        err,
+        '无法读取收款渠道配置态（可能无「收款方式」查看权限），渠道是否开通以发起后的后端返回为准'
+      );
+    } finally {
+      paymentChannelsLoading.value = false;
+    }
+  }
+
+  function openPayment(order: EsportsOrder) {
+    paymentForm.orderId = order.id;
+    paymentForm.orderNo = order.order_no;
+    paymentForm.channel = 'wechat_work';
+    paymentResult.value = null;
+    paymentVisible.value = true;
+    loadPaymentChannels();
+  }
+
+  async function submitPayment() {
+    if (!paymentForm.channel) {
+      Message.warning('请选择收款渠道');
+      return;
+    }
+    paymentLoading.value = true;
+    try {
+      paymentResult.value =
+        (await startOrderPayment(paymentForm.orderId, paymentForm.channel)).data
+          .data || null;
+      Message.success('已发起收款，请把收银台地址发给客户');
+      await load();
+    } catch (err) {
+      // 未开通渠道时后端返回 503「收款通道尚未配置」，原样展示，不做乐观成功。
+      paymentResult.value = null;
+      Message.error(errorText(err, '发起收款失败'));
+    } finally {
+      paymentLoading.value = false;
+    }
+  }
+
+  // ── 档期确认超时处置（§5.5-06）：退还 / 改期两种处置，放行范围由后端配置决定 ──
+  const appointmentVisible = ref(false);
+  const appointmentLoading = ref(false);
+  const appointmentError = ref('');
+  const appointmentForm = reactive({
+    orderId: 0,
+    orderNo: '',
+    orderVersion: 1,
+    requestedStartAt: '',
+    confirmDeadline: '',
+    suspendedAt: '',
+    action: 'refund' as 'refund' | 'reschedule',
+    startAt: '',
+    reason: '',
+  });
+
+  function openAppointmentDisposal(order: EsportsOrder) {
+    appointmentForm.orderId = order.id;
+    appointmentForm.orderNo = order.order_no;
+    appointmentForm.orderVersion = order.version;
+    appointmentForm.requestedStartAt = order.requested_start_at || '';
+    appointmentForm.confirmDeadline =
+      order.appointment_confirmation_deadline || '';
+    appointmentForm.suspendedAt = appointmentSuspendedAt(order);
+    appointmentForm.action = 'refund';
+    appointmentForm.startAt = '';
+    appointmentForm.reason = '';
+    appointmentError.value = '';
+    appointmentVisible.value = true;
+  }
+
+  async function submitAppointmentDisposal() {
+    const reason = appointmentForm.reason.trim();
+    if (!reason) {
+      Message.warning('请填写处置原因');
+      return;
+    }
+    if (appointmentForm.action === 'reschedule' && !appointmentForm.startAt) {
+      Message.warning('改期须选择新的预约开始时间');
+      return;
+    }
+    appointmentLoading.value = true;
+    appointmentError.value = '';
+    try {
+      await disposeExpiredAppointment(appointmentForm.orderId, {
+        action: appointmentForm.action,
+        reason,
+        start_at:
+          appointmentForm.action === 'reschedule'
+            ? new Date(appointmentForm.startAt).toISOString()
+            : undefined,
+        expected_version: appointmentForm.orderVersion,
+      });
+      appointmentVisible.value = false;
+      Message.success(
+        appointmentForm.action === 'refund'
+          ? '已全额退还并取消订单'
+          : '已改期，订单回到待确认档期'
+      );
+      await load();
+    } catch (err) {
+      // 「当前档期超时只允许 X 处置」等中文原因原样回显，便于按配置改选处置方式。
+      appointmentError.value = errorText(
+        err,
+        '处置失败：状态已变化或方式未被放行'
+      );
+      Message.error(appointmentError.value);
+    } finally {
+      appointmentLoading.value = false;
+    }
+  }
+
+  // ── 转公共池（§5.1）：清空负责客服并留痕，订单回到待派单公共池 ──
+  const releasePoolVisible = ref(false);
+  const releasePoolLoading = ref(false);
+  const releasePoolForm = reactive({ orderId: 0, orderNo: '', reason: '' });
+
+  function openReleasePool(order: EsportsOrder) {
+    releasePoolForm.orderId = order.id;
+    releasePoolForm.orderNo = order.order_no;
+    releasePoolForm.reason = '';
+    releasePoolVisible.value = true;
+  }
+
+  async function submitReleasePool() {
+    const reason = releasePoolForm.reason.trim();
+    if (!reason) {
+      Message.warning('请填写转池原因');
+      return;
+    }
+    releasePoolLoading.value = true;
+    try {
+      await releaseOrderToPool(releasePoolForm.orderId, reason);
+      releasePoolVisible.value = false;
+      Message.success('已转公共池');
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '转池失败：仅待派单订单可转公共池'));
+    } finally {
+      releasePoolLoading.value = false;
+    }
+  }
+
+  // ── 限时改期提案（§3.3）：已付款改期须客户与已接单成员逐人确认，撤回不改订单 ──
+  const proposalVisible = ref(false);
+  const proposalSubmitting = ref(false);
+  const proposalLoading = ref(false);
+  const proposals = ref<RescheduleProposalView[]>([]);
+  const proposalForm = reactive({
+    orderId: 0,
+    orderNo: '',
+    orderVersion: 1,
+    startAt: '',
+    durationMinutes: 60,
+    reason: '',
+  });
+  const proposalStatusMap: Record<string, string> = {
+    pending: '待确认',
+    confirmed: '已生效',
+    rejected: '已拒绝',
+    expired: '已过期',
+    withdrawn: '已撤回',
+  };
+  const proposalStatusLabel = (status: string) =>
+    proposalStatusMap[status] || status;
+  const proposalStatusColor = (status: string) =>
+    ((
+      {
+        pending: 'orange',
+        confirmed: 'green',
+        rejected: 'red',
+        expired: 'gray',
+        withdrawn: 'gray',
+      } as Record<string, string>
+    )[status] || 'gray');
+  const proposalProgress = (record: RescheduleProposalView) => {
+    if (record.status !== 'pending') return '—';
+    const confirmed = (record.confirmations || []).filter(
+      (item) => item.decision === 'confirmed'
+    ).length;
+    return `已确认 ${confirmed}，待确认 ${
+      (record.pending_confirmers || []).length
+    }，截止 ${dateTimeText(record.expires_at)}`;
+  };
+
+  async function loadProposals(orderId: number) {
+    if (!canListProposals.value) return;
+    proposalLoading.value = true;
+    try {
+      proposals.value =
+        (await listOrderRescheduleProposals(orderId)).data.data || [];
+    } catch (err) {
+      proposals.value = [];
+      Message.error(errorText(err, '加载改期提案失败'));
+    } finally {
+      proposalLoading.value = false;
+    }
+  }
+
+  function openProposal(order: EsportsOrder) {
+    proposalForm.orderId = order.id;
+    proposalForm.orderNo = order.order_no;
+    proposalForm.orderVersion = order.version;
+    proposalForm.startAt = '';
+    proposalForm.durationMinutes = order.service_duration_minutes || 60;
+    proposalForm.reason = '';
+    proposalVisible.value = true;
+  }
+
+  async function submitProposal() {
+    if (!proposalForm.startAt) {
+      Message.warning('请选择新的开始时间');
+      return;
+    }
+    const reason = proposalForm.reason.trim();
+    if (!reason) {
+      Message.warning('请填写改期原因');
+      return;
+    }
+    proposalSubmitting.value = true;
+    try {
+      await proposeOrderReschedule(proposalForm.orderId, {
+        expected_version: proposalForm.orderVersion,
+        start_at: new Date(proposalForm.startAt).toISOString(),
+        service_duration_minutes: proposalForm.durationMinutes,
+        reason,
+      });
+      proposalVisible.value = false;
+      Message.success('已发起改期提案，等待客户与已接单成员确认');
+      await load();
+      await loadProposals(proposalForm.orderId);
+    } catch (err) {
+      Message.error(
+        errorText(err, '发起提案失败：仅已付款且状态未变化的订单可提案')
+      );
+    } finally {
+      proposalSubmitting.value = false;
+    }
+  }
+
+  async function withdrawProposal(record: RescheduleProposalView) {
+    try {
+      await withdrawRescheduleProposal(record.id);
+      Message.success('已撤回改期提案');
+      await loadProposals(record.order_id);
+    } catch (err) {
+      Message.error(errorText(err, '撤回失败：提案已确认、过期或已撤回'));
+    }
+  }
+
+  // ── 席位与席位角色（§5.5 / §15.1）──
+  const seats = ref<EsportsDispatchSeat[]>([]);
+  const seatsLoading = ref(false);
+  const seatRoles = ref<EsportsSeatSpec[]>([]);
+
+  async function loadSeats(orderId: number) {
+    if (!canViewSeats.value) return;
+    seatsLoading.value = true;
+    try {
+      seats.value = (await listOrderSeats(orderId)).data.data || [];
+    } catch (err) {
+      seats.value = [];
+      Message.error(errorText(err, '无法获取席位信息'));
+    } finally {
+      seatsLoading.value = false;
+    }
+  }
+
+  async function loadSeatRoles(orderId: number) {
+    if (!canViewSeatRoles.value) return;
+    try {
+      seatRoles.value =
+        (await getOrderSeatRoles(orderId)).data.data?.seat_roles || [];
+    } catch {
+      // 席位角色只用于展示约束，读取失败不阻断详情。
+      seatRoles.value = [];
+    }
+  }
+
+  // ── 服务段代操作（§3.3）：暂停 / 恢复 / 终止 / 时长更正，全部按事件留痕 ──
+  type ServiceAction = 'pause' | 'resume' | 'terminate' | 'correction';
+  const serviceVisible = ref(false);
+  const serviceLoading = ref(false);
+  const serviceAction = ref<ServiceAction>('pause');
+  const serviceError = ref('');
+  const serviceResultText = ref('');
+  const serviceForm = reactive({
+    orderId: 0,
+    playerId: 0,
+    seatIndex: 0,
+    terminatedUnits: 0,
+    effectiveSeconds: 0,
+    pausedSeconds: 0,
+    responsibility: 'player',
+    reason: '',
+    lastTimingText: '',
+  });
+  const responsibilityOptions = [
+    { value: 'player', label: '陪玩' },
+    { value: 'customer', label: '客户' },
+    { value: 'platform', label: '平台' },
+    { value: 'force_majeure', label: '不可抗力' },
+  ];
+  const responsibilityLabel = (value: string) =>
+    responsibilityOptions.find((item) => item.value === value)?.label || value;
+  // 服务端最近一次返回的计时快照（暂停 / 恢复响应），供时长更正弹窗参照。
+  const serviceTimingTexts: Record<number, string> = {};
+  const serviceTitle = computed(
+    () =>
+      ({
+        pause: '代暂停服务段（§3.3）',
+        resume: '代恢复服务段（§3.3）',
+        terminate: '终止服务段（§3.3）',
+        correction: '服务时长更正（留痕）',
+      }[serviceAction.value])
+  );
+  const serviceOkText = computed(
+    () =>
+      ({
+        pause: '确认暂停',
+        resume: '确认恢复',
+        terminate: '确认终止',
+        correction: '提交更正',
+      }[serviceAction.value])
+  );
+
+  function openServiceOps(seat: EsportsDispatchSeat, action: ServiceAction) {
+    if (!seat.player_id) return;
+    serviceAction.value = action;
+    serviceForm.orderId = seat.order_id;
+    serviceForm.playerId = seat.player_id;
+    serviceForm.seatIndex = seat.seat_index;
+    serviceForm.terminatedUnits = 0;
+    serviceForm.effectiveSeconds = 0;
+    serviceForm.pausedSeconds = 0;
+    serviceForm.responsibility = 'player';
+    serviceForm.reason = '';
+    serviceForm.lastTimingText = serviceTimingTexts[seat.player_id] || '';
+    serviceError.value = '';
+    serviceResultText.value = '';
+    serviceVisible.value = true;
+  }
+
+  function rememberTiming(timing?: PlayerServiceTiming | null) {
+    if (!timing) return;
+    const text = `有效 ${timing.effective_seconds} 秒 · 暂停 ${timing.paused_seconds} 秒 · 状态 ${timing.status}`;
+    serviceTimingTexts[timing.player_id] = text;
+    serviceForm.lastTimingText = text;
+  }
+
+  async function refreshServiceViews() {
+    await load();
+    if (detail.value) await loadSeats(detail.value.id);
+  }
+
+  async function submitServiceOps() {
+    const reason = serviceForm.reason.trim();
+    if (!reason) {
+      Message.warning('请填写原因');
+      return;
+    }
+    serviceLoading.value = true;
+    serviceError.value = '';
+    serviceResultText.value = '';
+    const { orderId, playerId } = serviceForm;
+    try {
+      if (serviceAction.value === 'pause' || serviceAction.value === 'resume') {
+        const timing =
+          serviceAction.value === 'pause'
+            ? (await pauseOrderPlayerService(orderId, playerId, reason)).data
+                .data
+            : (await resumeOrderPlayerService(orderId, playerId, reason)).data
+                .data;
+        rememberTiming(timing);
+        serviceVisible.value = false;
+        Message.success(
+          serviceAction.value === 'pause' ? '已代暂停服务段' : '已代恢复服务段'
+        );
+        await refreshServiceViews();
+      } else if (serviceAction.value === 'terminate') {
+        const result = (
+          await terminateOrderPlayerService(orderId, playerId, {
+            terminated_units: serviceForm.terminatedUnits,
+            responsibility: serviceForm.responsibility,
+            reason,
+          })
+        ).data.data;
+        serviceResultText.value = `已登记履约量 ${
+          result.terminated_units
+        } · 未履约量 ${result.unfulfilled_units} · 责任方 ${responsibilityLabel(
+          result.fault_party
+        )} · 有效 ${result.effective_seconds} 秒 / 暂停 ${
+          result.paused_seconds
+        } 秒`;
+        Message.success('已终止服务段');
+        await refreshServiceViews();
+      } else {
+        const result = (
+          await correctOrderPlayerServiceTiming(orderId, playerId, {
+            effective_seconds: serviceForm.effectiveSeconds,
+            paused_seconds: serviceForm.pausedSeconds,
+            responsibility: serviceForm.responsibility,
+            reason,
+          })
+        ).data.data;
+        serviceResultText.value = `有效秒数 ${
+          result.effective_seconds_before
+        } → ${result.effective_seconds_after} · 暂停秒数 ${
+          result.paused_seconds_before
+        } → ${result.paused_seconds_after} · 停工 ${
+          result.downtime_seconds
+        } 秒 / ${result.downtime_count} 次 · 责任方 ${responsibilityLabel(
+          result.responsibility
+        )}`;
+        Message.success('已提交时长更正留痕');
+        await refreshServiceViews();
+      }
+    } catch (err) {
+      // 更正越界时后端返回「有效秒数须在 1–N 秒之间（墙钟跨度 …）」——原样展示有效时长与上限。
+      serviceError.value = errorText(
+        err,
+        '服务段操作失败：状态已变化、无归属权限或超出可更正区间'
+      );
+      Message.error(serviceError.value);
+    } finally {
+      serviceLoading.value = false;
+    }
+  }
+
+  // ── 固排成队（§5.3）：候选由后端按固排关系 / 资格 / 在线 / 分区 / 等级过滤 ──
+  const teamVisible = ref(false);
+  const teamOrderId = ref(0);
+  const teamForm = reactive({ mainPlayerId: 1 });
+  const teamCandidates = ref<TeammateDispatchCandidate[]>([]);
+  const teamSelected = ref<number[]>([]);
+  const teamCandidatesLoaded = ref(false);
+
+  function openTeamDispatch(orderId: number) {
+    teamOrderId.value = orderId;
+    teamForm.mainPlayerId = 1;
+    teamCandidates.value = [];
+    teamSelected.value = [];
+    teamCandidatesLoaded.value = false;
+    teamVisible.value = true;
+  }
+
+  async function loadTeamCandidates() {
+    if (teamForm.mainPlayerId < 1) {
+      Message.warning('请填写有效的主陪玩档案 ID');
+      return;
+    }
+    try {
+      teamCandidates.value =
+        (await getTeammateCandidates(teamOrderId.value, teamForm.mainPlayerId))
+          .data.data || [];
+      teamSelected.value = [];
+      teamCandidatesLoaded.value = true;
+    } catch (err) {
+      Message.error(errorText(err, '加载固排候选失败：订单状态或主陪玩无效'));
+    }
+  }
+
+  async function submitTeamDispatch() {
+    if (teamForm.mainPlayerId < 1) {
+      Message.warning('请填写有效的主陪玩档案 ID');
+      return;
+    }
+    try {
+      await teamDispatch(
+        teamOrderId.value,
+        teamForm.mainPlayerId,
+        teamSelected.value
+      );
+      teamVisible.value = false;
+      Message.success('已一次成队并发出邀请');
+      await loadSeats(teamOrderId.value);
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '成队失败：固排关系、资格或空席位不足'));
+    }
+  }
+
+  function closeTeamDispatch() {
+    teamCandidates.value = [];
+    teamSelected.value = [];
+    teamCandidatesLoaded.value = false;
+  }
+
+  // ── 结单凭证（§3.4-03）：close-form 返回的图片附件必须逐张查看后原样回传 ──
+  const evidenceAttachmentIds = ref<number[]>([]);
+  const viewedEvidenceIds = ref<number[]>([]);
+  const evidenceUrls = ref<Record<number, string>>({});
+  const evidenceUrlOf = (attachmentId: number) =>
+    evidenceUrls.value[attachmentId] || '';
+  const markEvidenceViewed = (attachmentId: number) => {
+    if (!viewedEvidenceIds.value.includes(attachmentId)) {
+      viewedEvidenceIds.value = [...viewedEvidenceIds.value, attachmentId];
+    }
+  };
+  const toggleEvidenceViewed = (attachmentId: number) => {
+    viewedEvidenceIds.value = viewedEvidenceIds.value.includes(attachmentId)
+      ? viewedEvidenceIds.value.filter((id) => id !== attachmentId)
+      : [...viewedEvidenceIds.value, attachmentId];
+  };
+  const markAllEvidenceViewed = () => {
+    viewedEvidenceIds.value = [...evidenceAttachmentIds.value];
+  };
+  async function loadEvidence(attachmentIds: number[]) {
+    evidenceAttachmentIds.value = attachmentIds;
+    viewedEvidenceIds.value = [];
+    evidenceUrls.value = {};
+    const resolved = await Promise.all(
+      attachmentIds.map(async (attachmentId) => {
+        try {
+          return [
+            attachmentId,
+            await resolveAttachmentAccessUrl(attachmentId),
+          ] as const;
+        } catch {
+          return [attachmentId, ''] as const;
+        }
+      })
+    );
+    const urls: Record<number, string> = {};
+    resolved.forEach(([attachmentId, url]) => {
+      if (url) urls[attachmentId] = url;
+    });
+    evidenceUrls.value = urls;
+  }
+
+  // ── 取消试算（§3.3）：取消前先展示手续费与退款构成，再确认提交 ──
+  const cancelQuote = ref<CancelQuote | null>(null);
+  const cancelPreviewLoading = ref(false);
+  const cancelPreviewError = ref('');
+
+  async function loadCancelPreview(orderId: number) {
+    cancelPreviewLoading.value = true;
+    cancelPreviewError.value = '';
+    try {
+      cancelQuote.value = (await previewCancelOrder(orderId)).data.data || null;
+    } catch (err) {
+      cancelQuote.value = null;
+      cancelPreviewError.value = errorText(
+        err,
+        '取消试算失败，请确认订单归属与状态'
+      );
+    } finally {
+      cancelPreviewLoading.value = false;
+    }
+  }
+
+  // 结单接口须回传 viewed_evidence_attachment_ids；api.ts 的 closeOrder 暂未声明该字段，
+  // 这里按同一路径补齐请求体，待 api.ts 收敛后可直接替换为 closeOrder(...)。
+  const closeOrderWithEvidence = (
+    orderId: number,
+    note: string,
+    formValues: Record<string, unknown>,
+    substituteReports: CloseSubstituteReport[],
+    viewedEvidenceAttachmentIds: number[]
+  ) =>
+    axios.post<ApiResponse<EsportsOrder>>(
+      `/api/v1/esports/admin/orders/${orderId}/close`,
+      {
+        note,
+        form_values: formValues || {},
+        substitute_reports: substituteReports || [],
+        viewed_evidence_attachment_ids: viewedEvidenceAttachmentIds,
+      }
+    );
+
   async function showDetail(id: number) {
     try {
       detail.value = (await getOrder(id)).data.data || null;
@@ -1434,9 +2697,12 @@
         detailApproval.value = null;
       }
       detailVisible.value = true;
-      // 详情打开后并行加载协作客服与候选客服名称，避免阻塞弹层展示。
+      // 详情打开后并行加载协作客服、候选客服名称、席位 / 席位角色与改期提案。
       loadCollaborators(id);
       loadAdminOptions();
+      loadSeats(id);
+      loadSeatRoles(id);
+      loadProposals(id);
     } catch {
       Message.error('无法获取订单详情');
     }
@@ -1452,6 +2718,11 @@
     closeForm.value = null;
     closeFormValues.value = {};
     substituteRows.value = [];
+    evidenceAttachmentIds.value = [];
+    viewedEvidenceIds.value = [];
+    evidenceUrls.value = {};
+    cancelQuote.value = null;
+    cancelPreviewError.value = '';
     opsVisible.value = true;
     if (action === 'close') {
       try {
@@ -1463,9 +2734,17 @@
           units: 0,
           evidence: '',
         }));
-      } catch {
-        Message.error('加载结单配置失败，可重试或直接结单');
+        // 后端本轮新增：订单全部图片附件 ID（升序去重），结单须逐张确认后原样回传。
+        const viewWithEvidence = view as
+          | (OrderCloseFormView & { evidence_attachment_ids?: number[] })
+          | null;
+        await loadEvidence(viewWithEvidence?.evidence_attachment_ids || []);
+      } catch (err) {
+        Message.error(errorText(err, '加载结单配置失败，可重试或直接结单'));
       }
+    }
+    if (action === 'cancel' && canPreviewCancel.value) {
+      loadCancelPreview(order.id);
     }
   }
 
@@ -1496,6 +2775,30 @@
           `请填写结单表单必填项：${missing
             .map((item) => item.label)
             .join('、')}`
+        );
+        return;
+      }
+    }
+    // 结单凭证（§3.4-03）：图片附件未逐张确认时后端必然 400，前端先拦一道并如实提示还差几张。
+    if (opsAction.value === 'close' && evidenceAttachmentIds.value.length > 0) {
+      const missingEvidence = evidenceAttachmentIds.value.filter(
+        (attachmentId) => !viewedEvidenceIds.value.includes(attachmentId)
+      );
+      if (missingEvidence.length > 0) {
+        Message.warning(
+          `请先逐张查看服务凭证，还差 ${
+            missingEvidence.length
+          } 张（附件 #${missingEvidence.join('、#')}）`
+        );
+        return;
+      }
+    }
+    // 取消试算（§3.3）：后端判定不可取消时先展示拦截原因，不提交取消。
+    if (opsAction.value === 'cancel' && cancelQuote.value) {
+      if (!cancelQuote.value.cancelable) {
+        Message.error(
+          cancelQuote.value.blocked_reason ||
+            '当前订单不可取消，请按后端提示处理'
         );
         return;
       }
@@ -1540,12 +2843,22 @@
             reported_units: row.units,
             evidence_ref: row.evidence.trim(),
           }));
-        await closeOrder(
-          order.id,
-          opsForm.reason.trim(),
-          closeFormValues.value,
-          substitutes
-        );
+        if (evidenceAttachmentIds.value.length > 0) {
+          await closeOrderWithEvidence(
+            order.id,
+            opsForm.reason.trim(),
+            closeFormValues.value,
+            substitutes,
+            evidenceAttachmentIds.value
+          );
+        } else {
+          await closeOrder(
+            order.id,
+            opsForm.reason.trim(),
+            closeFormValues.value,
+            substitutes
+          );
+        }
       } else {
         await cancelOrder(order.id, opsForm.reason.trim());
       }
@@ -1850,5 +3163,46 @@
 
   .collaborator-select {
     flex: 1;
+  }
+
+  /* 席位区块：刷新与固排成队按钮同行。 */
+  .seat-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  /* 结单服务凭证（§3.4-03）：逐张预览 + 逐张确认，缩略图可点击计为已查看。 */
+  .evidence-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 8px 0;
+  }
+
+  .evidence-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 160px;
+  }
+
+  .evidence-head {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .evidence-thumb {
+    width: 160px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .evidence-all {
+    margin-top: 4px;
   }
 </style>

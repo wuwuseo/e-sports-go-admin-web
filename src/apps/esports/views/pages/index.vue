@@ -34,6 +34,13 @@
           >保存草稿</a-button
         >
         <a-button @click="previewVisible = true">预览</a-button>
+        <!-- 设备预览码（§16.4-02）：生成指向当前草稿的短期预览码，供客户端真机扫码查看。 -->
+        <a-button
+          v-if="canPreviewCode"
+          :loading="previewCodeLoading"
+          @click="generatePreviewCode"
+          >生成预览码</a-button
+        >
         <!-- 发布申请 → 异人审核（§16.4 / §16.5）：运营提交申请，有发布权限者审核，回滚同权限。 -->
         <a-button v-if="canSubmit" :loading="publishing" @click="publishNow"
           >提交发布</a-button
@@ -72,7 +79,20 @@
         >
       </a-space>
 
-      <a-tabs v-model:active-key="activeTab">
+      <!-- 后端校验原文（域名白名单 / 图片探测失败 / 体积或类型超限）常驻展示，
+           避免 toast 一闪而过把可操作的错误信息吞掉。 -->
+      <a-alert
+        v-if="pageError"
+        class="toolbar"
+        type="error"
+        closable
+        @close="pageError = ''"
+      >
+        <template #title>保存 / 发布校验未通过（后端原文）</template>
+        {{ pageError }}
+      </a-alert>
+
+      <a-tabs v-model:active-key="activeTab" @change="onTabChange">
         <a-tab-pane key="design" title="装修">
           <div class="designer">
             <div class="palette">
@@ -213,25 +233,40 @@
                   />
 
                   <div v-else-if="field.kind === 'images'" class="prop-images">
+                    <div class="palette-usage">
+                      每张图片都须为 https:// 外部地址或站内 /
+                      路径；外部域名须在 app.esports.page_allowed_domains
+                      白名单内，发布前会逐张探测可访问性，失败时展示后端返回的中文原文。
+                    </div>
                     <div
                       v-for="(url, i) in imageList()"
                       :key="i"
-                      class="prop-image-row"
+                      class="prop-image-block"
                     >
-                      <a-input
-                        :model-value="url"
-                        placeholder="https:// 或站内 /path"
-                        @update:model-value="(v) => updateImage(i, v)"
-                      />
-                      <a-button size="mini" @click="openCropperForImages(i)"
-                        >裁剪</a-button
-                      >
-                      <a-button
-                        size="mini"
-                        status="danger"
-                        @click="removeImage(i)"
-                        >删</a-button
-                      >
+                      <div class="prop-image-row">
+                        <a-input
+                          :model-value="url"
+                          placeholder="https:// 或站内 /path"
+                          @update:model-value="(v) => updateImage(i, v)"
+                        />
+                        <a-button size="mini" @click="openCropperForImages(i)"
+                          >裁剪</a-button
+                        >
+                        <a-button
+                          size="mini"
+                          status="danger"
+                          @click="removeImage(i)"
+                          >删</a-button
+                        >
+                      </div>
+                      <!-- 每个元素给出同一套发布校验提示，本地规则不满足时立即标黄。 -->
+                      <div class="prop-image-hint">
+                        第 {{ i + 1 }} 张：https + 域名白名单 +
+                        可访问探测（发布前校验）
+                      </div>
+                      <div v-if="imageIssue(url)" class="prop-warn">
+                        第 {{ i + 1 }} 张：{{ imageIssue(url) }}
+                      </div>
                     </div>
                     <a-space>
                       <a-button size="mini" type="outline" @click="addImage"
@@ -244,6 +279,15 @@
                         >上传裁剪</a-button
                       >
                     </a-space>
+                    <!-- 发布 / 保存失败时，后端对具体轮播项的中文报错原样展示在这里。 -->
+                    <a-alert
+                      v-if="pageError"
+                      type="error"
+                      class="prop-image-error"
+                    >
+                      <template #title>轮播图校验未通过（后端原文）</template>
+                      {{ pageError }}
+                    </a-alert>
                   </div>
 
                   <div v-else-if="field.kind === 'navItems'" class="prop-nav">
@@ -314,6 +358,72 @@
               </template>
             </div>
           </div>
+        </a-tab-pane>
+
+        <!-- 底部导航（§16.3-12）：数量 / 路径 / 顺序由客户端构建期固定，后台只能改文案、图标与显隐。 -->
+        <a-tab-pane key="tabbar" title="底部导航">
+          <a-space class="toolbar" wrap>
+            <a-button :loading="tabbarLoading" @click="loadTabbar(true)"
+              >刷新</a-button
+            >
+            <a-button
+              v-if="canTabbarEdit"
+              type="primary"
+              :loading="tabbarSaving"
+              @click="saveTabbar"
+              >保存底部导航</a-button
+            >
+            <a-typography-text type="secondary">
+              草稿版本 v{{
+                tabbarDraftVersion
+              }}；保存后需「提交发布」并审核通过才对客户端生效。
+            </a-typography-text>
+          </a-space>
+          <a-alert type="info" class="sub-card">
+            导航项数量、路径与顺序由客户端 pages.json
+            构建期固定（/pages/index/index、/pages/order/list、/pages/mine/index），
+            后台只允许修改文案（1~12
+            字）、图标与是否显示；任何增删、改路径或换序都会被后端拒绝。
+          </a-alert>
+          <a-spin :loading="tabbarLoading" style="width: 100%">
+            <a-empty
+              v-if="!tabbarItems.length"
+              description="暂无底部导航配置，点「刷新」重试"
+            />
+            <div
+              v-for="(item, index) in tabbarItems"
+              :key="item.path"
+              class="tabbar-row"
+            >
+              <span class="tabbar-path"
+                >第 {{ index + 1 }} 项 · {{ item.path }}</span
+              >
+              <a-input
+                :model-value="item.text"
+                placeholder="文案（1~12 字）"
+                :max-length="12"
+                class="tabbar-text"
+                @update:model-value="
+                  (v) => updateTabbarItem(index, 'text', String(v))
+                "
+              />
+              <a-input
+                :model-value="item.icon"
+                placeholder="图标：https:// 或站内 /path"
+                class="tabbar-icon"
+                @update:model-value="
+                  (v) => updateTabbarItem(index, 'icon', String(v))
+                "
+              />
+              <a-checkbox
+                :model-value="item.visible !== false"
+                @update:model-value="
+                  (v) => updateTabbarItem(index, 'visible', Boolean(v))
+                "
+                >显示</a-checkbox
+              >
+            </div>
+          </a-spin>
         </a-tab-pane>
 
         <a-tab-pane key="versions" title="发布记录">
@@ -474,12 +584,36 @@
               :style="{ width: '100px' }"
             />
             <a-button type="primary" @click="createAsset">新增素材</a-button>
+            <!-- 选择本地文件后自动读取 file.type / file.size 并上传，避免漏传 mime 与 size_bytes。 -->
+            <a-button @click="pickAssetFile">选择本地图片</a-button>
+            <input
+              ref="assetFileInput"
+              type="file"
+              class="asset-file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              @change="onAssetFilePicked"
+            />
             <a-button @click="openCropperForAsset">上传并裁剪</a-button>
           </a-space>
+          <a-typography-text type="secondary" class="asset-meta">
+            当前文件：类型 {{ assetForm.mime || '未读取' }} · 大小
+            {{
+              assetForm.sizeBytes ? formatBytes(assetForm.sizeBytes) : '未读取'
+            }}。新增素材必须带 mime 与 size_bytes（上限 10MB，仅支持 JPEG / PNG
+            / WebP / GIF），手工填写的地址无法校验体积，需先选择本地文件。
+          </a-typography-text>
           <a-table :data="assets" row-key="id" :pagination="{ pageSize: 10 }">
             <template #columns>
               <a-table-column data-index="name" title="名称" />
               <a-table-column data-index="url" title="地址" />
+              <a-table-column title="类型" :width="120">
+                <template #cell="{ record }">{{ record.mime || '-' }}</template>
+              </a-table-column>
+              <a-table-column title="大小" :width="110">
+                <template #cell="{ record }">{{
+                  formatBytes(record.size_bytes)
+                }}</template>
+              </a-table-column>
               <a-table-column title="尺寸">
                 <template #cell="{ record }"
                   >{{ record.width }}×{{ record.height }}</template
@@ -511,6 +645,49 @@
       <PagePreview :components="components" />
     </a-modal>
 
+    <!-- 设备预览码（§16.4-02）：展示预览码 / 预览路径 / 有效期，客户端扫码兑换草稿配置。 -->
+    <a-modal
+      v-model:visible="previewCodeVisible"
+      title="设备预览码"
+      :footer="false"
+      :width="560"
+    >
+      <a-empty v-if="!previewCode" description="暂无预览码" />
+      <template v-else>
+        <a-descriptions :column="1" size="small" bordered>
+          <a-descriptions-item label="渠道">{{
+            previewCode.channel
+          }}</a-descriptions-item>
+          <a-descriptions-item label="草稿版本"
+            >v{{ previewCode.draft_version }}</a-descriptions-item
+          >
+          <a-descriptions-item label="有效期至">{{
+            previewCode.expires_at
+          }}</a-descriptions-item>
+          <a-descriptions-item label="预览码">
+            <a-typography-paragraph copyable class="preview-code">
+              {{ previewCode.code }}
+            </a-typography-paragraph>
+          </a-descriptions-item>
+          <a-descriptions-item label="预览路径">
+            <a-typography-paragraph copyable>
+              {{ previewCode.path }}
+            </a-typography-paragraph>
+          </a-descriptions-item>
+          <a-descriptions-item label="客户端兑换">
+            公开接口 GET /api/v1/esports{{
+              previewCode.path
+            }}（无需登录，只返回草稿配置）
+          </a-descriptions-item>
+        </a-descriptions>
+        <a-typography-text type="secondary" class="modal-tip">
+          预览码有效期 30 分钟且指向当前草稿版本；重新保存草稿后需重新生成。
+          若提示签名密钥未配置，请先在系统配置中设置
+          app.esports.page_preview_secret。
+        </a-typography-text>
+      </template>
+    </a-modal>
+
     <!-- 图片上传裁剪 -->
     <ImageCropper
       :visible="cropperVisible"
@@ -530,21 +707,26 @@
   import {
     PAGE_CHANNEL_CUSTOMER_HOME,
     createEsportsPageAsset,
+    createPagePreviewCode,
     deleteEsportsPageAsset,
     getEsportsPage,
     getEsportsPageAssets,
     getEsportsPages,
     getEsportsPageVersions,
+    getPageTabbar,
     publishEsportsPage,
     reviewEsportsPagePublish,
     rollbackEsportsPage,
     saveEsportsPageDraft,
+    savePageTabbar,
   } from '../../api';
   import type {
     PageAsset,
     PageComponent,
     PageComponentType,
     PageDocument,
+    PagePreviewCode,
+    PageTabbarItem,
     PageVersion,
   } from '../../api';
   import ImageCropper from '../../components/page-designer/ImageCropper.vue';
@@ -748,6 +930,15 @@
   const canRollback = computed(() =>
     hasButtonPermission('esports:pages:rollback_btn')
   );
+  // 底部导航 / 设备预览码权限：复用后端 app.go 已声明的 PermAPI code。
+  const canTabbarEdit = computed(() =>
+    hasButtonPermission('esports:pages:tabbar_update')
+  );
+  const canPreviewCode = computed(() =>
+    hasButtonPermission('esports:pages:preview_code')
+  );
+  // 后端校验原文（域名白名单 / 探测失败 / 体积类型超限）常驻展示，避免 toast 一闪而过。
+  const pageError = ref('');
 
   const doc = ref<PageDocument>({
     channel: channel.value,
@@ -762,6 +953,16 @@
   const selectedIndex = ref(-1);
   const scheduledAt = ref<number>();
   const rollbackVersion = ref<number>();
+  // 底部导航（§16.3-12）：路径与数量由客户端构建期固定，这里只编辑文案 / 图标 / 显隐。
+  const tabbarItems = ref<PageTabbarItem[]>([]);
+  const tabbarDraftVersion = ref(0);
+  const tabbarLoading = ref(false);
+  const tabbarSaving = ref(false);
+  const tabbarLoaded = ref(false);
+  // 设备预览码（§16.4-02）：一次性生成、30 分钟有效，仅展示不落库。
+  const previewCodeVisible = ref(false);
+  const previewCodeLoading = ref(false);
+  const previewCode = ref<PagePreviewCode | null>(null);
   // 发布记录的两版差异选择（§16.2-07）：由版本号定位到该版 config.components 逐组件比对。
   const diffLeftNo = ref<number>();
   const diffRightNo = ref<number>();
@@ -796,8 +997,37 @@
     const { response } = err as { response?: { data?: { message?: string } } };
     return response?.data?.message || fallback;
   };
+  // 记录后端返回的校验原文：常驻展示在页面顶部与轮播图属性区，避免 toast 一闪而过被吞掉。
+  const reportPageError = (err: unknown, fallback: string) => {
+    pageError.value = errorText(err, fallback);
+    Message.error(pageError.value);
+  };
 
-  const assetForm = reactive({ name: '', url: '', width: 0, height: 0 });
+  // 素材限制与后端 pageAssetAllowedMimes / pageAssetMaxBytes 一致（P1-20）：
+  // mime 必填且只允许图片白名单，size_bytes 必填且不超过 10 MiB。
+  const ASSET_MIME_WHITELIST = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+  ];
+  const ASSET_MAX_BYTES = 10 * 1024 * 1024;
+  const assetForm = reactive({
+    name: '',
+    url: '',
+    width: 0,
+    height: 0,
+    // 由文件选择 / 裁剪结果自动带出 file.type 与 file.size，缺一不可（否则后端 400）。
+    mime: '',
+    sizeBytes: 0,
+  });
+  const assetFileInput = ref<HTMLInputElement | null>(null);
+  const formatBytes = (bytes: number) => {
+    if (!bytes || bytes < 1) return '-';
+    return bytes >= 1024 * 1024
+      ? `${(bytes / 1024 / 1024).toFixed(2)} MB`
+      : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  };
 
   // ── 可视化属性表单（就地编辑，提交时组装为 props） ──
   const form = reactive<Record<string, unknown>>({});
@@ -936,6 +1166,17 @@
     const list = imageList();
     list.splice(index, 1);
     setImages(list);
+  }
+  // 轮播图本地可判定规则（与后端一致）：只允许 https 外部地址或站内相对路径。
+  // 域名白名单与可访问性只能由后端判定，失败时由 pageError 原样展示后端中文提示。
+  function imageIssue(url: string) {
+    const value = (url || '').trim();
+    if (!value) return '地址为空，客户端会渲染成空图';
+    if (value.startsWith('/')) return '';
+    if (!/^https:\/\//i.test(value)) {
+      return '仅支持 https:// 外部地址或站内 / 路径（http 与协议相对地址会被后端拒绝）';
+    }
+    return '';
   }
 
   function navItemList(): NavItemDraft[] {
@@ -1076,7 +1317,51 @@
       assetForm.url = url;
       assetForm.width = dims.width || 1;
       assetForm.height = dims.height || 1;
+      // 裁剪结果是 canvas 导出的图片，同样要带上 mime 与 size_bytes。
+      const blobMime = (blob.type || '').toLowerCase();
+      assetForm.mime = ASSET_MIME_WHITELIST.includes(blobMime)
+        ? blobMime
+        : 'image/png';
+      assetForm.sizeBytes = blob.size;
     });
+  }
+
+  function pickAssetFile() {
+    assetFileInput.value?.click();
+  }
+
+  // 选择本地图片后自动读取 file.type / file.size（并上传取地址与尺寸），
+  // 避免新增素材漏传 mime / size_bytes 被后端 400 拒绝。
+  async function onAssetFilePicked(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // 清空 value，允许再次选择同一个文件。
+    input.value = '';
+    if (!file) return;
+    const mime = (file.type || '').toLowerCase();
+    if (!ASSET_MIME_WHITELIST.includes(mime)) {
+      Message.warning('仅支持 JPEG / PNG / WebP / GIF 图片');
+      return;
+    }
+    if (file.size < 1 || file.size > ASSET_MAX_BYTES) {
+      Message.warning('图片体积须大于 0 且不超过 10MB');
+      return;
+    }
+    const url = await uploadImageBlob(
+      file,
+      file.name || `素材-${Date.now()}.png`
+    );
+    if (!url) return;
+    const dims = await blobDimensions(file);
+    assetForm.name = file.name || assetForm.name;
+    assetForm.url = url;
+    assetForm.width = dims.width || 1;
+    assetForm.height = dims.height || 1;
+    assetForm.mime = mime;
+    assetForm.sizeBytes = file.size;
+    Message.success(
+      `已读取类型 ${mime}、大小 ${formatBytes(file.size)}，确认后点「新增素材」`
+    );
   }
 
   // ── 加载与组件操作 ──
@@ -1141,9 +1426,15 @@
     }
   };
 
-  // 切换渠道 / 首页版本：编辑与发布目标随 channel 改变，重新拉取该渠道的文档、版本与素材。
+  // 切换渠道 / 首页版本：编辑与发布目标随 channel 改变，重新拉取该渠道的文档、版本与素材；
+  // 底部导航与预览码都绑定渠道，一并失效。
   const onChannelChange = () => {
     selectedIndex.value = -1;
+    pageError.value = '';
+    tabbarItems.value = [];
+    tabbarDraftVersion.value = 0;
+    tabbarLoaded.value = false;
+    previewCode.value = null;
     load();
   };
 
@@ -1310,9 +1601,10 @@
         doc.value.draft_version
       );
       doc.value = { ...doc.value, ...res.data.data };
+      pageError.value = '';
       Message.success('草稿已保存');
     } catch (err) {
-      Message.error(errorText(err, '保存草稿失败，请刷新后重试'));
+      reportPageError(err, '保存草稿失败，请刷新后重试');
     } finally {
       saving.value = false;
     }
@@ -1322,10 +1614,11 @@
     publishing.value = true;
     try {
       await publishEsportsPage(channel.value, { mode: 'immediate' });
+      pageError.value = '';
       Message.success('已提交发布申请，待审核');
       await load();
     } catch (err) {
-      Message.error(errorText(err, '发布失败'));
+      reportPageError(err, '发布失败');
     } finally {
       publishing.value = false;
     }
@@ -1342,10 +1635,11 @@
         mode: 'scheduled',
         scheduled_at: new Date(scheduledAt.value).toISOString(),
       });
+      pageError.value = '';
       Message.success('已提交定时发布申请，待审核');
       await load();
     } catch (err) {
-      Message.error(errorText(err, '定时发布失败'));
+      reportPageError(err, '定时发布失败');
     } finally {
       publishing.value = false;
     }
@@ -1359,11 +1653,12 @@
     publishing.value = true;
     try {
       await rollbackEsportsPage(channel.value, rollbackVersion.value);
+      pageError.value = '';
       Message.success('已回滚');
       rollbackVersion.value = undefined;
       await load();
     } catch (err) {
-      Message.error(errorText(err, '回滚失败'));
+      reportPageError(err, '回滚失败');
     } finally {
       publishing.value = false;
     }
@@ -1414,6 +1709,20 @@
       Message.warning('素材地址仅支持 https 链接或站内相对路径（以 / 开头）');
       return;
     }
+    // 后端已收紧为「mime + size_bytes 必填」，先选文件读取真实类型与体积再提交。
+    const mime = assetForm.mime.trim().toLowerCase();
+    if (!mime || !ASSET_MIME_WHITELIST.includes(mime)) {
+      Message.warning(
+        '请先选择本地图片文件以读取类型（仅支持 JPEG / PNG / WebP / GIF）'
+      );
+      return;
+    }
+    if (assetForm.sizeBytes < 1 || assetForm.sizeBytes > ASSET_MAX_BYTES) {
+      Message.warning(
+        '请先选择本地图片文件以读取大小（须大于 0 且不超过 10MB）'
+      );
+      return;
+    }
     const { width, height } = assetForm;
     if (width < 1 || width > 4096 || height < 1 || height > 4096) {
       Message.warning('素材尺寸须在 1~4096 之间');
@@ -1423,6 +1732,8 @@
       await createEsportsPageAsset({
         name,
         url,
+        mime,
+        size_bytes: assetForm.sizeBytes,
         width,
         height,
       });
@@ -1430,6 +1741,8 @@
       assetForm.url = '';
       assetForm.width = 0;
       assetForm.height = 0;
+      assetForm.mime = '';
+      assetForm.sizeBytes = 0;
       assets.value = (await getEsportsPageAssets()).data.data;
       Message.success('素材已登记');
     } catch (err) {
@@ -1444,6 +1757,127 @@
     } catch (err) {
       Message.error(errorText(err, '删除素材失败'));
     }
+  };
+
+  // ── 底部导航（§16.3-12）：读取草稿里的导航项，按文案 / 图标 / 显隐编辑后回写草稿 ──
+  const loadTabbar = async (force = false) => {
+    if (tabbarLoading.value) return;
+    if (tabbarLoaded.value && !force) return;
+    tabbarLoading.value = true;
+    try {
+      const { data } = (await getPageTabbar(channel.value)).data;
+      tabbarDraftVersion.value = data?.draft_version || 0;
+      tabbarItems.value = (data?.items || []).map((item) => ({
+        path: item.path,
+        text: item.text,
+        icon: item.icon || '',
+        // 后端 visible=false 才隐藏，未声明视为显示。
+        visible: item.visible !== false,
+      }));
+      tabbarLoaded.value = true;
+    } catch (err) {
+      Message.error(errorText(err, '加载底部导航失败'));
+    } finally {
+      tabbarLoading.value = false;
+    }
+  };
+
+  function updateTabbarItem(
+    index: number,
+    key: 'text' | 'icon' | 'visible',
+    value: string | boolean
+  ) {
+    const current = tabbarItems.value[index];
+    if (!current) return;
+    if (key === 'text') {
+      tabbarItems.value[index] = { ...current, text: String(value) };
+    } else if (key === 'icon') {
+      tabbarItems.value[index] = { ...current, icon: String(value) };
+    } else {
+      tabbarItems.value[index] = { ...current, visible: Boolean(value) };
+    }
+  }
+
+  const saveTabbar = async () => {
+    if (!tabbarItems.value.length) {
+      Message.warning('没有可保存的导航项，请先刷新');
+      return;
+    }
+    const badText = tabbarItems.value.findIndex((item) => {
+      const text = (item.text || '').trim();
+      return text.length < 1 || text.length > 12;
+    });
+    if (badText >= 0) {
+      Message.warning(`第 ${badText + 1} 项文案须为 1~12 个字`);
+      return;
+    }
+    const badIcon = tabbarItems.value.findIndex((item) => {
+      const icon = (item.icon || '').trim();
+      return icon !== '' && !/^https:\/\//i.test(icon) && !icon.startsWith('/');
+    });
+    if (badIcon >= 0) {
+      Message.warning(
+        `第 ${
+          badIcon + 1
+        } 项图标仅支持 https 链接或站内相对路径（不支持短标识）`
+      );
+      return;
+    }
+    tabbarSaving.value = true;
+    try {
+      const updated = (
+        await savePageTabbar(
+          channel.value,
+          tabbarItems.value.map((item) => ({
+            path: item.path,
+            text: (item.text || '').trim(),
+            icon: (item.icon || '').trim(),
+            visible: item.visible !== false,
+          })),
+          tabbarDraftVersion.value
+        )
+      ).data.data;
+      if (updated) {
+        doc.value = { ...doc.value, ...updated };
+        tabbarDraftVersion.value = updated.draft_version;
+      }
+      Message.success('底部导航已保存到草稿，提交发布并经审核后对客户端生效');
+      await loadTabbar(true);
+    } catch (err) {
+      Message.error(
+        errorText(
+          err,
+          '保存底部导航失败：草稿版本已变化或导航项不合法，请刷新后重试'
+        )
+      );
+    } finally {
+      tabbarSaving.value = false;
+    }
+  };
+
+  // ── 设备预览码（§16.4-02）：生成指向当前草稿的 30 分钟预览码 ──
+  const generatePreviewCode = async () => {
+    previewCodeLoading.value = true;
+    try {
+      const { data } = (await createPagePreviewCode(channel.value)).data;
+      previewCode.value = data || null;
+      previewCodeVisible.value = true;
+      if (!data) Message.warning('后端未返回预览码');
+    } catch (err) {
+      Message.error(
+        errorText(
+          err,
+          '生成预览码失败：请先在系统配置中设置 app.esports.page_preview_secret，并确认该渠道已保存草稿'
+        )
+      );
+    } finally {
+      previewCodeLoading.value = false;
+    }
+  };
+
+  // 切换页签时按需加载底部导航，避免首屏多余请求。
+  const onTabChange = (key: string | number) => {
+    if (key === 'tabbar') loadTabbar();
   };
 
   onMounted(async () => {
@@ -1573,6 +2007,68 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .prop-image-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .prop-image-hint {
+    color: var(--color-text-3);
+    font-size: 12px;
+  }
+
+  .prop-warn {
+    color: rgb(var(--warning-6));
+    font-size: 12px;
+  }
+
+  .prop-image-error {
+    margin-top: 6px;
+  }
+
+  .asset-file {
+    display: none;
+  }
+
+  .asset-meta {
+    display: block;
+    margin-bottom: 12px;
+    font-size: 12px;
+  }
+
+  .tabbar-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .tabbar-path {
+    flex: none;
+    width: 250px;
+    color: var(--color-text-2);
+    font-size: 12px;
+  }
+
+  .tabbar-text {
+    width: 160px;
+  }
+
+  .tabbar-icon {
+    flex: 1;
+  }
+
+  .preview-code {
+    margin: 0;
+    word-break: break-all;
+  }
+
+  .modal-tip {
+    display: block;
+    margin-top: 12px;
   }
 
   .prop-image-row,
