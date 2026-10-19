@@ -165,6 +165,35 @@ export interface OrderInput {
   quantity: number;
   // 客户指定陪玩（§5.4）：可选；留空则由客服指派，不留空则不进入优先通知窗口。
   preferred_player_id?: number;
+  // 经授权的人工调整（§4.2）：金额（分，可正可负）非零时须同时给出 4–255 字原因，
+  // 且绝对值不得超过 SKU 免审额度（adjustment_approval_bp），否则须先落单再走改价审批。
+  manual_adjust_cents?: number;
+  manual_adjust_reason?: string;
+  // 负责客服（§4.2）：留空默认建单人；显式指定时须为启用中的管理员。
+  responsible_admin_id?: number;
+}
+
+// 报单页报价试算（§15.6-01 / §4.2）：GET /admin/skus?quote_customer_id=&quote_quantity= 的
+// quotes 段，不落单即可看到会员折扣、应付、每席承诺量与结单要求。
+export interface SkuQuotePreview {
+  sku_id: number;
+  quantity: number;
+  member_level_code: string;
+  member_discount_bps: number;
+  unit_price_cents: number;
+  subtotal_cents: number;
+  member_discount_cents: number;
+  payable_cents: number;
+  promised_service_units: number;
+  service_unit_name: string;
+  close_rule_code: string;
+  per_seat_service_units: number;
+  required_seats: number;
+}
+
+export interface SkuQuoteResult {
+  items: EsportsSku[];
+  quotes: Record<string, SkuQuotePreview>;
 }
 
 // 管理员历史订单补录（entry_point=admin_backfill）：为历史成交生成订单，不计入自助下单流程。
@@ -309,6 +338,17 @@ export interface EsportsDispatchSeat {
   updated_at: string;
 }
 
+// 看板顶部的客服在线摘要（§5.8-04）：presence 取 presence 表口径（online / busy / offline），
+// 无 presence 档案时后端按「最近一次管理员操作」推导为 online / offline。
+export interface DispatchBoardAdmin {
+  admin_id: number;
+  username: string;
+  nickname: string;
+  presence: 'online' | 'busy' | 'offline';
+  online: boolean;
+  last_active_at: string | null;
+}
+
 export interface EsportsDispatchBoard {
   pending_dispatch: EsportsOrder[];
   public_pool: EsportsOrder[];
@@ -319,6 +359,8 @@ export interface EsportsDispatchBoard {
   pending_close: EsportsOrder[];
   abnormal: EsportsOrder[];
   online_players: number;
+  // 各客服及其在线状态（§5.8-04）。
+  admins: DispatchBoardAdmin[];
   // 会员订单优先（§10.4）：待派单池 / 公共池中属于会员优先等级客户的订单 ID（后端已置顶）。
   member_priority_order_ids: number[];
   // 公共池脱敏（§5.1 / §8.2）：非超管在公共池只看到脱敏摘要，客户身份与金额被掩码。
@@ -343,6 +385,13 @@ export const markCustomerRisk = (
 
 export const listSkus = () =>
   axios.get<ApiResponse<EsportsSku[]>>(`${base}/skus`);
+
+// 带报价试算的商品列表（§15.6-01 / §4.2）：响应由数组变为 { items, quotes }，
+// 供报单页在选定客户 / 份数后逐 SKU 展示会员折扣、应付、每席承诺量与结单要求。
+export const listSkusWithQuote = (customerId: number, quantity: number) =>
+  axios.get<ApiResponse<SkuQuoteResult>>(`${base}/skus`, {
+    params: { quote_customer_id: customerId, quote_quantity: quantity },
+  });
 
 export const createSku = (input: SkuInput) =>
   axios.post<ApiResponse<EsportsSku>>(`${base}/skus`, input);
@@ -634,8 +683,13 @@ export const adjustWallet = (
     }
   );
 
-export const getDispatchBoard = () =>
-  axios.get<ApiResponse<EsportsDispatchBoard>>(`${base}/dispatch/board`);
+// 看板排序（§5.7-05）：'remind_priority' 按催单优先级降序；其余取值后端明确返回 400。
+export type DispatchBoardSort = 'remind_priority';
+
+export const getDispatchBoard = (sort?: DispatchBoardSort) =>
+  axios.get<ApiResponse<EsportsDispatchBoard>>(`${base}/dispatch/board`, {
+    params: sort ? { sort } : undefined,
+  });
 
 export const listOrderSeats = (orderId: number) =>
   axios.get<ApiResponse<EsportsDispatchSeat[]>>(
@@ -956,8 +1010,77 @@ export interface AfterSaleInput {
   demand: string;
   expected_plan?: string;
   evidence_ref?: string;
+  // 凭证附件（§13.2）：须为建单人本人上传的私有附件，后端校验归属与 MIME 后
+  // 把引用序列化为 evidence_ref 的 JSON 数组；越权引用被拒。
+  evidence_attachment_ids?: number[];
   contact?: string;
   customer_id?: number;
+}
+
+// 方案动作项（§13.3 / §13.6 多动作方案）：一张售后单可挂多条动作项并逐项执行。
+export type AfterSaleActionType =
+  | 'refund'
+  | 'compensate'
+  | 'makeup'
+  | 'replace';
+
+export type AfterSaleActionStatus =
+  | 'pending'
+  | 'executing'
+  | 'succeeded'
+  | 'failed'
+  | 'skipped';
+
+export interface AfterSaleActionInput {
+  action_type: AfterSaleActionType;
+  // 资金类动作（refund / compensate）金额（分）；补履约类须为 0。
+  amount_cents?: number;
+  // 补履约类动作参数：承接陪玩 / 席位 / 补足服务量 / 公司承担报酬。
+  player_id?: number;
+  seat_index?: number;
+  units?: number;
+  company_pay_cents?: number;
+  // 退款类动作定向冲回的争议陪玩（§13.3 成员明细冲回）。
+  dispute_player_id?: number;
+  source_ref?: string;
+  note?: string;
+}
+
+export interface EsportsAfterSaleAction {
+  id: number;
+  after_sale_id: number;
+  order_id: number;
+  seq: number;
+  action_type: AfterSaleActionType;
+  amount_cents: number;
+  player_id: number | null;
+  seat_index: number | null;
+  units: number;
+  company_pay_cents: number;
+  dispute_player_id: number | null;
+  source_ref: string;
+  idem_key: string;
+  status: AfterSaleActionStatus;
+  result_summary: string;
+  note: string;
+  executor_admin_id: number | null;
+  executed_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 逐项进度（§13.6）：total / succeeded / failed / pending 四档计数。
+export interface AfterSaleActionProgress {
+  total: number;
+  succeeded: number;
+  failed: number;
+  pending: number;
+}
+
+export interface AfterSaleActionsView {
+  progress: AfterSaleActionProgress;
+  actions: EsportsAfterSaleAction[];
 }
 
 export interface AfterSalePlanInput {
@@ -965,6 +1088,9 @@ export interface AfterSalePlanInput {
   plan_action: AfterSalePlanAction;
   refund_cents: number;
   resolution: string;
+  // 多动作方案（§13.3 / §13.6）：非空时改走「多动作方案 + 逐项执行」，
+  // 忽略上面的单动作字段，聚合摘要由动作项推导（refund_cents = 资金类动作金额之和）。
+  actions?: AfterSaleActionInput[];
   // 补履约方案参数（§13.6）：plan_action=makeup_service 时必填，其余动作留空。
   makeup_kind?: 'makeup_time' | 'replace_player';
   makeup_player_id?: number;
@@ -1129,6 +1255,80 @@ export const executeAfterSale = (id: number) =>
 export const withdrawAfterSale = (id: number) =>
   axios.post<ApiResponse<EsportsAfterSale>>(
     `${base}/after-sales/${id}/withdraw`
+  );
+
+// 售后动作项（§13.6）：列出逐项进度；逐项执行供人工对失败项重试。
+export const listAfterSaleActions = (id: number) =>
+  axios.get<ApiResponse<AfterSaleActionsView>>(
+    `${base}/after-sales/${id}/actions`
+  );
+
+export const executeAfterSaleAction = (id: number, seq: number) =>
+  axios.post<ApiResponse<EsportsAfterSaleAction>>(
+    `${base}/after-sales/${id}/actions/${seq}/execute`
+  );
+
+// ── 售后复核（§13.6）：终态售后凭新证据申请复核，由非申请人且非原审批人的异人审查 ──
+
+export type AfterSaleReviewStatus =
+  | 'pending'
+  | 'upheld'
+  | 'reopened'
+  | 'withdrawn';
+
+export type AfterSaleReviewDecision = 'uphold' | 'reopen';
+
+export interface EsportsAfterSaleReview {
+  id: number;
+  review_no: string;
+  after_sale_id: number;
+  order_id: number;
+  applicant_admin_id: number;
+  reason: string;
+  evidence_ref: string;
+  status: AfterSaleReviewStatus;
+  reviewer_admin_id: number | null;
+  reviewed_at: string | null;
+  decision_note: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AfterSaleReviewInput {
+  reason: string;
+  evidence_ref?: string;
+  // 复核附带凭证（§13.2）：须为申请人本人上传的私有附件，非空时后端校验归属。
+  evidence_attachment_ids?: number[];
+}
+
+export const listAfterSaleReviews = (id: number) =>
+  axios.get<ApiResponse<EsportsAfterSaleReview[]>>(
+    `${base}/after-sales/${id}/reviews`
+  );
+
+export const requestAfterSaleReview = (
+  id: number,
+  input: AfterSaleReviewInput
+) =>
+  axios.post<ApiResponse<EsportsAfterSaleReview>>(
+    `${base}/after-sales/${id}/reviews`,
+    input
+  );
+
+export const decideAfterSaleReview = (
+  reviewId: number,
+  decision: AfterSaleReviewDecision,
+  note = ''
+) =>
+  axios.post<ApiResponse<EsportsAfterSaleReview>>(
+    `${base}/after-sale-reviews/${reviewId}/decision`,
+    { decision, note }
+  );
+
+export const withdrawAfterSaleReview = (reviewId: number) =>
+  axios.post<ApiResponse<EsportsAfterSaleReview>>(
+    `${base}/after-sale-reviews/${reviewId}/withdraw`
   );
 
 // ── 补履约任务（§13.6）：售后方案「补钟 / 换人」执行后产生，由客服开始服务并验收 ──

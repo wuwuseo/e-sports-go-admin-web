@@ -524,6 +524,8 @@
     <a-modal
       v-model:visible="sendVisible"
       title="发起礼物确认"
+      :ok-loading="sendSubmitting"
+      :mask-closable="!sendSubmitting"
       @ok="submitSend"
       @cancel="sendVisible = false"
     >
@@ -848,6 +850,21 @@
     storedValueCardId: 0,
   });
 
+  // 礼物确认单幂等（§9.5-02）：client_key 与「本次提交内容」绑定——同一份内容连点两次复用同一个键，
+  // 只产生一张确认单（服务端按 client_key + 请求体哈希去重）；内容变了就换键，
+  // 否则同键异体会被后端判为冲突，改正表单后重试将一直失败。
+  const sendSubmitting = ref(false);
+  const sendClientKey = ref('');
+  let sendKeyBody = '';
+
+  function ensureSendClientKey(body: string) {
+    if (!sendClientKey.value || sendKeyBody !== body) {
+      sendClientKey.value = crypto.randomUUID();
+      sendKeyBody = body;
+    }
+    return sendClientKey.value;
+  }
+
   function openSend() {
     Object.assign(sendForm, {
       customerId: 0,
@@ -858,10 +875,14 @@
       paymentSource: 'customer_balance_principal',
       storedValueCardId: 0,
     });
+    sendClientKey.value = '';
+    sendKeyBody = '';
+    sendSubmitting.value = false;
     sendVisible.value = true;
   }
 
   async function submitSend() {
+    if (sendSubmitting.value) return;
     if (!sendForm.giftId) {
       Message.error('请选择礼物');
       return;
@@ -873,27 +894,37 @@
       Message.error('请选择可送礼储值卡');
       return;
     }
+    // 幂等键绑定提交内容（不含 client_key 本身）。
+    const body = {
+      customer_id: sendForm.customerId,
+      gift_id: sendForm.giftId,
+      player_id: sendForm.playerId,
+      quantity: sendForm.quantity,
+      order_id: sendForm.orderId ? sendForm.orderId : null,
+      payment_source: sendForm.paymentSource,
+      stored_value_card_id:
+        sendForm.paymentSource === 'stored_value_card_principal'
+          ? sendForm.storedValueCardId
+          : 0,
+    };
+    sendSubmitting.value = true;
     try {
       await createGiftIntent({
-        customer_id: sendForm.customerId,
-        gift_id: sendForm.giftId,
-        player_id: sendForm.playerId,
-        quantity: sendForm.quantity,
-        order_id: sendForm.orderId ? sendForm.orderId : null,
-        payment_source: sendForm.paymentSource,
-        stored_value_card_id:
-          sendForm.paymentSource === 'stored_value_card_principal'
-            ? sendForm.storedValueCardId
-            : 0,
-        client_key: crypto.randomUUID(),
+        ...body,
+        client_key: ensureSendClientKey(JSON.stringify(body)),
       });
       Message.success('已发起客户确认');
       sendVisible.value = false;
+      // 表单会话结束才清键：同一份内容重复提交仍命中同一条确认单。
+      sendClientKey.value = '';
+      sendKeyBody = '';
       await loadIntents();
     } catch (err) {
       Message.error(
         errorText(err, '创建确认单失败：身份、年龄或礼物状态不符合要求')
       );
+    } finally {
+      sendSubmitting.value = false;
     }
   }
 

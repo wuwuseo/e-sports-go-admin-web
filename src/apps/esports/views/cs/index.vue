@@ -22,6 +22,9 @@
                 moneyText(performanceRow.net_cents)
               }}</span
             >
+            <span
+              >我的提成：{{ moneyText(performanceRow.commission_cents) }}</span
+            >
           </a-space>
 
           <a-space class="summary" size="large" wrap>
@@ -70,6 +73,79 @@
                 data-index="fulfillment_status"
                 title="履约状态"
               />
+            </template>
+          </a-table>
+
+          <a-divider>对账 / 到账核销（§4.2 / §4.3）</a-divider>
+          <a-space class="toolbar" wrap>
+            <a-input-number
+              v-model="proofOrderId"
+              :min="0"
+              placeholder="订单 ID（可选）"
+              :style="{ width: '160px' }"
+            />
+            <a-select v-model="proofStatus" :style="{ width: '160px' }">
+              <a-option value="pending_verification">待核验</a-option>
+              <a-option value="verified">已核销</a-option>
+              <a-option value="rejected">已驳回</a-option>
+            </a-select>
+            <a-button :loading="proofLoading" @click="loadProofs"
+              >查询待核验收款</a-button
+            >
+            <a-typography-text type="secondary">
+              外部到账（企微收款 / 商户码 /
+              对公转账）由客服提交凭证后在这里查询并核销；
+              核销后订单才进入待派单，提交人不得自审。
+            </a-typography-text>
+          </a-space>
+          <a-table
+            :data="proofs"
+            :loading="proofLoading"
+            row-key="id"
+            :pagination="{ pageSize: 5 }"
+            class="sub-card"
+          >
+            <template #columns>
+              <a-table-column data-index="proof_no" title="凭证号" />
+              <a-table-column title="关联订单">
+                <template #cell="{ record }">#{{ record.order_id }}</template>
+              </a-table-column>
+              <a-table-column data-index="channel" title="渠道" />
+              <a-table-column title="凭证金额">
+                <template #cell="{ record }">{{
+                  moneyText(record.amount_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column data-index="transaction_no" title="渠道流水号" />
+              <a-table-column title="状态">
+                <template #cell="{ record }">
+                  <a-tag :color="proofStatusColor(record.status)">{{
+                    proofStatusLabel(record.status)
+                  }}</a-tag>
+                </template>
+              </a-table-column>
+              <a-table-column title="操作" :width="150">
+                <template #cell="{ record }">
+                  <template v-if="record.status === 'pending_verification'">
+                    <a-button
+                      v-if="canVerifyProof"
+                      type="text"
+                      status="success"
+                      @click="verifyProof(record)"
+                      >核销</a-button
+                    >
+                    <a-button
+                      v-if="canRejectProof"
+                      type="text"
+                      status="danger"
+                      @click="openProofReject(record)"
+                      >驳回</a-button
+                    >
+                    <span v-if="!canVerifyProof && !canRejectProof">—</span>
+                  </template>
+                  <span v-else>—</span>
+                </template>
+              </a-table-column>
             </template>
           </a-table>
         </a-tab-pane>
@@ -205,7 +281,7 @@
 
     <a-drawer
       v-model:visible="profileVisible"
-      :width="560"
+      :width="720"
       title="客户档案"
       unmount-on-close
     >
@@ -283,6 +359,33 @@
           >
         </a-form>
 
+        <a-divider>历史订单明细</a-divider>
+        <a-typography-text type="secondary" class="order-tip">
+          仅展示当前账号可见的订单（负责或已授权协作），越权订单不会出现在此明细中。
+        </a-typography-text>
+        <a-table
+          :data="profileOrders"
+          :loading="profileOrderLoading"
+          row-key="id"
+          :pagination="{ pageSize: 5 }"
+        >
+          <template #columns>
+            <a-table-column data-index="order_no" title="订单号" />
+            <a-table-column title="应付">
+              <template #cell="{ record }">{{
+                moneyText(record.payable_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column data-index="payment_status" title="支付状态" />
+            <a-table-column data-index="fulfillment_status" title="履约状态" />
+            <a-table-column title="下单时间">
+              <template #cell="{ record }">{{
+                fmtMinute(record.created_at)
+              }}</template>
+            </a-table-column>
+          </template>
+        </a-table>
+
         <a-divider>跟进记录</a-divider>
         <a-space class="toolbar" wrap>
           <a-input
@@ -348,6 +451,22 @@
     </a-modal>
 
     <a-modal
+      v-model:visible="proofRejectVisible"
+      title="驳回到账凭证"
+      @ok="submitProofReject"
+      @cancel="proofRejectVisible = false"
+    >
+      <a-form :model="proofRejectForm">
+        <a-form-item label="凭证号">{{
+          proofRejectTarget?.proof_no || '—'
+        }}</a-form-item>
+        <a-form-item label="驳回原因" required>
+          <a-textarea v-model="proofRejectForm.resolution" :max-length="255" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
       v-model:visible="wecomVisible"
       title="企微自动建档"
       @ok="submitWecomIntake"
@@ -388,9 +507,13 @@
     getEsportsCustomerProfile,
     getEsportsScripts,
     listCustomers,
+    listOfflinePaymentProofs,
+    listOrders,
+    rejectOfflinePaymentProof,
     setEsportsScriptStatus,
     updateEsportsCustomerProfile,
     updateEsportsScript,
+    verifyOfflinePaymentProof,
     wecomIntakeCustomer,
   } from '../../api';
   import type {
@@ -400,11 +523,21 @@
     CustomerFollowUp,
     CustomerProfileSummary,
     EsportsCustomer,
+    EsportsOrder,
     FollowChannel,
+    OfflinePaymentProof,
+    OfflinePaymentProofStatus,
   } from '../../api';
 
   const { hasButtonPermission } = usePermission();
   const canManage = computed(() => hasButtonPermission('esports:cs:manage'));
+  // 核销 / 驳回（§4.3-04）：与财务核销权限对齐，服务端仍是唯一防线。
+  const canVerifyProof = computed(() =>
+    hasButtonPermission('esports:payments:proof_verify')
+  );
+  const canRejectProof = computed(() =>
+    hasButtonPermission('esports:payments:proof_reject')
+  );
 
   const followOptions: { value: CustomerFollowStatus; label: string }[] = [
     { value: 'new', label: '新客户' },
@@ -457,6 +590,7 @@
       revenue_cents: number;
       refund_cents: number;
       net_cents: number;
+      commission_cents: number;
     }[];
     return (
       rows[0] || {
@@ -464,6 +598,7 @@
         revenue_cents: 0,
         refund_cents: 0,
         net_cents: 0,
+        commission_cents: 0,
       }
     );
   });
@@ -495,6 +630,91 @@
       Message.error(errorText(err, '加载客服工作台失败'));
     } finally {
       loading.value = false;
+    }
+  }
+
+  // ── 对账 / 到账核销（§4.2 / §4.3）：工作台内直接查待核验凭证并核销 / 驳回 ──
+  const proofLoading = ref(false);
+  const proofs = ref<OfflinePaymentProof[]>([]);
+  const proofOrderId = ref(0);
+  const proofStatus = ref<OfflinePaymentProofStatus>('pending_verification');
+  const proofRejectVisible = ref(false);
+  const proofRejectTarget = ref<OfflinePaymentProof | null>(null);
+  const proofRejectForm = reactive({ resolution: '' });
+  const proofStatusMap: Record<OfflinePaymentProofStatus, string> = {
+    pending_verification: '待核验',
+    verified: '已核销',
+    rejected: '已驳回',
+  };
+  const proofStatusLabel = (value: OfflinePaymentProofStatus) =>
+    proofStatusMap[value] || value;
+  const proofStatusColor = (value: OfflinePaymentProofStatus) => {
+    switch (value) {
+      case 'verified':
+        return 'green';
+      case 'rejected':
+        return 'red';
+      default:
+        return 'orange';
+    }
+  };
+
+  async function loadProofs() {
+    proofLoading.value = true;
+    try {
+      proofs.value =
+        (
+          await listOfflinePaymentProofs({
+            status: proofStatus.value,
+            order_id: proofOrderId.value > 0 ? proofOrderId.value : undefined,
+          })
+        ).data.data || [];
+      if (!proofs.value.length) {
+        Message.info('没有符合条件的到账凭证');
+      }
+    } catch (err) {
+      Message.error(errorText(err, '加载到账凭证失败'));
+    } finally {
+      proofLoading.value = false;
+    }
+  }
+
+  async function verifyProof(record: OfflinePaymentProof) {
+    try {
+      await verifyOfflinePaymentProof(record.id);
+      Message.success('已核销，订单进入待派单');
+      await loadProofs();
+      await loadWorkbench();
+    } catch (err) {
+      Message.error(
+        errorText(err, '核销失败：提交人不得自审或订单已不满足核销条件')
+      );
+    }
+  }
+
+  function openProofReject(record: OfflinePaymentProof) {
+    proofRejectTarget.value = record;
+    proofRejectForm.resolution = '';
+    proofRejectVisible.value = true;
+  }
+
+  async function submitProofReject() {
+    const record = proofRejectTarget.value;
+    if (!record) return;
+    if (!proofRejectForm.resolution.trim()) {
+      Message.warning('请填写驳回原因');
+      return;
+    }
+    try {
+      await rejectOfflinePaymentProof(
+        record.id,
+        proofRejectForm.resolution.trim()
+      );
+      proofRejectVisible.value = false;
+      Message.success('已驳回到账凭证');
+      await loadProofs();
+    } catch (err) {
+      Message.error(errorText(err, '驳回失败：状态已变化'));
     }
   }
 
@@ -531,6 +751,9 @@
   const profileTarget = ref<EsportsCustomer | null>(null);
   const profile = ref<CustomerProfileSummary | null>(null);
   const followUps = ref<CustomerFollowUp[]>([]);
+  // 历史订单明细（§8.2-02）：按客户过滤，逐单套用「负责 OR 协作」可见性边界。
+  const profileOrders = ref<EsportsOrder[]>([]);
+  const profileOrderLoading = ref(false);
   const followSaving = ref(false);
   const profileForm = reactive({
     phone: '',
@@ -551,11 +774,30 @@
       (await getEsportsCustomerFollowUps(customerId)).data.data || [];
   }
 
+  // 档案内的历史订单明细：复用订单列表接口的 customer_id 过滤，后端按可见性收敛。
+  async function loadProfileOrders(customerId: number) {
+    profileOrderLoading.value = true;
+    try {
+      const result = await listOrders({
+        customer_id: customerId,
+        page: 1,
+        page_size: 20,
+      });
+      profileOrders.value = result.data.data?.items || [];
+    } catch (err) {
+      profileOrders.value = [];
+      Message.error(errorText(err, '加载客户历史订单失败'));
+    } finally {
+      profileOrderLoading.value = false;
+    }
+  }
+
   async function openProfile(customer: EsportsCustomer) {
     profileTarget.value = customer;
     profileVisible.value = true;
     profile.value = null;
     followUps.value = [];
+    profileOrders.value = [];
     try {
       const detail = (await getEsportsCustomerProfile(customer.id)).data.data;
       profile.value = detail;
@@ -565,7 +807,10 @@
       profileForm.tags = detail.customer.tags || [];
       profileForm.followStatus = detail.customer.follow_status;
       profileForm.selfOrderEnabled = detail.customer.self_order_enabled;
-      await loadFollowUps(customer.id);
+      await Promise.all([
+        loadFollowUps(customer.id),
+        loadProfileOrders(customer.id),
+      ]);
     } catch (err) {
       Message.error(errorText(err, '加载客户档案失败'));
     }
@@ -721,7 +966,7 @@
 
   onMounted(async () => {
     await loadWorkbench();
-    await Promise.all([loadCustomers(), loadScripts()]);
+    await Promise.all([loadCustomers(), loadScripts(), loadProofs()]);
   });
 </script>
 
@@ -736,5 +981,10 @@
 
   .sub-card {
     margin-bottom: 16px;
+  }
+
+  .order-tip {
+    display: block;
+    margin-bottom: 8px;
   }
 </style>

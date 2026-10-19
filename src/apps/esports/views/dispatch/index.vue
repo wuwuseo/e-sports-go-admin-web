@@ -1,9 +1,15 @@
 <template>
   <div class="container page-container">
     <a-card class="general-card" title="排单看板">
-      <a-space class="toolbar">
+      <a-space class="toolbar" wrap>
         <a-button :loading="loading" @click="load()">刷新</a-button>
         <a-tag color="arcoblue">在线陪玩：{{ onlinePlayers }}</a-tag>
+        <a-checkbox v-model="remindPrioritySort" @change="toggleRemindSort"
+          >按催单优先级排序</a-checkbox
+        >
+        <a-typography-text type="secondary" class="hint"
+          >状态变更后看板每 5 秒自动刷新一次</a-typography-text
+        >
       </a-space>
 
       <a-tabs v-model:active-key="activeBucket">
@@ -73,7 +79,7 @@
               record.responsible_admin_id || '—'
             }}</template>
           </a-table-column>
-          <a-table-column title="操作" :width="300">
+          <a-table-column title="操作" :width="380">
             <template #cell="{ record }">
               <a-button type="text" @click="openSeats(record)">席位</a-button>
               <a-button
@@ -119,6 +125,27 @@
                 >
                 <a-button type="text" @click="openRemind(record)"
                   >催单</a-button
+                >
+                <a-button
+                  v-if="record.fulfillment_status === 'pending_close'"
+                  type="text"
+                  status="success"
+                  @click="handleApproveClose(record)"
+                  >复核结单</a-button
+                >
+                <a-button
+                  v-if="record.fulfillment_status === 'pending_close'"
+                  type="text"
+                  status="danger"
+                  @click="openCloseReject(record)"
+                  >驳回结单</a-button
+                >
+                <a-button
+                  v-if="record.fulfillment_status === 'in_service'"
+                  type="text"
+                  status="warning"
+                  @click="openAddon(record)"
+                  >加钟</a-button
                 >
               </template>
             </template>
@@ -534,6 +561,59 @@
     </a-modal>
 
     <a-modal
+      v-model:visible="closeRejectVisible"
+      title="驳回结单"
+      @ok="submitCloseReject"
+      @cancel="closeRejectVisible = false"
+    >
+      <a-form :model="closeRejectForm">
+        <a-form-item label="订单">
+          <a-typography-text>{{
+            closeRejectOrder?.order_no || '—'
+          }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="驳回原因" required>
+          <a-textarea v-model="closeRejectForm.reason" :max-length="255" />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          金额达复核阈值的订单须由非负责客服复核；驳回后订单回到服务中，由陪玩 /
+          客服补正后重新结单。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="addonVisible"
+      title="发起加钟"
+      @ok="submitAddon"
+      @cancel="addonVisible = false"
+    >
+      <a-form :model="addonForm">
+        <a-form-item label="订单">
+          <a-typography-text>{{
+            addonOrder?.order_no || '—'
+          }}</a-typography-text>
+        </a-form-item>
+        <a-form-item label="追加金额（元）" required>
+          <a-input-number
+            v-model="addonForm.addedYuan"
+            :min="0"
+            :precision="2"
+          />
+        </a-form-item>
+        <a-form-item label="追加服务量">
+          <a-input-number v-model="addonForm.addedUnits" :min="0" />
+        </a-form-item>
+        <a-form-item label="备注">
+          <a-input v-model="addonForm.note" :max-length="255" />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          加钟单由服务中订单的陪玩确认后生效并累加；追加金额在确认后由客服向客户收单。
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
+    <a-modal
       v-model:visible="priorityGrantVisible"
       title="授予优先派单权"
       @ok="submitPriorityGrant"
@@ -617,8 +697,10 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import {
+    approveCloseReview,
     assignOrderSeat,
     claimOrder,
+    createOrderAddon,
     getDispatchBoard,
     getDispatchCandidates,
     getTeammateCandidates,
@@ -629,6 +711,7 @@
     listOrderSeats,
     listSeatTransfers,
     publishOrderToGrabHall,
+    rejectCloseReview,
     releaseOrderPriority,
     remindOrder,
     revokeDispatchPriority,
@@ -637,6 +720,7 @@
     transferOrder,
   } from '../../api';
   import type {
+    DispatchBoardSort,
     DispatchCandidate,
     DispatchPriorityGrant,
     DispatchPriorityNotice,
@@ -683,16 +767,33 @@
 
   const loading = ref(false);
   const board = ref<EsportsDispatchBoard | null>(null);
+  // 催单优先级排序（§5.7-05）：后端 sort=remind_priority 时各订单桶按催单优先级降序重排。
+  const remindPrioritySort = ref(false);
+
+  // 透出后端返回的中文错误信息，取不到时回退默认文案。
+  const errorText = (err: unknown, fallback: string) => {
+    const { response } = err as { response?: { data?: { message?: string } } };
+    return response?.data?.message || fallback;
+  };
 
   async function load(silent = false) {
     loading.value = true;
     try {
-      board.value = (await getDispatchBoard()).data.data || null;
-    } catch {
-      if (!silent) Message.error('加载看板失败，请稍后重试');
+      // 只送已声明的枚举值，非法排序由后端 400 兜底。
+      const sort: DispatchBoardSort | undefined = remindPrioritySort.value
+        ? 'remind_priority'
+        : undefined;
+      board.value = (await getDispatchBoard(sort)).data.data || null;
+    } catch (err) {
+      if (!silent) Message.error(errorText(err, '加载看板失败，请稍后重试'));
     } finally {
       loading.value = false;
     }
+  }
+
+  // 勾选后立即按新排序重载（非法值由后端 400 兜底，这里只送已声明的枚举值）。
+  function toggleRemindSort() {
+    load();
   }
 
   // 会员订单优先（§10.4）：后端已把会员订单置顶，这里只做标记展示。
@@ -718,11 +819,6 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
       d.getDate()
     )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
   };
 
   // ── 派单候选（§5.5 首版） ──
@@ -1245,6 +1341,87 @@
     remindVisible.value = true;
   }
 
+  // ── 结单复核（§3.4）：待结单桶可直接复核通过 / 驳回，替代到订单页逐单寻找 ──
+  const closeRejectVisible = ref(false);
+  const closeRejectOrder = ref<DispatchOrder | null>(null);
+  const closeRejectForm = reactive({ reason: '' });
+
+  async function handleApproveClose(order: DispatchOrder) {
+    try {
+      await approveCloseReview(order.id, '看板复核通过');
+      Message.success('已复核通过结单');
+      await load();
+    } catch (err) {
+      Message.error(
+        errorText(
+          err,
+          '复核失败：不得自审、金额未达阈值的订单无需复核或状态已变化'
+        )
+      );
+    }
+  }
+
+  function openCloseReject(order: DispatchOrder) {
+    closeRejectOrder.value = order;
+    closeRejectForm.reason = '';
+    closeRejectVisible.value = true;
+  }
+
+  async function submitCloseReject() {
+    const order = closeRejectOrder.value;
+    if (!order) return;
+    if (!closeRejectForm.reason.trim()) {
+      Message.warning('请填写驳回原因');
+      return;
+    }
+    try {
+      await rejectCloseReview(order.id, closeRejectForm.reason.trim());
+      closeRejectVisible.value = false;
+      Message.success('已驳回结单');
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '驳回失败：状态已变化'));
+    }
+  }
+
+  // ── 加钟（§3.3 / §12.5）：服务中订单可直接在看板发起加钟 ──
+  const addonVisible = ref(false);
+  const addonOrder = ref<DispatchOrder | null>(null);
+  const addonSubmitting = ref(false);
+  const addonForm = reactive({ addedYuan: 0, addedUnits: 0, note: '' });
+
+  function openAddon(order: DispatchOrder) {
+    addonOrder.value = order;
+    addonForm.addedYuan = 0;
+    addonForm.addedUnits = 0;
+    addonForm.note = '';
+    addonVisible.value = true;
+  }
+
+  async function submitAddon() {
+    const order = addonOrder.value;
+    if (!order) return;
+    if (addonForm.addedYuan <= 0) {
+      Message.warning('请填写大于零的追加金额');
+      return;
+    }
+    addonSubmitting.value = true;
+    try {
+      await createOrderAddon(order.id, {
+        added_cents: Math.round(addonForm.addedYuan * 100),
+        added_units: addonForm.addedUnits,
+        note: addonForm.note.trim() || undefined,
+      });
+      addonVisible.value = false;
+      Message.success('已发起加钟，等待陪玩确认');
+      await load();
+    } catch (err) {
+      Message.error(errorText(err, '加钟失败：订单须处于服务中或参数无效'));
+    } finally {
+      addonSubmitting.value = false;
+    }
+  }
+
   async function submitRemind() {
     const order = activeOrder.value;
     if (!order) return;
@@ -1257,6 +1434,7 @@
     }
   }
 
+  // 状态变更需秒级反映（§5.8-03）：固定 5 秒轮询，不再用 15 秒；页面不可见时跳过请求。
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   onMounted(async () => {
     await load();
@@ -1266,7 +1444,7 @@
       if (!loading.value && document.visibilityState === 'visible') {
         load(true);
       }
-    }, 15_000);
+    }, 5_000);
   });
   onUnmounted(() => {
     if (refreshTimer) clearInterval(refreshTimer);

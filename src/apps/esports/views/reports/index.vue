@@ -11,7 +11,7 @@
         <a-button
           v-if="activeTab === 'report' && canCreateOrder"
           type="primary"
-          @click="orderVisible = true"
+          @click="openOrder"
           >报单</a-button
         >
         <a-button
@@ -108,10 +108,15 @@
         </a-form-item>
       </a-form>
     </a-modal>
-    <a-modal v-model:visible="orderVisible" title="客服报单" @ok="saveOrder">
+    <a-modal
+      v-model:visible="orderVisible"
+      title="客服报单"
+      width="620px"
+      @ok="saveOrder"
+    >
       <a-form :model="orderForm">
         <a-form-item label="客户" required>
-          <a-select v-model="orderForm.customer_id">
+          <a-select v-model="orderForm.customer_id" @change="loadQuotes">
             <a-option
               v-for="item in customers"
               :key="item.id"
@@ -121,7 +126,7 @@
           </a-select>
         </a-form-item>
         <a-form-item label="商品" required>
-          <a-select v-model="orderForm.sku_id">
+          <a-select v-model="orderForm.sku_id" @change="onSkuChange">
             <a-option
               v-for="item in skus.filter((sku) => sku.status === 'on_sale')"
               :key="item.id"
@@ -131,7 +136,12 @@
           </a-select>
         </a-form-item>
         <a-form-item label="购买份数" required>
-          <a-input-number v-model="orderForm.quantity" :min="1" :max="1000" />
+          <a-input-number
+            v-model="orderForm.quantity"
+            :min="1"
+            :max="1000"
+            @change="loadQuotes"
+          />
         </a-form-item>
         <a-form-item label="指定陪玩（可选）">
           <a-input-number v-model="preferredPlayerId" :min="0" />
@@ -139,6 +149,80 @@
             填陪玩档案
             ID；指定后订单直接由客服指派该陪玩、不进入优先通知窗口（§5.4），陪玩须资质合格。
           </a-typography-text>
+        </a-form-item>
+
+        <a-divider>报价构成（§4.2 / §15.6-01）</a-divider>
+        <a-spin :loading="quoteLoading" style="width: 100%">
+          <template v-if="currentQuote">
+            <a-descriptions :column="1" size="small" bordered>
+              <a-descriptions-item label="单价 × 份数">
+                {{ money(currentQuote.unit_price_cents) }} ×
+                {{ currentQuote.quantity }} =
+                {{ money(currentQuote.subtotal_cents) }}
+              </a-descriptions-item>
+              <a-descriptions-item label="会员等级 / 折扣">
+                {{ currentQuote.member_level_code || '未定级' }} ·
+                {{ (currentQuote.member_discount_bps / 100).toFixed(2) }}%
+              </a-descriptions-item>
+              <a-descriptions-item label="会员折扣额">
+                -{{ money(currentQuote.member_discount_cents) }}
+              </a-descriptions-item>
+              <a-descriptions-item label="人工调整额">
+                {{ manualAdjustCents >= 0 ? '+' : '-'
+                }}{{ money(Math.abs(manualAdjustCents)) }}
+                <a-typography-text
+                  v-if="manualAdjustCents !== 0 && !manualAdjustReasonOk"
+                  type="danger"
+                >
+                  （须填写 4–255 字调整原因）
+                </a-typography-text>
+              </a-descriptions-item>
+              <a-descriptions-item label="最终应付">
+                <a-typography-text style="font-weight: 600">{{
+                  money(estimatedPayableCents)
+                }}</a-typography-text>
+              </a-descriptions-item>
+              <a-descriptions-item label="席位 / 承诺服务量">
+                {{ currentQuote.required_seats }} 席 ·
+                {{ currentQuote.promised_service_units }}
+                {{ currentQuote.service_unit_name || '服务量' }}（每席
+                {{ currentQuote.per_seat_service_units }}）
+              </a-descriptions-item>
+              <a-descriptions-item label="结单要求">
+                {{ currentQuote.close_rule_code || '按游戏 / 全局规则回落' }}
+              </a-descriptions-item>
+            </a-descriptions>
+            <a-typography-text type="secondary">
+              免审额度：{{
+                money(approvalThresholdCents)
+              }}（超出请先落单，再走订单改价审批）； 人工议价后小计不得低于
+              {{
+                money(
+                  (currentSku?.min_unit_price_cents || 0) *
+                    currentQuote.quantity
+                )
+              }}。
+            </a-typography-text>
+          </template>
+          <a-empty
+            v-else
+            description="选择客户与商品后展示标价、会员折扣、人工调整与最终应付"
+          />
+        </a-spin>
+
+        <a-form-item label="人工调整（元，正数加收 / 负数减免）">
+          <a-input-number
+            v-model="manualAdjustYuan"
+            :precision="2"
+            :style="{ width: '160px' }"
+          />
+        </a-form-item>
+        <a-form-item label="人工调整原因">
+          <a-input
+            v-model="manualAdjustReason"
+            :max-length="255"
+            placeholder="调整金额非零时必填，4–255 字"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -301,6 +385,7 @@
     listCustomers,
     listOrders,
     listSkus,
+    listSkusWithQuote,
     listPendingAgeChecks,
     reviewAgeCheck,
     submitAgeCheck,
@@ -311,6 +396,7 @@
     EsportsOrder,
     EsportsSku,
     OrderInput,
+    SkuQuotePreview,
   } from '../../api';
 
   const { hasButtonPermission } = usePermission();
@@ -363,6 +449,86 @@
     const { response } = err as { response?: { data?: { message?: string } } };
     return response?.data?.message || fallback;
   };
+
+  // ── 报价构成（§4.2 / §15.6-01）：选客户 / 商品 / 份数后调用后端试算，逐项展示标价、
+  //    会员折扣、承诺服务量与结单要求；人工调整按「元」录入，正负号与后端一致。 ──
+  const quoteLoading = ref(false);
+  const quotes = ref<Record<string, SkuQuotePreview>>({});
+  const manualAdjustYuan = ref(0);
+  const manualAdjustReason = ref('');
+  const currentQuote = computed<SkuQuotePreview | null>(() =>
+    orderForm.sku_id ? quotes.value[String(orderForm.sku_id)] || null : null
+  );
+  const currentSku = computed<EsportsSku | null>(
+    () => skus.value.find((sku) => sku.id === orderForm.sku_id) || null
+  );
+  const manualAdjustCents = computed(() =>
+    Number.isFinite(manualAdjustYuan.value)
+      ? Math.round(manualAdjustYuan.value * 100)
+      : 0
+  );
+  const manualAdjustReasonOk = computed(() => {
+    const reason = manualAdjustReason.value.trim();
+    return reason.length >= 4 && reason.length <= 255;
+  });
+  // 免审额度（§4.2-02）：subtotal × adjustment_approval_bp ‰，与后端同一算式。
+  const approvalThresholdCents = computed(() => {
+    const quote = currentQuote.value;
+    const sku = currentSku.value;
+    if (!quote || !sku) return 0;
+    const bp =
+      sku.adjustment_approval_bp > 0 && sku.adjustment_approval_bp <= 10000
+        ? sku.adjustment_approval_bp
+        : 2000;
+    return Math.floor((quote.subtotal_cents * bp) / 10000);
+  });
+  const estimatedPayableCents = computed(() => {
+    const quote = currentQuote.value;
+    if (!quote) return 0;
+    return (
+      quote.subtotal_cents +
+      manualAdjustCents.value -
+      quote.member_discount_cents
+    );
+  });
+
+  async function loadQuotes() {
+    if (!orderForm.customer_id) {
+      quotes.value = {};
+      return;
+    }
+    quoteLoading.value = true;
+    try {
+      const result = await listSkusWithQuote(
+        orderForm.customer_id,
+        orderForm.quantity || 1
+      );
+      skus.value = result.data.data?.items || [];
+      quotes.value = result.data.data?.quotes || {};
+    } catch (err) {
+      quotes.value = {};
+      Message.error(errorText(err, '加载报价试算失败'));
+    } finally {
+      quoteLoading.value = false;
+    }
+  }
+
+  function openOrder() {
+    orderForm.customer_id = 0;
+    orderForm.sku_id = 0;
+    orderForm.quantity = 1;
+    preferredPlayerId.value = 0;
+    manualAdjustYuan.value = 0;
+    manualAdjustReason.value = '';
+    quotes.value = {};
+    orderRequestKey.value = crypto.randomUUID();
+    orderVisible.value = true;
+  }
+
+  // 换 SKU 时人工调整归零：免审额度与最低价都随 SKU 变化，避免带着旧调整额提交。
+  function onSkuChange() {
+    manualAdjustYuan.value = 0;
+  }
 
   // ── 批量报单（复用 POST /admin/orders，逐行独立幂等键，失败行不阻塞成功行） ──
   interface BatchRow {
@@ -551,18 +717,70 @@
   async function saveOrder() {
     if (!orderForm.customer_id || !orderForm.sku_id || orderForm.quantity < 1)
       return;
+    const adjustCents = manualAdjustCents.value;
+    const quote = currentQuote.value;
+    // 人工调整与后端同口径前置校验：金额非零须有 4–255 字原因、不得超免审额度、不得低于最低允许价。
+    if (adjustCents !== 0) {
+      if (!manualAdjustReasonOk.value) {
+        Message.warning('人工调整须填写 4–255 字的调整原因');
+        return;
+      }
+      if (
+        approvalThresholdCents.value > 0 &&
+        Math.abs(adjustCents) > approvalThresholdCents.value
+      ) {
+        Message.warning(
+          `人工调整 ${money(Math.abs(adjustCents))} 超过免审额度 ${money(
+            approvalThresholdCents.value
+          )}，请先落单后再走订单改价审批`
+        );
+        return;
+      }
+      if (quote && currentSku.value) {
+        const floor =
+          (currentSku.value.min_unit_price_cents ||
+            currentSku.value.unit_price_cents) * quote.quantity;
+        if (quote.subtotal_cents + adjustCents < floor) {
+          Message.warning(
+            `人工议价后小计不得低于 SKU 最低允许价（${money(floor)}）`
+          );
+          return;
+        }
+      }
+    }
     try {
       const payload: OrderInput = { ...orderForm };
       if (preferredPlayerId.value > 0) {
         payload.preferred_player_id = preferredPlayerId.value;
       }
-      await createOrder(payload, orderRequestKey.value);
+      if (adjustCents !== 0) {
+        payload.manual_adjust_cents = adjustCents;
+        payload.manual_adjust_reason = manualAdjustReason.value.trim();
+      }
+      const expected = estimatedPayableCents.value;
+      const created = (await createOrder(payload, orderRequestKey.value)).data
+        .data;
       orderRequestKey.value = crypto.randomUUID();
       preferredPlayerId.value = 0;
       orderVisible.value = false;
+      // 成交价以后端 payable_cents 为准：与页面试算不一致时如实提示，不静默按试算值展示。
+      if (created && expected > 0 && created.payable_cents !== expected) {
+        Message.warning(
+          `报单已受理，但应付与页面试算不一致：后端 ${money(
+            created.payable_cents
+          )}、页面试算 ${money(expected)}，请以订单详情为准`
+        );
+      } else {
+        Message.success('报单成功');
+      }
       await loadActive();
-    } catch {
-      Message.error('报单失败，请检查支付时限配置、可售名额与指定陪玩资质');
+    } catch (err) {
+      Message.error(
+        errorText(
+          err,
+          '报单失败，请检查支付时限配置、可售名额、人工调整额度与指定陪玩资质'
+        )
+      );
     }
   }
 
