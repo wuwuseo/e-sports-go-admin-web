@@ -3434,6 +3434,7 @@ export type PageComponentType =
   | 'activity'
   | 'member_entry'
   | 'support_entry'
+  | 'image'
   | 'layout';
 
 export interface PageComponent {

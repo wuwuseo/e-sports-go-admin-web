@@ -367,6 +367,19 @@
                     @update:model-value="(v) => setField(field.key, v)"
                   />
 
+                  <a-select
+                    v-else-if="field.kind === 'select'"
+                    :model-value="stringField(field.key)"
+                    @update:model-value="(v) => setField(field.key, v)"
+                  >
+                    <a-option
+                      v-for="opt in field.options || []"
+                      :key="opt.value"
+                      :value="opt.value"
+                      >{{ opt.label }}</a-option
+                    >
+                  </a-select>
+
                   <a-input-number
                     v-else-if="field.kind === 'number'"
                     :model-value="numberField(field.key)"
@@ -389,6 +402,30 @@
                     placeholder="例如 1,2,3"
                     @update:model-value="(v) => setField(field.key, v)"
                   />
+
+                  <div v-else-if="field.kind === 'image'" class="prop-images">
+                    <div class="prop-image-row">
+                      <a-input
+                        :model-value="stringField(field.key)"
+                        placeholder="https:// 或站内 /path"
+                        @update:model-value="(v) => setField(field.key, v)"
+                      />
+                      <a-button
+                        size="mini"
+                        @click="openCropperForField(field.key)"
+                        >裁剪</a-button
+                      >
+                    </div>
+                    <div class="prop-image-hint">
+                      发布前会校验 https、域名白名单与可访问性
+                    </div>
+                    <div
+                      v-if="imageIssue(stringField(field.key))"
+                      class="prop-warn"
+                    >
+                      {{ imageIssue(stringField(field.key)) }}
+                    </div>
+                  </div>
 
                   <div v-else-if="field.kind === 'images'" class="prop-images">
                     <div class="palette-usage">
@@ -897,6 +934,8 @@
     | 'number'
     | 'color'
     | 'numberList'
+    | 'select'
+    | 'image'
     | 'images'
     | 'navItems';
 
@@ -907,6 +946,7 @@
     placeholder?: string;
     min?: number;
     max?: number;
+    options?: { label: string; value: string }[];
   }
 
   interface NavItemDraft {
@@ -948,6 +988,12 @@
           type: 'carousel',
           label: '轮播图',
           usage: '顶部轮播，可配图片、切换间隔与生效有效期',
+          dataSource: '素材库 / 手动配置图片地址',
+        },
+        {
+          type: 'image',
+          label: '图片',
+          usage: '单图展示，可配置图片地址与点击跳转',
           dataSource: '素材库 / 手动配置图片地址',
         },
       ],
@@ -1026,6 +1072,40 @@
         kind: 'number',
         min: 1000,
         max: 30000,
+      },
+    ],
+    image: [
+      { key: 'image', label: '图片地址', kind: 'image' },
+      {
+        key: 'link',
+        label: '点击跳转（可选）',
+        kind: 'text',
+        placeholder: '站内 /pages/... 或 https://...',
+      },
+      {
+        key: 'fit',
+        label: '填充方式',
+        kind: 'select',
+        options: [
+          { label: '宽度撑满（高度自适应）', value: 'widthFix' },
+          { label: '裁剪填满', value: 'aspectFill' },
+          { label: '完整显示', value: 'aspectFit' },
+        ],
+      },
+      {
+        key: 'height',
+        label: '高度（px，宽度撑满时忽略）',
+        kind: 'number',
+        min: 60,
+        max: 600,
+      },
+      { key: 'radius', label: '圆角（px）', kind: 'number', min: 0, max: 48 },
+      {
+        key: 'spacing',
+        label: '上下间距（px）',
+        kind: 'number',
+        min: 0,
+        max: 80,
       },
     ],
     notice: [
@@ -1327,7 +1407,9 @@
     switch (field.kind) {
       case 'text':
       case 'textarea':
-      case 'color': {
+      case 'color':
+      case 'select':
+      case 'image': {
         const s = typeof value === 'string' ? value.trim() : '';
         return s === '' ? undefined : s;
       }
@@ -1528,12 +1610,16 @@
         type: blob.type || 'image/png',
       });
       const res = await uploadAttachment(file, undefined, 'esports-page');
-      const { attachment } = res.data.data;
-      if (!attachment) {
+      // 简单上传后端直接返回附件对象（data.id），分片上传才包在 data.attachment 里。
+      const data = res.data?.data as
+        | { attachment?: { id: number }; id?: number }
+        | undefined;
+      const attachmentId = data?.attachment?.id ?? data?.id;
+      if (typeof attachmentId !== 'number') {
         Message.error('上传失败，未返回附件');
         return null;
       }
-      const access = await getAttachmentAccessInfo(attachment.id);
+      const access = await getAttachmentAccessInfo(attachmentId);
       if (access.public === false) {
         Message.warning('素材为私有文件，访问地址有时效，建议使用公开目录');
       }
@@ -1573,6 +1659,14 @@
       } else {
         setImages([...list, url]);
       }
+    });
+  }
+
+  // 单图字段（图片组件）裁剪后直接回填该图片地址。
+  function openCropperForField(key: string) {
+    openCropper(async (blob) => {
+      const url = await uploadImageBlob(blob, `image-${Date.now()}.png`);
+      if (url) setField(key, url);
     });
   }
 

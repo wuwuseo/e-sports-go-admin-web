@@ -56,6 +56,21 @@
       <div v-else class="pp-empty">轮播图（未配置图片）</div>
     </div>
 
+    <!-- 单图（可点击跳转） -->
+    <div
+      v-else-if="comp.type === 'image'"
+      class="pp-image"
+      :style="imageWrapperStyle(comp)"
+    >
+      <img
+        v-if="imageOf(comp)"
+        :src="imageOf(comp)"
+        :style="imageStyle(comp)"
+        alt=""
+      />
+      <div v-else class="pp-empty">图片（未配置）</div>
+    </div>
+
     <!-- 公告条 -->
     <div v-else-if="comp.type === 'notice'" class="pp-notice">
       <span
@@ -151,6 +166,7 @@
 
 <script setup lang="ts">
   import { computed } from 'vue';
+  import type { CSSProperties } from 'vue';
   import type { PageComponent } from '../../api';
 
   const props = withDefaults(
@@ -210,6 +226,56 @@
     const value = comp.props?.images;
     if (!Array.isArray(value)) return [];
     return value.filter((v): v is string => typeof v === 'string');
+  }
+
+  function imageOf(comp: PageComponent): string {
+    return stringOf(comp.props?.image);
+  }
+
+  function imageFit(comp: PageComponent): string {
+    const value = stringOf(comp.props?.fit);
+    return ['widthFix', 'aspectFill', 'aspectFit'].includes(value)
+      ? value
+      : 'widthFix';
+  }
+
+  function imageHeight(comp: PageComponent): number {
+    const value = Number(comp.props?.height);
+    return Number.isFinite(value) && value > 0 ? value : 160;
+  }
+
+  function imageRadius(comp: PageComponent): number {
+    const value = Number(comp.props?.radius);
+    return Number.isFinite(value) ? Math.min(48, Math.max(0, value)) : 8;
+  }
+
+  function imageSpacing(comp: PageComponent): number | null {
+    const value = Number(comp.props?.spacing);
+    return Number.isFinite(value) ? Math.min(240, Math.max(0, value)) : null;
+  }
+
+  function imageWrapperStyle(comp: PageComponent): CSSProperties {
+    const spacing = imageSpacing(comp);
+    return {
+      borderRadius: `${imageRadius(comp)}px`,
+      overflow: 'hidden',
+      ...(spacing !== null
+        ? { marginTop: `${spacing}px`, marginBottom: `${spacing}px` }
+        : {}),
+    };
+  }
+
+  function imageStyle(comp: PageComponent): CSSProperties {
+    const fit = imageFit(comp);
+    let objectFit: CSSProperties['objectFit'] = 'fill';
+    if (fit === 'aspectFill') objectFit = 'cover';
+    if (fit === 'aspectFit') objectFit = 'contain';
+    return {
+      width: '100%',
+      height: fit === 'widthFix' ? 'auto' : `${imageHeight(comp)}px`,
+      objectFit,
+      background: fit === 'aspectFit' ? '#f5f6f8' : undefined,
+    };
   }
 
   interface NavItem {
@@ -341,6 +407,11 @@
     height: 120px;
     object-fit: cover;
     border-radius: 6px;
+  }
+
+  .pp-image img {
+    display: block;
+    width: 100%;
   }
 
   .pp-notice-text {
