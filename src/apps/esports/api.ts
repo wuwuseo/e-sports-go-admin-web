@@ -3398,12 +3398,15 @@ export type PageComponentType =
   | 'player_recommend'
   | 'activity'
   | 'member_entry'
-  | 'support_entry';
+  | 'support_entry'
+  | 'layout';
 
 export interface PageComponent {
   type: PageComponentType;
   visible: boolean;
   props?: Record<string, unknown>;
+  // 仅 layout 使用：按列存放子组件，null 表示空列；当前只允许一层。
+  children?: (PageComponent | null)[];
 }
 
 export type PageDocumentStatus = 'draft' | 'pending' | 'published';

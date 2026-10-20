@@ -97,6 +97,19 @@
           <div class="designer">
             <div class="palette">
               <div class="section-title">组件库</div>
+              <!-- 布局容器：1×1 / 1×2 / 1×3 列，每列放一个已有组件。 -->
+              <div class="palette-group">布局</div>
+              <div
+                v-for="preset in layoutPresets"
+                :key="preset.columns"
+                class="palette-item"
+              >
+                <a-button long @click="addLayout(preset.columns)">{{
+                  preset.label
+                }}</a-button>
+                <div class="palette-usage">{{ preset.usage }}</div>
+                <div class="palette-source">数据源：内部组件（每列 1 个）</div>
+              </div>
               <!-- 组件库按分类分组并标注用途 / 适用数据源（§16.2-03）。 -->
               <template v-for="group in componentGroups" :key="group.title">
                 <div class="palette-group">{{ group.title }}</div>
@@ -120,71 +133,216 @@
               <div class="section-title"
                 >手机画布（{{ components.length }}）· 拖拽排序</div
               >
-              <a-empty
-                v-if="!components.length"
-                description="从左侧组件库添加组件"
-              />
-              <div
-                v-for="(component, index) in components"
-                :key="index"
-                class="canvas-item"
-                :class="{
-                  'active': index === selectedIndex,
-                  'drag-over': index === dragOverIndex,
-                }"
-                draggable="true"
-                @dragstart="onDragStart(index, $event)"
-                @dragover.prevent="dragOverIndex = index"
-                @drop.prevent="onDrop(index)"
-                @dragend="onDragEnd"
-                @click="selectComponent(index)"
-              >
-                <span class="drag-handle">⠿</span>
-                <span class="canvas-label">{{
-                  componentLabel(component.type)
-                }}</span>
-                <a-switch
-                  v-model="component.visible"
-                  size="small"
-                  @click.stop
-                />
-                <a-space @click.stop>
-                  <a-button
+              <div class="canvas-split">
+                <!-- 实时预览（§16.4）：复用客户端渲染规则的手机画布，草稿改动即时同步。 -->
+                <div class="live-preview">
+                  <div class="live-preview-head">
+                    <span class="live-preview-title">实时预览</span>
+                    <span class="live-preview-sync">
+                      <i class="live-dot" />实时同步
+                    </span>
+                  </div>
+                  <a-select
+                    v-model="previewDeviceKey"
+                    class="live-preview-device"
                     size="mini"
-                    :disabled="index === 0"
-                    @click="move(index, -1)"
-                    >上移</a-button
+                    placeholder="手机类型"
                   >
-                  <a-button
-                    size="mini"
-                    :disabled="index === components.length - 1"
-                    @click="move(index, 1)"
-                    >下移</a-button
+                    <a-option
+                      v-for="device in previewDevices"
+                      :key="device.key"
+                      :value="device.key"
+                    >
+                      {{ device.label }} · {{ device.width }}×{{
+                        device.height
+                      }}
+                    </a-option>
+                  </a-select>
+                  <div ref="livePreviewBody" class="live-preview-body">
+                    <PagePreview
+                      :components="components"
+                      :selected-key="selectedPath"
+                      :device="previewDevice"
+                      :scale="previewScale"
+                      selectable
+                      @select="selectByPath"
+                    />
+                  </div>
+                  <div class="live-preview-hint">
+                    机型仅影响预览；属性、排序与显隐改动即时同步，点击预览区块可选中对应组件。
+                  </div>
+                </div>
+                <div class="canvas-list">
+                  <a-empty
+                    v-if="!components.length"
+                    description="从左侧组件库添加组件"
+                  />
+                  <div
+                    v-for="(component, index) in components"
+                    :key="index"
+                    class="canvas-item"
+                    :class="{
+                      'active': index === selectedIndex,
+                      'drag-over': index === dragOverIndex,
+                      'canvas-layout': component.type === 'layout',
+                    }"
+                    draggable="true"
+                    @dragstart="onDragStart(index, $event)"
+                    @dragover.prevent="dragOverIndex = index"
+                    @drop.prevent="onDrop(index)"
+                    @dragend="onDragEnd"
+                    @click="selectComponent(index)"
                   >
-                  <a-button size="mini" @click="duplicate(index)"
-                    >复制</a-button
-                  >
-                  <a-button size="mini" status="danger" @click="remove(index)"
-                    >删除</a-button
-                  >
-                </a-space>
+                    <template v-if="component.type === 'layout'">
+                      <div class="canvas-layout-head">
+                        <span class="drag-handle">⠿</span>
+                        <span class="canvas-label">{{
+                          layoutLabel(component)
+                        }}</span>
+                        <a-switch
+                          v-model="component.visible"
+                          size="small"
+                          @click.stop
+                        />
+                        <div class="canvas-actions" @click.stop>
+                          <a-button
+                            size="mini"
+                            :disabled="index === 0"
+                            @click="move(index, -1)"
+                            >上移</a-button
+                          >
+                          <a-button
+                            size="mini"
+                            :disabled="index === components.length - 1"
+                            @click="move(index, 1)"
+                            >下移</a-button
+                          >
+                          <a-button size="mini" @click="duplicate(index)"
+                            >复制</a-button
+                          >
+                          <a-button
+                            size="mini"
+                            status="danger"
+                            @click="remove(index)"
+                            >删除</a-button
+                          >
+                        </div>
+                      </div>
+                      <div class="canvas-layout-grid" @click.stop>
+                        <div
+                          v-for="columnIndex in layoutColumns(component)"
+                          :key="columnIndex"
+                          class="canvas-slot"
+                        >
+                          <div
+                            v-if="
+                              layoutChildAt(component, columnIndex - 1) !== null
+                            "
+                            class="canvas-slot-item"
+                            :class="{
+                              active: isChildSelected(index, columnIndex - 1),
+                            }"
+                            @click="selectChild(index, columnIndex - 1)"
+                          >
+                            <span class="canvas-slot-label">{{
+                              componentLabelOf(
+                                layoutChildAt(component, columnIndex - 1)
+                              )
+                            }}</span>
+                            <a-button
+                              size="mini"
+                              status="danger"
+                              @click.stop="removeChild(index, columnIndex - 1)"
+                              >移除</a-button
+                            >
+                          </div>
+                          <a-select
+                            v-else
+                            size="mini"
+                            placeholder="+ 添加组件"
+                            class="canvas-slot-add"
+                            @change="
+                              (value) =>
+                                addChildFromSelect(
+                                  index,
+                                  columnIndex - 1,
+                                  value
+                                )
+                            "
+                          >
+                            <a-option
+                              v-for="item in componentTypes"
+                              :key="item.type"
+                              :value="item.type"
+                              >{{ item.label }}</a-option
+                            >
+                          </a-select>
+                        </div>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <span class="drag-handle">⠿</span>
+                      <span class="canvas-label">{{
+                        componentLabel(component.type)
+                      }}</span>
+                      <a-switch
+                        v-model="component.visible"
+                        size="small"
+                        @click.stop
+                      />
+                      <div class="canvas-actions" @click.stop>
+                        <a-button
+                          size="mini"
+                          :disabled="index === 0"
+                          @click="move(index, -1)"
+                          >上移</a-button
+                        >
+                        <a-button
+                          size="mini"
+                          :disabled="index === components.length - 1"
+                          @click="move(index, 1)"
+                          >下移</a-button
+                        >
+                        <a-button size="mini" @click="duplicate(index)"
+                          >复制</a-button
+                        >
+                        <a-button
+                          size="mini"
+                          status="danger"
+                          @click="remove(index)"
+                          >删除</a-button
+                        >
+                      </div>
+                    </template>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div class="inspector">
               <div class="section-title">属性</div>
               <a-empty
-                v-if="selectedIndex < 0"
+                v-if="!selectedComponent"
                 description="选中组件后编辑属性"
               />
               <template v-else>
                 <a-descriptions :column="1" size="small">
                   <a-descriptions-item label="类型">{{
-                    componentLabel(components[selectedIndex].type)
+                    componentLabelOf(selectedComponent)
                   }}</a-descriptions-item>
+                  <a-descriptions-item
+                    v-if="selectedChildIndex >= 0"
+                    label="位置"
+                    >{{ layoutLabel(components[selectedIndex]) }} · 第
+                    {{ selectedChildIndex + 1 }} 列</a-descriptions-item
+                  >
                 </a-descriptions>
                 <a-empty
-                  v-if="!currentSchema.length"
+                  v-if="selectedComponent?.type === 'layout'"
+                  description="布局本身无属性，请在画布中为每列添加组件"
+                />
+                <a-empty
+                  v-else-if="!currentSchema.length"
                   description="该组件无自由属性"
                 />
                 <div
@@ -698,7 +856,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from 'vue';
+  import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import { getAdmins } from '@/api/user';
@@ -902,7 +1060,16 @@
     ],
     member_entry: [{ key: 'title', label: '标题', kind: 'text' }],
     support_entry: [],
+    // 布局本身无自由属性：列数由添加时的 1×1 / 1×2 / 1×3 预设决定。
+    layout: [],
   };
+
+  // 组件库的布局分组：三种列容器，添加后在画布中为每列挑选一个组件。
+  const layoutPresets: { label: string; columns: number; usage: string }[] = [
+    { label: '1×1 布局', columns: 1, usage: '单列容器，可放入 1 个组件' },
+    { label: '1×2 布局', columns: 2, usage: '左右两列，每列 1 个组件' },
+    { label: '1×3 布局', columns: 3, usage: '三列并排，每列 1 个组件' },
+  ];
 
   // 首页版本 / 渠道（§16.2-02）：默认客户自助端首页，可由 GET /admin/pages 返回的文档切换。
   const channel = ref(PAGE_CHANNEL_CUSTOMER_HOME);
@@ -917,6 +1084,66 @@
   const activeTab = ref('design');
   const previewVisible = ref(false);
   const cropperVisible = ref(false);
+
+  // 实时预览机型（§16.4）：按逻辑分辨率（CSS 像素）排版后整体缩放，390/430 宽的换行与栅格仍然真实。
+  interface PreviewDevice {
+    key: string;
+    label: string;
+    width: number;
+    height: number;
+  }
+  const previewDevices: PreviewDevice[] = [
+    {
+      key: 'iphone-pro-max',
+      label: 'iPhone 16 / 17 / 18 Pro Max',
+      width: 440,
+      height: 956,
+    },
+    { key: 'iphone-17', label: 'iPhone 17 / 17 Pro', width: 402, height: 874 },
+    {
+      key: 'huawei-mate80',
+      label: '华为 Mate 80 Pro',
+      width: 400,
+      height: 885,
+    },
+    { key: 'xiaomi-15-16', label: '小米 15 / 16', width: 400, height: 890 },
+    {
+      key: 'huawei-mate70',
+      label: '华为 Mate 70 Pro',
+      width: 411,
+      height: 885,
+    },
+    { key: 'iphone-air', label: 'iPhone Air', width: 420, height: 912 },
+    {
+      key: 'iphone-plus',
+      label: 'iPhone 15 / 16 Plus',
+      width: 430,
+      height: 932,
+    },
+    { key: 'iphone-15-16', label: 'iPhone 15 / 16', width: 393, height: 852 },
+    { key: 'android-412', label: 'Android 大屏', width: 412, height: 915 },
+    { key: 'iphone-14', label: 'iPhone 14', width: 390, height: 844 },
+    { key: 'iphone-se', label: 'iPhone SE', width: 375, height: 667 },
+    { key: 'android-360', label: 'Android 常规', width: 360, height: 800 },
+  ];
+  const previewDeviceKey = ref('iphone-17');
+  const previewDevice = computed(
+    () =>
+      previewDevices.find((device) => device.key === previewDeviceKey.value) ||
+      previewDevices[0]
+  );
+  // 所有机型统一按最宽机型缩放：切换机型时手机宽度/比例变化可见，而不是每次都撑满预览栏。
+  // 20 为手机左右边框（每边 10px），与 PagePreview 保持一致。
+  const PREVIEW_WIDEST_PHONE =
+    Math.max(...previewDevices.map((device) => device.width)) + 20;
+  // 量测当前可用宽度，窄屏上下排列时也能自适应。
+  const livePreviewBody = ref<HTMLElement | null>(null);
+  const livePreviewBodyWidth = ref(294);
+  let livePreviewObserver: ResizeObserver | null = null;
+  const previewScale = computed(() => {
+    const available = livePreviewBodyWidth.value;
+    return available ? Math.min(1, available / PREVIEW_WIDEST_PHONE) : 1;
+  });
 
   // 发布权限（§16.5）：运营提交发布申请，有发布权限者（异人）审核发布，回滚同权限。
   const { hasButtonPermission } = usePermission();
@@ -950,6 +1177,8 @@
   const versions = ref<PageVersion[]>([]);
   const assets = ref<PageAsset[]>([]);
   const selectedIndex = ref(-1);
+  // -1 表示选中布局本身 / 顶层普通组件；>=0 表示选中布局中的某一列。
+  const selectedChildIndex = ref(-1);
   const scheduledAt = ref<number>();
   const rollbackVersion = ref<number>();
   // 底部导航（§16.3-12）：路径与数量由客户端构建期固定，这里只编辑文案 / 图标 / 显隐。
@@ -972,6 +1201,38 @@
 
   const componentLabel = (type: PageComponentType) =>
     componentTypes.find((item) => item.type === type)?.label || type;
+
+  // 布局列数、子组件与选中路径：布局只允许一层，子组件沿用与顶层相同的属性面板。
+  const layoutColumns = (comp: PageComponent | null | undefined): number => {
+    const value = Number(comp?.props?.columns);
+    return Number.isFinite(value) && value >= 1 && value <= 3
+      ? Math.floor(value)
+      : 1;
+  };
+  const layoutLabel = (comp: PageComponent | null | undefined) =>
+    `1×${layoutColumns(comp)} 布局`;
+  const layoutChildAt = (
+    comp: PageComponent | null | undefined,
+    columnIndex: number
+  ): PageComponent | null => comp?.children?.[columnIndex] || null;
+  const componentLabelOf = (comp: PageComponent | null | undefined) => {
+    if (!comp) return '';
+    return comp.type === 'layout'
+      ? layoutLabel(comp)
+      : componentLabel(comp.type);
+  };
+  const selectedComponent = computed<PageComponent | null>(() => {
+    const comp = components.value[selectedIndex.value];
+    if (!comp) return null;
+    if (selectedChildIndex.value < 0) return comp;
+    return layoutChildAt(comp, selectedChildIndex.value);
+  });
+  const selectedPath = computed(() => {
+    if (selectedIndex.value < 0) return '';
+    return selectedChildIndex.value < 0
+      ? String(selectedIndex.value)
+      : `${selectedIndex.value}.${selectedChildIndex.value}`;
+  });
 
   const statusLabels: Record<string, string> = {
     draft: '草稿',
@@ -1032,8 +1293,8 @@
   const form = reactive<Record<string, unknown>>({});
 
   const currentSchema = computed<PropField[]>(() => {
-    if (selectedIndex.value < 0) return [];
-    return propSchemas[components.value[selectedIndex.value].type] || [];
+    if (!selectedComponent.value) return [];
+    return propSchemas[selectedComponent.value.type] || [];
   });
 
   function deserializeField(field: PropField, raw: unknown): unknown {
@@ -1109,23 +1370,31 @@
     }
   }
 
-  function loadForm(index: number) {
-    const comp = components.value[index];
-    const props = comp.props || {};
+  function loadForm() {
     Object.keys(form).forEach((k) => delete form[k]);
+    const comp = selectedComponent.value;
+    if (!comp) return;
+    const props = comp.props || {};
     (propSchemas[comp.type] || []).forEach((field) => {
       form[field.key] = deserializeField(field, props[field.key]);
     });
   }
 
   function syncForm() {
-    if (selectedIndex.value < 0) return;
-    const comp = components.value[selectedIndex.value];
+    const comp = selectedComponent.value;
+    if (!comp) return;
     const props: Record<string, unknown> = {};
     currentSchema.value.forEach((field) => {
       const serialized = serializeField(field, form[field.key]);
       if (serialized !== undefined) props[field.key] = serialized;
     });
+    if (selectedChildIndex.value >= 0) {
+      const layout = components.value[selectedIndex.value];
+      const children = [...(layout.children || [])];
+      children[selectedChildIndex.value] = { ...comp, props };
+      components.value[selectedIndex.value] = { ...layout, children };
+      return;
+    }
     components.value[selectedIndex.value] = { ...comp, props };
   }
 
@@ -1231,6 +1500,7 @@
     const [item] = list.splice(dragIndex, 1);
     list.splice(target, 0, item);
     selectedIndex.value = target;
+    selectedChildIndex.value = -1;
     dragOverIndex.value = -1;
   }
   function onDragEnd() {
@@ -1415,6 +1685,7 @@
       versions.value = versionList.data.data;
       assets.value = assetList.data.data;
       selectedIndex.value = -1;
+      selectedChildIndex.value = -1;
       diffLeftNo.value = undefined;
       diffRightNo.value = undefined;
       await loadPageDocs();
@@ -1429,6 +1700,7 @@
   // 底部导航与预览码都绑定渠道，一并失效。
   const onChannelChange = () => {
     selectedIndex.value = -1;
+    selectedChildIndex.value = -1;
     pageError.value = '';
     tabbarItems.value = [];
     tabbarDraftVersion.value = 0;
@@ -1466,7 +1738,7 @@
           key: `a-${i}`,
           position,
           kind: 'added',
-          component: componentLabel(b.type),
+          component: componentLabelOf(b),
           detail: `版本 B 新增组件（可见：${b.visible ? '是' : '否'}）`,
         });
       } else if (a && !b) {
@@ -1474,7 +1746,7 @@
           key: `r-${i}`,
           position,
           kind: 'removed',
-          component: componentLabel(a.type),
+          component: componentLabelOf(a),
           detail: '版本 B 已删除该组件',
         });
       } else if (a && b) {
@@ -1483,9 +1755,9 @@
             key: `t-${i}`,
             position,
             kind: 'changed',
-            component: componentLabel(b.type),
-            detail: `组件类型由 ${componentLabel(a.type)} 改为 ${componentLabel(
-              b.type
+            component: componentLabelOf(b),
+            detail: `组件类型由 ${componentLabelOf(a)} 改为 ${componentLabelOf(
+              b
             )}`,
           });
         } else {
@@ -1496,6 +1768,12 @@
                 b.visible ? '显示' : '隐藏'
               }`
             );
+          }
+          if (
+            JSON.stringify(a.children || []) !==
+            JSON.stringify(b.children || [])
+          ) {
+            changedKeys.push('布局内组件变更');
           }
           const propsA = a.props || {};
           const propsB = b.props || {};
@@ -1517,7 +1795,7 @@
               key: `c-${i}`,
               position,
               kind: 'changed',
-              component: componentLabel(b.type),
+              component: componentLabelOf(b),
               detail: changedKeys.join('；'),
             });
           }
@@ -1567,7 +1845,70 @@
 
   const selectComponent = (index: number) => {
     selectedIndex.value = index;
-    loadForm(index);
+    selectedChildIndex.value = -1;
+    loadForm();
+  };
+  const selectChild = (index: number, childIndex: number) => {
+    selectedIndex.value = index;
+    selectedChildIndex.value = childIndex;
+    loadForm();
+  };
+  const selectByPath = (path: string) => {
+    const [top, child] = path.split('.').map((part) => Number(part));
+    if (!Number.isInteger(top) || top < 0 || top >= components.value.length) {
+      return;
+    }
+    if (Number.isInteger(child)) {
+      selectChild(top, child);
+    } else {
+      selectComponent(top);
+    }
+  };
+  const isChildSelected = (index: number, childIndex: number) =>
+    selectedIndex.value === index && selectedChildIndex.value === childIndex;
+  const addLayout = (columns: number) => {
+    components.value.push({
+      type: 'layout',
+      visible: true,
+      props: { columns },
+      children: Array.from({ length: columns }, () => null),
+    });
+    selectComponent(components.value.length - 1);
+  };
+  const addChild = (
+    layoutIndex: number,
+    columnIndex: number,
+    type: PageComponentType
+  ) => {
+    const layout = components.value[layoutIndex];
+    if (!layout || layout.type !== 'layout') return;
+    const columns = layoutColumns(layout);
+    if (columnIndex < 0 || columnIndex >= columns) return;
+    const children = [...(layout.children || [])];
+    while (children.length < columns) children.push(null);
+    children[columnIndex] = { type, visible: true };
+    components.value[layoutIndex] = { ...layout, children };
+    selectChild(layoutIndex, columnIndex);
+  };
+  const addChildFromSelect = (
+    layoutIndex: number,
+    columnIndex: number,
+    value: unknown
+  ) => {
+    if (typeof value === 'string') {
+      addChild(layoutIndex, columnIndex, value as PageComponentType);
+    }
+  };
+  const removeChild = (layoutIndex: number, columnIndex: number) => {
+    const layout = components.value[layoutIndex];
+    if (!layout || layout.type !== 'layout') return;
+    const children = [...(layout.children || [])];
+    children[columnIndex] = null;
+    components.value[layoutIndex] = { ...layout, children };
+    if (isChildSelected(layoutIndex, columnIndex)) {
+      selectedChildIndex.value = -1;
+      loadForm();
+    }
   };
   const addComponent = (type: PageComponentType) => {
     components.value.push({ type, visible: true });
@@ -1578,6 +1919,7 @@
     const list = components.value;
     [list[index], list[target]] = [list[target], list[index]];
     selectedIndex.value = target;
+    selectedChildIndex.value = -1;
   };
   const duplicate = (index: number) => {
     const copy = JSON.parse(
@@ -1589,6 +1931,7 @@
   const remove = (index: number) => {
     components.value.splice(index, 1);
     selectedIndex.value = -1;
+    selectedChildIndex.value = -1;
   };
 
   const saveDraft = async () => {
@@ -1880,7 +2223,19 @@
   };
 
   onMounted(async () => {
+    if (livePreviewBody.value && typeof ResizeObserver !== 'undefined') {
+      livePreviewObserver = new ResizeObserver((entries) => {
+        const width = entries[0]?.contentRect.width;
+        if (width) livePreviewBodyWidth.value = width;
+      });
+      livePreviewObserver.observe(livePreviewBody.value);
+    }
     await Promise.all([load(), loadAdminNames()]);
+  });
+
+  onBeforeUnmount(() => {
+    livePreviewObserver?.disconnect();
+    livePreviewObserver = null;
   });
 </script>
 
@@ -1931,11 +2286,79 @@
 
   .canvas {
     flex: 1;
-    min-width: 280px;
+    min-width: 0;
+  }
+
+  .canvas-split {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .live-preview {
+    position: sticky;
+    top: 16px;
+    flex: none;
+    width: 320px;
+    padding: 12px;
+    background: var(--color-fill-1);
+    border: 1px solid var(--color-border-2);
+    border-radius: 8px;
+  }
+
+  .live-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .live-preview-title {
+    color: var(--color-text-1);
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .live-preview-sync {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    color: var(--color-text-3);
+    font-size: 12px;
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    background: rgb(var(--success-6));
+    border-radius: 50%;
+  }
+
+  .live-preview-device {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .live-preview-body {
+    display: flex;
+    justify-content: center;
+  }
+
+  .live-preview-hint {
+    margin-top: 8px;
+    color: var(--color-text-3);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .canvas-list {
+    flex: 1;
+    min-width: 0;
   }
 
   .canvas-item {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     margin-bottom: 8px;
@@ -1943,6 +2366,68 @@
     border: 1px solid var(--color-border-2);
     border-radius: 4px;
     cursor: pointer;
+  }
+
+  .canvas-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+
+  .canvas-item.canvas-layout {
+    flex-direction: column;
+    align-items: stretch;
+    cursor: default;
+  }
+
+  .canvas-layout-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .canvas-layout-grid {
+    display: grid;
+    gap: 8px;
+  }
+
+  .canvas-slot {
+    min-height: 48px;
+    padding: 6px;
+    background: var(--color-fill-1);
+    border: 1px dashed var(--color-border-2);
+    border-radius: 4px;
+  }
+
+  .canvas-slot-item {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 34px;
+    padding: 4px 6px;
+    background: var(--color-bg-2);
+    border: 1px solid var(--color-border-2);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .canvas-slot-item.active {
+    border-color: rgb(var(--primary-6));
+  }
+
+  .canvas-slot-label {
+    overflow: hidden;
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .canvas-slot-add {
+    width: 100%;
   }
 
   .canvas-item.active {
@@ -1962,7 +2447,32 @@
 
   .canvas-label {
     flex: 1;
+    min-width: 84px;
     font-weight: 500;
+  }
+
+  /* 窄屏下预览与画布列表改为上下排列，避免四栏挤压导致按钮换行溢出。 */
+  @media (max-width: 1399px) {
+    .canvas-split {
+      flex-direction: column;
+    }
+
+    .live-preview {
+      position: static;
+      width: 320px;
+      max-width: 100%;
+    }
+
+    /* 窄屏上下排列时限制预览高度，避免整块画布被推到首屏之外。 */
+    .live-preview-body {
+      max-height: 360px;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+    }
+
+    .canvas-list {
+      width: 100%;
+    }
   }
 
   .inspector {
