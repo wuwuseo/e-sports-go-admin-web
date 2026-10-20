@@ -1450,8 +1450,12 @@
         <a-form-item label="适用游戏（可选）">
           <a-input v-model="ruleForm.scopeGame" :max-length="48" />
         </a-form-item>
-        <a-form-item label="适用 SKU ID（可选）">
-          <a-input-number v-model="ruleForm.scopeSkuId" :min="0" />
+        <a-form-item label="适用商品（可选）">
+          <SkuSelect
+            v-model="ruleForm.scopeSkuId"
+            :fallback-title="skuLabel(ruleForm.scopeSkuId)"
+            placeholder="不限商品，可搜索名称或编码"
+          />
         </a-form-item>
         <a-form-item label="命中生成的问题类型" required>
           <a-select v-model="ruleForm.afterSaleKind">
@@ -1513,6 +1517,7 @@
   import usePermission from '@/hooks/permission';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import type { AttachmentResponse } from '@/types/api';
+  import SkuSelect from '../../components/SkuSelect.vue';
   import {
     acceptAfterSale,
     approveAfterSale,
@@ -1534,6 +1539,7 @@
     listAfterSaleReviews,
     listAfterSaleRuleHits,
     listAfterSaleRules,
+    listSkus,
     listExternalRefunds,
     listFulfillmentMakeups,
     markRechargeRefundExecuted,
@@ -1575,6 +1581,7 @@
     EsportsExternalRefund,
     EsportsFulfillmentMakeup,
     EsportsRechargeRefundExecution,
+    EsportsSku,
     MakeupKind,
   } from '../../api';
 
@@ -2693,6 +2700,17 @@
 
   // ── 售后自动建单规则与命中留痕（§13.2-05）──
   const rules = ref<EsportsAfterSaleRule[]>([]);
+  // 售后规则范围展示商品名而不是 SKU ID；商品下拉自身按关键词远程取数。
+  const skus = ref<EsportsSku[]>([]);
+  const skuLabel = (skuId: number) =>
+    skus.value.find((sku) => sku.id === skuId)?.title || '未知商品';
+  async function loadSkuLabels() {
+    try {
+      skus.value = (await listSkus({ limit: 500 })).data.data || [];
+    } catch {
+      // 商品名读取失败时规则仍可维护，范围展示回落「未知商品」。
+    }
+  }
   const ruleLoading = ref(false);
   const ruleStatusFilter = ref('');
   const ruleHits = ref<AfterSaleRuleHit[]>([]);
@@ -2728,7 +2746,8 @@
   const ruleScopeLabel = (record: EsportsAfterSaleRule) => {
     const parts: string[] = [];
     if (record.scope_game) parts.push(record.scope_game);
-    if (record.scope_sku_id) parts.push(`SKU #${record.scope_sku_id}`);
+    if (record.scope_sku_id)
+      parts.push(`商品：${skuLabel(record.scope_sku_id)}`);
     return parts.length ? parts.join(' / ') : '全部';
   };
   const ruleStatusMap: Record<string, string> = {
@@ -3101,7 +3120,10 @@
     load();
     loadMakeups();
     // 规则 / 命中留痕只在有对应查看权限时加载，避免无权限账号反复 403。
-    if (canListRules.value) loadRules();
+    if (canListRules.value) {
+      loadRules();
+      loadSkuLabels();
+    }
     if (canViewRuleHits.value) loadRuleHits();
   });
 </script>

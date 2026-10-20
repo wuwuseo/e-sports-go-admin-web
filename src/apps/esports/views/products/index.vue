@@ -676,6 +676,7 @@
           <a-select
             :model-value="skuForm.product_id ?? undefined"
             allow-clear
+            allow-search
             placeholder="不关联商品"
             @update:model-value="onSkuProductChange"
           >
@@ -692,6 +693,7 @@
           <a-select
             :model-value="skuForm.spec_group_id ?? undefined"
             allow-clear
+            allow-search
             placeholder="不关联规格组（单人）"
             @update:model-value="onSkuSpecGroupChange"
           >

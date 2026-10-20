@@ -22,8 +22,7 @@
           :pagination="{ pageSize: 20 }"
         >
           <template #columns>
-            <a-table-column data-index="owner_id" title="归属人 ID" />
-            <a-table-column title="名称">
+            <a-table-column title="归属人">
               <template #cell="{ record }">
                 <a-space>
                   <component
@@ -34,13 +33,9 @@
                     v-if="record.display?.description"
                     :content="record.display.description"
                   >
-                    <span>
-                      {{ record.display?.display_name || record.display_name }}
-                    </span>
+                    <span>{{ ownerName(record) }}</span>
                   </a-tooltip>
-                  <span v-else>
-                    {{ record.display?.display_name || record.display_name }}
-                  </span>
+                  <span v-else>{{ ownerName(record) }}</span>
                 </a-space>
               </template>
             </a-table-column>
@@ -93,15 +88,14 @@
         </a-table>
 
         <div class="hint">
-          「退款试算」按充值批次还原可退本金与作废赠送，只读不落库；参数是钱包归属人（客户）ID，不是流水
-          ID。
+          「退款试算」按充值批次还原可退本金与作废赠送，只读不落库；按归属人（客户）试算，不是按流水。
         </div>
       </template>
 
       <template v-else>
         <div class="hint">
-          批次分摊明细按「账户类型 + 账户
-          ID」查询；对账异常来自账本核验任务写下的 ledger.reconcile_anomaly
+          批次分摊明细按「账户类型 +
+          归属人」查询；对账异常来自账本核验任务写下的 ledger.reconcile_anomaly
           事件，逐条给出类型、账户与明细原因。
         </div>
         <a-space class="toolbar" wrap>
@@ -109,16 +103,29 @@
             v-model="ledgerAccountType"
             :style="{ width: '200px' }"
             placeholder="账户类型"
+            @change="onLedgerTypeChange"
           >
             <a-option value="customer_balance">客户余额</a-option>
             <a-option value="player_catfood">陪玩猫粮</a-option>
           </a-select>
-          <a-input-number
+          <a-select
             v-model="ledgerAccountId"
-            placeholder="账户 ID（钱包归属人）"
-            :min="0"
+            allow-search
+            :filter-option="false"
+            :loading="ledgerOwnerLoading"
+            placeholder="搜索归属人姓名"
             :style="{ width: '240px' }"
-          />
+            @search="onLedgerOwnerSearch"
+            @change="onLedgerOwnerChange"
+            @popup-visible-change="onLedgerOwnerPopup"
+          >
+            <a-option
+              v-for="item in ledgerOwners"
+              :key="item.id"
+              :value="item.id"
+              >{{ item.name }}</a-option
+            >
+          </a-select>
           <a-button
             v-if="canLedgerAllocations"
             :loading="ledgerAllocationsLoading"
@@ -218,13 +225,16 @@
       @ok="submitEntry"
     >
       <a-form :model="entryForm">
-        <a-form-item v-if="!entryTarget" label="归属人 ID" required>
-          <a-input-number
+        <a-form-item v-if="!entryTarget" label="归属人" required>
+          <OwnerSelect
             v-model="entryForm.ownerId"
-            :min="1"
-            :help="
-              activeTab === 'player_catfood' ? '填陪玩档案 ID' : '填客户档案 ID'
+            :owner-type="ownerTypeOf(accountType)"
+            :placeholder="
+              activeTab === 'player_catfood'
+                ? '搜索陪玩昵称'
+                : '搜索客户姓名或手机号'
             "
+            @select="onEntryOwnerSelect"
           />
         </a-form-item>
         <a-form-item v-else label="归属人">
@@ -341,8 +351,8 @@
           <a-descriptions-item label="账户类型">{{
             refundQuote.account_type
           }}</a-descriptions-item>
-          <a-descriptions-item label="账户号（归属人 ID）">{{
-            refundQuote.account_id
+          <a-descriptions-item label="归属人">{{
+            refundQuoteTarget?.display_name || '—'
           }}</a-descriptions-item>
           <a-descriptions-item label="可退本金">
             <strong>{{ money(refundQuote.refundable_principal_cents) }}</strong>
@@ -435,6 +445,7 @@
   import {
     computed,
     markRaw,
+    onBeforeUnmount,
     onMounted,
     reactive,
     ref,
@@ -443,6 +454,7 @@
   import { Message, Modal } from '@arco-design/web-vue';
   import { IconGift, IconSafe } from '@arco-design/web-vue/es/icon';
   import usePermission from '@/hooks/permission';
+  import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     adjustWallet,
     getWalletRefundQuote,
@@ -505,11 +517,16 @@
   const rechargeMode = ref<'manual' | 'campaign'>('manual');
   const entryTarget = ref<WalletAccount | null>(null);
   const entryForm = reactive({
-    ownerId: 1,
+    ownerId: 0,
     principalYuan: 0,
     bonusYuan: 0,
     note: '',
   });
+  // 新充值 / 调整时下拉选中的归属人姓名，用于确认文案，避免回显数字 ID。
+  const entryOwnerName = ref('');
+  const entryOwnerLabel = computed(
+    () => entryTarget.value?.display_name || entryOwnerName.value || '该归属人'
+  );
   const txVisible = ref(false);
   const txLoading = ref(false);
   const transactions = ref<WalletTx[]>([]);
@@ -521,6 +538,12 @@
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
   const signed = (cents: number) =>
     cents > 0 ? `+${money(cents)}` : money(cents);
+  // 归属人列展示实际姓名；账户名称仍是钱包展示口径（余额 / 猫粮），不再占用归属人列。
+  const ownerName = (record: WalletAccount) =>
+    record.display_name || '未命名归属人';
+  // 钱包账户类型映射到归属人类型：客户余额归属客户、陪玩猫粮归属陪玩。
+  const ownerTypeOf = (type: WalletAccountType): 'customer' | 'player' =>
+    type === 'player_catfood' ? 'player' : 'customer';
 
   // §11.4 钱包展示图标映射：后端下发 icon 字符串，映射到 Arco 图标组件；映射不到只显示文字。
   const walletIconMap: Record<string, Component> = {
@@ -602,11 +625,16 @@
     }
   }
 
+  function onEntryOwnerSelect(option: { id: number; name: string } | null) {
+    entryOwnerName.value = option?.name || '';
+  }
+
   function openRecharge(record?: WalletAccount) {
     entryMode.value = 'recharge';
     rechargeMode.value = 'manual';
     entryTarget.value = record || null;
-    entryForm.ownerId = record?.owner_id || 1;
+    entryForm.ownerId = record?.owner_id || 0;
+    entryOwnerName.value = record?.display_name || '';
     entryForm.principalYuan = 0;
     entryForm.bonusYuan = 0;
     entryForm.note = '';
@@ -617,6 +645,7 @@
     entryMode.value = 'adjust';
     entryTarget.value = record;
     entryForm.ownerId = record.owner_id;
+    entryOwnerName.value = record.display_name;
     entryForm.principalYuan = 0;
     entryForm.bonusYuan = 0;
     entryForm.note = '';
@@ -624,12 +653,12 @@
   }
 
   async function submitEntry() {
-    const ownerId = entryTarget.value?.owner_id || entryForm.ownerId;
+    const ownerId = entryTarget.value?.owner_id || entryForm.ownerId || 0;
     const principalCents = Math.round(entryForm.principalYuan * 100);
     const bonusCents = Math.round(entryForm.bonusYuan * 100);
     const note = entryForm.note.trim();
-    if (!ownerId) {
-      Message.warning('请填写归属人 ID');
+    if (ownerId <= 0) {
+      Message.warning('请选择归属人');
       return;
     }
     // 按活动自动匹配：仅客户余额，只填本金，赠送由后端按活动规则计算。
@@ -643,7 +672,7 @@
         return;
       }
       const ok = await confirmFundsAction(
-        `确认按活动为归属人 ${ownerId} 入账本金 ${money(
+        `确认按活动为归属人 ${entryOwnerLabel.value} 入账本金 ${money(
           principalCents
         )}？赠送由活动规则自动匹配。`,
         '按活动充值'
@@ -673,11 +702,9 @@
       return;
     }
     const ok = await confirmFundsAction(
-      `确认${
-        entryMode.value === 'adjust' ? '调整' : '充值'
-      }归属人 ${ownerId}：本金 ${money(principalCents)}、赠送 ${money(
-        bonusCents
-      )}？${
+      `确认${entryMode.value === 'adjust' ? '调整' : '充值'}归属人 ${
+        entryOwnerLabel.value
+      }：本金 ${money(principalCents)}、赠送 ${money(bonusCents)}？${
         entryMode.value === 'adjust' ? '调整会直接改动余额，' : ''
       }操作以管理员身份执行并留痕。`,
       entryMode.value === 'adjust' ? '余额调整' : '钱包充值'
@@ -734,7 +761,7 @@
   const refundQuoteTarget = ref<WalletAccount | null>(null);
   const refundQuoteTitle = computed(() =>
     refundQuoteTarget.value
-      ? `退款试算 · ${refundQuoteTarget.value.display_name}（归属人 ${refundQuoteTarget.value.owner_id}）`
+      ? `退款试算 · ${refundQuoteTarget.value.display_name}`
       : '退款试算'
   );
 
@@ -757,6 +784,65 @@
   // ── 账本核验（§4.3 分摊明细 / §11.6-01 对账异常） ──
   const ledgerAccountType = ref<WalletAccountType>('customer_balance');
   const ledgerAccountId = ref(0);
+  // 账本查询的归属人下拉取「钱包账户」口径：该接口权限（wallets:list）财务角色已有，
+  // 不额外要求客户 / 陪玩列表权限；关键词按账户展示名远程匹配。
+  interface LedgerOwnerOption {
+    id: number;
+    name: string;
+  }
+  const ledgerOwners = ref<LedgerOwnerOption[]>([]);
+  const ledgerOwnerLoading = ref(false);
+  const ledgerOwnerSelected = ref<LedgerOwnerOption | null>(null);
+  let ledgerOwnerTimer: ReturnType<typeof setTimeout> | undefined;
+  let ledgerOwnerToken = 0;
+
+  async function loadLedgerOwners(keyword = '') {
+    ledgerOwnerToken += 1;
+    const token = ledgerOwnerToken;
+    ledgerOwnerLoading.value = true;
+    try {
+      const rows =
+        (await listWallets(ledgerAccountType.value, keyword)).data.data || [];
+      if (token !== ledgerOwnerToken) return;
+      const options = rows.map((item) => ({
+        id: item.owner_id,
+        name: item.display_name || '未命名归属人',
+      }));
+      const current = ledgerOwnerSelected.value;
+      if (current && !options.some((item) => item.id === current.id)) {
+        options.unshift(current);
+      }
+      ledgerOwners.value = options;
+    } catch {
+      if (token === ledgerOwnerToken) ledgerOwners.value = [];
+    } finally {
+      if (token === ledgerOwnerToken) ledgerOwnerLoading.value = false;
+    }
+  }
+
+  function onLedgerOwnerSearch(keyword: string) {
+    if (ledgerOwnerTimer) clearTimeout(ledgerOwnerTimer);
+    ledgerOwnerTimer = setTimeout(() => loadLedgerOwners(keyword.trim()), 250);
+  }
+
+  function onLedgerOwnerChange(value: unknown) {
+    const id = typeof value === 'number' ? value : 0;
+    ledgerOwnerSelected.value =
+      ledgerOwners.value.find((item) => item.id === id) || null;
+  }
+
+  function onLedgerOwnerPopup(visible: boolean) {
+    // 每次展开重置为初始列表，避免上次搜索词把选项过滤得只剩几条。
+    if (visible) loadLedgerOwners('');
+  }
+
+  function onLedgerTypeChange() {
+    ledgerAccountId.value = 0;
+    ledgerOwnerSelected.value = null;
+    ledgerOwners.value = [];
+    loadLedgerOwners('');
+  }
+
   const ledgerAllocations = ref<LedgerAllocation[]>([]);
   const ledgerAllocationsLoading = ref(false);
   const anomalyEvents = ref<LedgerReconcileAnomaly[]>([]);
@@ -791,7 +877,7 @@
 
   async function loadLedgerAllocations() {
     if (!ledgerAccountId.value) {
-      Message.warning('请填写账户 ID 后再查询分摊明细');
+      Message.warning('请选择归属人后再查询分摊明细');
       return;
     }
     ledgerAllocationsLoading.value = true;
@@ -827,6 +913,7 @@
     rechargeMode.value = 'manual';
     if (activeTab.value === 'ledger_check') {
       if (anomalyEvents.value.length === 0) loadAnomalies();
+      if (ledgerOwners.value.length === 0) loadLedgerOwners('');
       return;
     }
     load();
@@ -842,6 +929,10 @@
   };
 
   onMounted(load);
+
+  onBeforeUnmount(() => {
+    if (ledgerOwnerTimer) clearTimeout(ledgerOwnerTimer);
+  });
 </script>
 
 <style scoped>

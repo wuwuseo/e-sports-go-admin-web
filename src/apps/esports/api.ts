@@ -127,6 +127,11 @@ export interface EsportsOrder {
   order_no: string;
   customer_id: number;
   sku_id: number;
+  // 下单时的商品 / 规格名快照（§15.6-03）：读取时优先于 SKU 实时标题，
+  // 历史单可能为空串，调用方回落实时 SKU 标题。
+  sku_code: string;
+  sku_name: string;
+  spec_name: string;
   channel_source: CustomerSource;
   entry_point:
     | 'cs_pc'
@@ -404,8 +409,18 @@ export const markCustomerRisk = (
     { status, reason }
   );
 
-export const listSkus = () =>
-  axios.get<ApiResponse<EsportsSku[]>>(`${base}/skus`);
+export interface SkuListParams {
+  // 关键词同时匹配商品名与编码（后端 adminSkus）。
+  keyword?: string;
+  status?: EsportsSku['status'];
+  limit?: number;
+}
+
+export const listSkus = (params?: SkuListParams) =>
+  axios.get<ApiResponse<EsportsSku[]>>(
+    `${base}/skus`,
+    params ? { params } : undefined
+  );
 
 // 带报价试算的商品列表（§15.6-01 / §4.2）：响应由数组变为 { items, quotes }，
 // 供报单页在选定客户 / 份数后逐 SKU 展示会员折扣、应付、每席承诺量与结单要求。
@@ -789,6 +804,11 @@ export type ExpectedPriceStatus = 'none' | 'pending' | 'approved' | 'rejected';
 export interface EsportsPlayer {
   id: number;
   user_id: number;
+  // 管理端列表补充的关联用户可读信息：避免界面只显示 user_id。
+  user_display_name?: string;
+  user_username?: string;
+  user_phone?: string;
+  user_email?: string;
   display_name: string;
   qualification: 'pending' | 'qualified' | 'suspended';
   presence: 'offline' | 'online' | 'protected_abnormal';
@@ -846,6 +866,21 @@ export interface PlayerUpdateInput {
 export const listPlayers = (keyword = '') =>
   axios.get<ApiResponse<EsportsPlayer[]>>(`${base}/players`, {
     params: { keyword },
+  });
+
+// 新建陪玩时的用户候选：按用户名 / 昵称 / 姓名 / 邮箱 / 手机号搜索，
+// 后端排除已建陪玩档案的用户，复用 players:list 权限。
+export interface PlayerUserCandidate {
+  id: number;
+  display_name: string;
+  username: string;
+  email: string;
+  phone: string;
+}
+
+export const searchPlayerUsers = (keyword = '', limit = 50) =>
+  axios.get<ApiResponse<PlayerUserCandidate[]>>(`${base}/players`, {
+    params: { scope: 'user_candidates', keyword, limit },
   });
 
 export const createPlayer = (input: PlayerInput) =>

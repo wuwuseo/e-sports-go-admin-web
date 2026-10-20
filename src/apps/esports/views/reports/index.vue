@@ -37,7 +37,9 @@
         <template #columns>
           <a-table-column data-index="order_no" title="订单号" />
           <a-table-column data-index="customer_id" title="客户 ID" />
-          <a-table-column data-index="sku_id" title="商品 ID" />
+          <a-table-column title="商品">
+            <template #cell="{ record }">{{ skuLabel(record) }}</template>
+          </a-table-column>
           <a-table-column data-index="quantity" title="份数" />
           <a-table-column title="应付金额">
             <template #cell="{ record }">{{
@@ -116,7 +118,12 @@
     >
       <a-form :model="orderForm">
         <a-form-item label="客户" required>
-          <a-select v-model="orderForm.customer_id" @change="loadQuotes">
+          <a-select
+            v-model="orderForm.customer_id"
+            allow-search
+            placeholder="搜索客户姓名或手机号"
+            @change="loadQuotes"
+          >
             <a-option
               v-for="item in customers"
               :key="item.id"
@@ -126,12 +133,17 @@
           </a-select>
         </a-form-item>
         <a-form-item label="商品" required>
-          <a-select v-model="orderForm.sku_id" @change="onSkuChange">
+          <a-select
+            v-model="orderForm.sku_id"
+            allow-search
+            placeholder="搜索商品名称或编码"
+            @change="onSkuChange"
+          >
             <a-option
               v-for="item in skus.filter((sku) => sku.status === 'on_sale')"
               :key="item.id"
               :value="item.id"
-              >{{ item.title }}</a-option
+              >{{ item.title }} · {{ item.code }}</a-option
             >
           </a-select>
         </a-form-item>
@@ -253,8 +265,9 @@
               <template #cell="{ record }">
                 <a-select
                   v-model="record.customer_id"
+                  allow-search
                   :style="{ width: '180px' }"
-                  placeholder="选择客户"
+                  placeholder="搜索客户"
                 >
                   <a-option
                     v-for="item in customers"
@@ -269,14 +282,15 @@
               <template #cell="{ record }">
                 <a-select
                   v-model="record.sku_id"
+                  allow-search
                   :style="{ width: '220px' }"
-                  placeholder="选择商品"
+                  placeholder="搜索商品"
                 >
                   <a-option
                     v-for="item in onSaleSkus"
                     :key="item.id"
                     :value="item.id"
-                    >{{ item.title }}</a-option
+                    >{{ item.title }} · {{ item.code }}</a-option
                   >
                 </a-select>
               </template>
@@ -318,8 +332,8 @@
             :key="result.key"
             :class="result.ok ? 'batch-ok' : 'batch-fail'"
           >
-            第 {{ result.row }} 行（客户 #{{ result.customerId }} / 商品 #{{
-              result.skuId
+            第 {{ result.row }} 行（客户 #{{ result.customerId }} / 商品：{{
+              skuName(result.skuId)
             }}）：{{ result.ok ? '成功' : '失败' }} ——
             {{ result.message }}
           </div>
@@ -421,6 +435,11 @@
   const skus = ref<EsportsSku[]>([]);
   const customers = ref<EsportsCustomer[]>([]);
   const orders = ref<EsportsOrder[]>([]);
+  // 商品列展示名称：优先订单上的 sku_name 快照，历史单回落当前 SKU 标题。
+  const skuName = (skuId: number) =>
+    skus.value.find((sku) => sku.id === skuId)?.title || '未知商品';
+  const skuLabel = (order: EsportsOrder) =>
+    order.sku_name || skuName(order.sku_id);
   const ageChecks = ref<AgeCheck[]>([]);
   const ageCustomerName = ref('');
   const selectedEvidence = ref<AttachmentResponse | null>(null);
@@ -622,14 +641,20 @@
       if (activeTab.value === 'report') {
         const [orderResult, customerResult, skuResult] = await Promise.all([
           listOrders(),
-          listCustomers(),
-          listSkus(),
+          listCustomers({ limit: 500 }),
+          listSkus({ limit: 500 }),
         ]);
         orders.value = orderResult.data.data || [];
-        customers.value = customerResult.data.data || [];
+        const customerRows = customerResult.data.data;
+        customers.value = Array.isArray(customerRows)
+          ? customerRows
+          : customerRows?.items || [];
         skus.value = skuResult.data.data || [];
       } else if (activeTab.value === 'customers') {
-        customers.value = (await listCustomers()).data.data || [];
+        const customerRows = (await listCustomers({ limit: 500 })).data.data;
+        customers.value = Array.isArray(customerRows)
+          ? customerRows
+          : customerRows?.items || [];
       } else {
         ageChecks.value = (await listPendingAgeChecks()).data.data || [];
       }

@@ -5,7 +5,7 @@
         <a-button :loading="loading" @click="load">刷新</a-button>
         <a-input-search
           v-model="keyword"
-          placeholder="按昵称搜索"
+          placeholder="按昵称 / 用户搜索"
           style="width: 240px"
           allow-clear
           @search="load"
@@ -22,7 +22,14 @@
       >
         <template #columns>
           <a-table-column data-index="id" title="ID" />
-          <a-table-column data-index="user_id" title="user_id" />
+          <a-table-column title="用户">
+            <template #cell="{ record }">
+              <div>{{ playerUserName(record) }}</div>
+              <div v-if="playerUserMeta(record)" class="user-meta">
+                {{ playerUserMeta(record) }}
+              </div>
+            </template>
+          </a-table-column>
           <a-table-column data-index="display_name" title="昵称" />
           <a-table-column data-index="qualification" title="资格" />
           <a-table-column data-index="presence" title="在线状态" />
@@ -78,8 +85,27 @@
       @cancel="createVisible = false"
     >
       <a-form :model="createForm">
-        <a-form-item label="用户 ID（user_id）" required>
-          <a-input-number v-model="createForm.userId" :min="1" />
+        <a-form-item label="用户" required>
+          <a-select
+            v-model="createForm.userId"
+            allow-search
+            :filter-option="false"
+            :loading="userCandidatesLoading"
+            placeholder="搜索用户名 / 昵称 / 手机号"
+            @search="onUserCandidateSearch"
+            @change="onUserCandidateChange"
+            @popup-visible-change="onUserCandidatePopup"
+          >
+            <a-option
+              v-for="item in userCandidates"
+              :key="item.id"
+              :value="item.id"
+              >{{ userCandidateLabel(item) }}</a-option
+            >
+          </a-select>
+          <a-typography-text type="secondary" class="user-tip">
+            只列出尚未建陪玩档案的用户；选择后自动带出昵称，可再修改。
+          </a-typography-text>
         </a-form-item>
         <a-form-item label="昵称" required>
           <a-input v-model="createForm.displayName" :max-length="120" />
@@ -406,7 +432,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from 'vue';
+  import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import {
@@ -418,6 +444,7 @@
     reviewPlayerCreditEvent,
     reviewPlayerExpectedPrice,
     reviewPlayerIdentity,
+    searchPlayerUsers,
     updatePlayer,
   } from '../../api';
   import type {
@@ -428,6 +455,7 @@
     PlayerIdentityView,
     PlayerPresence,
     PlayerQualification,
+    PlayerUserCandidate,
   } from '../../api';
 
   // 陪玩列表直接返回陪玩档案实体，含期望报价三项（api.ts 的 EsportsPlayer 尚未声明）。
@@ -454,6 +482,21 @@
   const keyword = ref('');
   const players = ref<PlayerRow[]>([]);
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  // 用户列展示关联账号的可读名称，不再显示 user_id。
+  const playerUserName = (player: EsportsPlayer) =>
+    player.user_display_name ||
+    player.user_username ||
+    player.user_email ||
+    '未知用户';
+  const playerUserMeta = (player: EsportsPlayer) => {
+    const parts: string[] = [];
+    const name = playerUserName(player);
+    if (player.user_username && player.user_username !== name) {
+      parts.push(player.user_username);
+    }
+    if (player.user_phone) parts.push(player.user_phone);
+    return parts.join(' · ');
+  };
 
   const expectedPriceLabels: Record<string, string> = {
     none: '未提交',
@@ -476,7 +519,17 @@
   };
 
   const createVisible = ref(false);
-  const createForm = reactive({ userId: 1, displayName: '' });
+  const createForm = reactive({ userId: 0, displayName: '' });
+  // 新建陪玩时的用户候选：远程按关键词搜索，只列出尚未建档案的用户。
+  const userCandidates = ref<PlayerUserCandidate[]>([]);
+  const userCandidatesLoading = ref(false);
+  const selectedUserCandidate = ref<PlayerUserCandidate | null>(null);
+  let userCandidateTimer: ReturnType<typeof setTimeout> | undefined;
+  let userCandidateToken = 0;
+  const userCandidateLabel = (item: PlayerUserCandidate) =>
+    item.username && item.username !== item.display_name
+      ? `${item.display_name} · ${item.username}`
+      : item.display_name;
   const editVisible = ref(false);
   const editTarget = ref<EsportsPlayer | null>(null);
   const editForm = reactive<{
@@ -507,15 +560,61 @@
     }
   }
 
+  async function loadUserCandidates(keywordValue = '') {
+    userCandidateToken += 1;
+    const token = userCandidateToken;
+    userCandidatesLoading.value = true;
+    try {
+      const rows = (await searchPlayerUsers(keywordValue)).data.data || [];
+      const current = selectedUserCandidate.value;
+      if (current && !rows.some((item) => item.id === current.id)) {
+        rows.unshift(current);
+      }
+      userCandidates.value = rows;
+    } catch {
+      if (token === userCandidateToken) userCandidates.value = [];
+    } finally {
+      if (token === userCandidateToken) userCandidatesLoading.value = false;
+    }
+  }
+
+  function onUserCandidateSearch(keywordValue: string) {
+    if (userCandidateTimer) clearTimeout(userCandidateTimer);
+    userCandidateTimer = setTimeout(
+      () => loadUserCandidates(keywordValue.trim()),
+      250
+    );
+  }
+
+  function onUserCandidatePopup(visible: boolean) {
+    if (visible) loadUserCandidates('');
+  }
+
+  function onUserCandidateChange(value: unknown) {
+    const id = typeof value === 'number' ? value : 0;
+    const candidate = userCandidates.value.find((item) => item.id === id);
+    if (candidate) {
+      selectedUserCandidate.value = candidate;
+      createForm.displayName = candidate.display_name;
+    }
+  }
+
   function openCreate() {
-    createForm.userId = 1;
+    createForm.userId = 0;
     createForm.displayName = '';
+    selectedUserCandidate.value = null;
+    userCandidates.value = [];
+    loadUserCandidates('');
     createVisible.value = true;
   }
 
   async function submitCreate() {
-    if (createForm.userId < 1 || !createForm.displayName.trim()) {
-      Message.warning('请填写有效的用户 ID 与昵称');
+    if (!createForm.userId || createForm.userId < 1) {
+      Message.warning('请选择用户');
+      return;
+    }
+    if (!createForm.displayName.trim()) {
+      Message.warning('请填写昵称');
       return;
     }
     try {
@@ -527,7 +626,7 @@
       Message.success('已创建陪玩档案');
       await load();
     } catch {
-      Message.error('创建失败：用户 ID 已存在或参数无效');
+      Message.error('创建失败：该用户已有陪玩档案或参数无效');
     }
   }
 
@@ -819,10 +918,24 @@
   }
 
   onMounted(load);
+
+  onBeforeUnmount(() => {
+    if (userCandidateTimer) clearTimeout(userCandidateTimer);
+  });
 </script>
 
 <style scoped>
   .toolbar {
     margin-bottom: 16px;
+  }
+
+  .user-meta {
+    color: var(--color-text-3);
+    font-size: 12px;
+  }
+
+  .user-tip {
+    display: block;
+    margin-top: 4px;
   }
 </style>

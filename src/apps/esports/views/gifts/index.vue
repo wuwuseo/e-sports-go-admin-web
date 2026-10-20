@@ -335,10 +335,7 @@
           <a-table-column title="排名" :width="70">
             <template #cell="{ rowIndex }">{{ rowIndex + 1 }}</template>
           </a-table-column>
-          <a-table-column title="归属" :width="120">
-            <template #cell="{ record }">{{ record.owner_id }}</template>
-          </a-table-column>
-          <a-table-column data-index="owner_name" title="名称" />
+          <a-table-column data-index="owner_name" title="归属人" />
           <a-table-column title="金额">
             <template #cell="{ record }">{{
               yuan(record.amount_cents)

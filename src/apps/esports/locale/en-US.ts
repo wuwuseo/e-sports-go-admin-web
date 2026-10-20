@@ -1,4 +1,5 @@
 export default {
+  'menu.app.esports.operations.menu': 'Operations',
   'menu.app.esports.product.menu': 'Products',
   'menu.app.esports.order.menu': 'Orders',
   'menu.app.esports.report.menu': 'Order entry',
@@ -13,6 +14,7 @@ export default {
   'menu.app.esports.assessment.menu': 'Assessments',
   'menu.app.esports.stats.menu': 'Reports',
   'menu.app.esports.page.menu': 'Page Builder',
+  'menu.app.esports.payment.menu': 'Payments',
   'menu.app.esports.cs.menu': 'CS Workbench',
   'menu.app.esports.close_form.menu': 'Close Form Builder',
   'menu.app.esports.risk.menu': 'Risk Customers',

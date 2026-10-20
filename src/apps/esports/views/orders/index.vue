@@ -16,7 +16,9 @@
         <template #columns>
           <a-table-column data-index="order_no" title="订单号" />
           <a-table-column data-index="customer_id" title="客户 ID" />
-          <a-table-column data-index="sku_id" title="商品 ID" />
+          <a-table-column title="商品">
+            <template #cell="{ record }">{{ orderSkuLabel(record) }}</template>
+          </a-table-column>
           <a-table-column data-index="quantity" title="份数" />
           <a-table-column title="应付金额">
             <template #cell="{ record }">{{
@@ -282,7 +284,8 @@
           >{{ approvalProgressLabel }}</a-descriptions-item
         >
         <a-descriptions-item label="客户 / 商品"
-          >{{ detail.customer_id }} / {{ detail.sku_id }}</a-descriptions-item
+          >{{ detail.customer_id }} /
+          {{ orderSkuLabel(detail) }}</a-descriptions-item
         >
         <a-descriptions-item label="单价 / 份数"
           >{{ money(detail.unit_price_cents) }} ×
@@ -988,18 +991,17 @@
       @cancel="backfillVisible = false"
     >
       <a-form :model="backfillForm">
-        <a-form-item label="客户 ID" required>
-          <a-input-number
+        <a-form-item label="客户" required>
+          <OwnerSelect
             v-model="backfillForm.customerId"
-            :min="1"
-            :precision="0"
+            owner-type="customer"
+            placeholder="搜索客户姓名或手机号"
           />
         </a-form-item>
-        <a-form-item label="SKU ID" required>
-          <a-input-number
+        <a-form-item label="商品" required>
+          <SkuSelect
             v-model="backfillForm.skuId"
-            :min="1"
-            :precision="0"
+            placeholder="搜索商品名称或编码"
           />
         </a-form-item>
         <a-form-item label="数量" required>
@@ -1393,6 +1395,8 @@
   import useUserStore from '@/store/modules/user';
   import { getAdmins } from '@/api/user';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
+  import OwnerSelect from '../../components/OwnerSelect.vue';
+  import SkuSelect from '../../components/SkuSelect.vue';
   import {
     addOrderCollaborator,
     approveCloseReview,
@@ -1417,6 +1421,7 @@
     listOrderRescheduleProposals,
     listOrderSeats,
     listOrders,
+    listSkus,
     listPaymentChannels,
     payOrderAddonByBalance,
     payOrderWithBalance,
@@ -1454,6 +1459,7 @@
     EsportsOrderAddon,
     EsportsOrderCollaborator,
     EsportsSeatSpec,
+    EsportsSku,
     OrderCloseApprovalView,
     OrderCloseFormView,
     OrderPaymentStartView,
@@ -1468,9 +1474,13 @@
 
   type OpsAction = 'reprice' | 'reschedule' | 'cancel' | 'close';
 
-  const { hasButtonPermission } = usePermission();
+  const { hasButtonPermission, hasAnyPermission } = usePermission();
   const userStore = useUserStore();
   const currentAdminId = computed(() => Number(userStore.accountId || 0));
+  // 商品目录读取权限：财务等只读订单角色没有该权限，商品名直接读订单 sku_name 快照。
+  const canViewSkuCatalog = computed(() =>
+    hasAnyPermission(['esports:skus:list'])
+  );
   const canApprovePrice = computed(
     () =>
       userStore.isSuperAdmin &&
@@ -1584,6 +1594,21 @@
     }
   }
   const orders = ref<EsportsOrder[]>([]);
+  // 商品名以订单快照 sku_name 为准；历史单快照为空时回落当前 SKU 标题。
+  const skus = ref<EsportsSku[]>([]);
+  const skuTitleById = computed(
+    () => new Map(skus.value.map((sku) => [sku.id, sku.title]))
+  );
+  const orderSkuLabel = (order: EsportsOrder) =>
+    order.sku_name || skuTitleById.value.get(order.sku_id) || '未知商品';
+  async function ensureSkuLabels() {
+    if (!canViewSkuCatalog.value || skus.value.length > 0) return;
+    try {
+      skus.value = (await listSkus({ limit: 500 })).data.data || [];
+    } catch {
+      // 商品列表读取失败时仍展示订单上的 sku_name 快照，不阻断订单列表。
+    }
+  }
   const detail = ref<EsportsOrder | null>(null);
   const detailVisible = ref(false);
   // 结单审批进度（§3.4）：详情抽屉展示当前待审批节点。
@@ -1741,7 +1766,11 @@
   async function load() {
     loading.value = true;
     try {
-      orders.value = (await listOrders()).data.data || [];
+      const [orderResult] = await Promise.all([
+        listOrders(),
+        ensureSkuLabels(),
+      ]);
+      orders.value = orderResult.data.data || [];
       await loadCloseConditions();
     } catch {
       Message.error('加载失败，请稍后重试');
@@ -3128,11 +3157,11 @@
       !Number.isSafeInteger(backfillForm.customerId) ||
       backfillForm.customerId <= 0
     ) {
-      Message.warning('请填写客户 ID');
+      Message.warning('请选择客户');
       return;
     }
     if (!Number.isSafeInteger(backfillForm.skuId) || backfillForm.skuId <= 0) {
-      Message.warning('请填写 SKU ID');
+      Message.warning('请选择商品');
       return;
     }
     if (
@@ -3179,7 +3208,7 @@
       await load();
     } catch (err) {
       Message.error(
-        errorText(err, '补录失败：请检查客户 / SKU 与成交时间范围')
+        errorText(err, '补录失败：请检查客户 / 商品与成交时间范围')
       );
     } finally {
       backfillSubmitting.value = false;

@@ -638,17 +638,14 @@
     >
       <a-form :model="backfillForm">
         <a-form-item label="客户">
-          <a-typography-text
-            >{{ profileTarget?.display_name || '—' }}（#{{
-              profileTarget?.id || '—'
-            }}）</a-typography-text
-          >
+          <a-typography-text>{{
+            profileTarget?.display_name || '—'
+          }}</a-typography-text>
         </a-form-item>
-        <a-form-item label="SKU ID" required>
-          <a-input-number
+        <a-form-item label="商品" required>
+          <SkuSelect
             v-model="backfillForm.skuId"
-            :min="1"
-            :precision="0"
+            placeholder="搜索商品名称或编码"
           />
         </a-form-item>
         <a-form-item label="数量" required>
@@ -708,6 +705,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import useUserStore from '@/store/modules/user';
+  import SkuSelect from '../../components/SkuSelect.vue';
   import {
     backfillOrder,
     createCustomer,
@@ -1142,7 +1140,7 @@
     reason: string;
     countCsCommission: boolean;
   }>({
-    skuId: 1,
+    skuId: 0,
     quantity: 1,
     settledAt: '',
     fulfillmentStatus: 'completed',
@@ -1170,7 +1168,7 @@
       Message.warning('非超管只能为本人负责的客户补录历史订单');
       return;
     }
-    backfillForm.skuId = 1;
+    backfillForm.skuId = 0;
     backfillForm.quantity = 1;
     backfillForm.unitPriceYuan = undefined;
     backfillForm.settledAt = '';
@@ -1184,7 +1182,7 @@
     const customer = profileTarget.value;
     if (!customer) return;
     if (!Number.isSafeInteger(backfillForm.skuId) || backfillForm.skuId <= 0) {
-      Message.warning('请填写 SKU ID');
+      Message.warning('请选择商品');
       return;
     }
     if (
