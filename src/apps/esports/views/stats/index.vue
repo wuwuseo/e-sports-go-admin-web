@@ -107,7 +107,6 @@
           >
             <a-option value="customer_balance">客户余额</a-option>
             <a-option value="player_catfood">陪玩猫粮</a-option>
-            <a-option value="stored_value_card">储值卡账户</a-option>
           </a-select>
           <a-select
             v-model="entryType"
@@ -526,22 +525,6 @@
           </a-descriptions-item>
         </a-descriptions>
         <a-descriptions
-          v-if="storedValueWalletRows.length"
-          :column="4"
-          bordered
-          size="small"
-          title="储值卡账户（本金 + 赠送权益）"
-          :style="{ marginTop: '12px' }"
-        >
-          <a-descriptions-item
-            v-for="row in storedValueWalletRows"
-            :key="row.key"
-            :label="walletEntryLabel(row.key)"
-          >
-            {{ money(row.amount) }}
-          </a-descriptions-item>
-        </a-descriptions>
-        <a-descriptions
           :column="4"
           bordered
           size="small"
@@ -743,8 +726,7 @@
     )
   );
 
-  // 后端财务汇总返回客户余额 / 陪玩猫粮 / 储值卡三类账户桶；
-  // API 类型暂只声明前两类，这里按动态桶读取，避免漏渲染储值卡。
+  // 后端财务汇总返回客户余额 / 陪玩猫粮两类账户桶，这里按动态桶读取。
   const financeWallet = computed<Record<string, Record<string, number>>>(() =>
     Object.fromEntries(Object.entries(finance.value?.wallet ?? {}))
   );
@@ -755,7 +737,6 @@
     }));
   const customerWalletRows = computed(() => walletRows('customer_balance'));
   const catfoodWalletRows = computed(() => walletRows('player_catfood'));
-  const storedValueWalletRows = computed(() => walletRows('stored_value_card'));
 
   // 钱包流水类型与结算状态的中文标签（未知值原样展示，避免新增枚举时显示为空）。
   const walletEntryLabels: Record<string, string> = {

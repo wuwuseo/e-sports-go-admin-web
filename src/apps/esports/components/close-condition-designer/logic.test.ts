@@ -168,15 +168,6 @@ describe('结单条件树：只读摘要', () => {
     expect(closeConditionSummary({})).toBe('');
   });
 
-  it('布尔字段的 == 1 / == 0 折叠为「标签 / 非 标签」', () => {
-    expect(
-      closeConditionSummary(leaf('stored_value_consistent', '==', 1))
-    ).toBe('储值卡核销一致');
-    expect(
-      closeConditionSummary(leaf('stored_value_consistent', '==', 0))
-    ).toBe('非 储值卡核销一致');
-  });
-
   it('组合节点按 且 / 或 嵌套输出', () => {
     const tree: CloseConditionNode = {
       op: 'and',
@@ -250,9 +241,5 @@ describe('结单条件树：设计器节点工厂', () => {
     expect(
       validateCloseConditionTree(newCloseConditionGroup('and', [node]))
     ).toEqual([]);
-  });
-
-  it('新建布尔字段叶子时默认取「成立」', () => {
-    expect(newCloseConditionLeaf('stored_value_consistent').value).toBe(1);
   });
 });

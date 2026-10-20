@@ -52,12 +52,6 @@
                   @click="payWithBalance(record)"
                   >余额核销</a-button
                 >
-                <a-button
-                  type="text"
-                  status="success"
-                  @click="openCardPay(record)"
-                  >储值卡核销</a-button
-                >
               </template>
               <a-button
                 v-if="
@@ -822,26 +816,6 @@
     </a-modal>
 
     <a-modal
-      v-model:visible="cardPayVisible"
-      title="储值卡核销"
-      :ok-loading="cardPayLoading"
-      @ok="submitCardPay"
-      @cancel="cardPayVisible = false"
-    >
-      <a-form :model="cardPayForm">
-        <a-form-item label="订单号">
-          <a-typography-text>{{ cardPayForm.orderNo }}</a-typography-text>
-        </a-form-item>
-        <a-form-item label="储值卡 ID" required>
-          <a-input-number v-model="cardPayForm.cardId" :min="1" />
-        </a-form-item>
-        <a-typography-text type="secondary">
-          按订单应付额足额核销，扣减顺序为先赠送权益、后本金；卡须属该客户、在有效期内且适用该商品。
-        </a-typography-text>
-      </a-form>
-    </a-modal>
-
-    <a-modal
       v-model:visible="channelCostVisible"
       title="登记渠道成本（§12.1）"
       :ok-loading="channelCostLoading"
@@ -1444,7 +1418,6 @@
     listOrderSeats,
     listOrders,
     listPaymentChannels,
-    payEsportsOrderByStoredValueCard,
     payOrderAddonByBalance,
     payOrderWithBalance,
     pauseOrderPlayerService,
@@ -3000,41 +2973,6 @@
       await load();
     } catch {
       Message.error('核销失败：余额不足或订单状态已变化');
-    }
-  }
-
-  // ── 储值卡核销（§4.4 消费） ──
-  const cardPayVisible = ref(false);
-  const cardPayLoading = ref(false);
-  const cardPayForm = reactive({ orderId: 0, orderNo: '', cardId: 0 });
-
-  function openCardPay(order: EsportsOrder) {
-    cardPayForm.orderId = order.id;
-    cardPayForm.orderNo = order.order_no;
-    cardPayForm.cardId = order.stored_value_card_id || 0;
-    cardPayVisible.value = true;
-  }
-
-  async function submitCardPay() {
-    if (!cardPayForm.cardId) {
-      Message.warning('请填写储值卡 ID');
-      return;
-    }
-    cardPayLoading.value = true;
-    try {
-      await payEsportsOrderByStoredValueCard(
-        cardPayForm.orderId,
-        cardPayForm.cardId
-      );
-      cardPayVisible.value = false;
-      Message.success('已用储值卡核销，订单转入待派单');
-      await load();
-    } catch (err) {
-      Message.error(
-        errorText(err, '核销失败：卡不可用、余额不足或订单状态已变化')
-      );
-    } finally {
-      cardPayLoading.value = false;
     }
   }
 

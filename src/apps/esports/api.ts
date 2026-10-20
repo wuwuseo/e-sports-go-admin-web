@@ -152,9 +152,8 @@ export interface EsportsOrder {
   version: number;
   fulfillment_status: string;
   payment_status: string;
-  // 付款方式标记（§3.1）：储值卡不作为订单类型，用订单上的独立字段标记。
+  // 付款方式标记（§3.1）。
   payment_channel: string;
-  stored_value_card_id: number | null;
   // 优先派单权「独占优先通知」窗口（§5.4 业务口径）。
   priority_notice_status: 'none' | 'pending' | 'released' | 'accepted';
   priority_notice_until: string | null;
@@ -281,11 +280,7 @@ export interface RescheduleInput {
   reason: string;
 }
 
-export type WalletAccountType =
-  | 'customer_balance'
-  | 'player_catfood'
-  // 储值卡是独立预付账户（§11.3），账户号为卡 ID。
-  | 'stored_value_card';
+export type WalletAccountType = 'customer_balance' | 'player_catfood';
 
 // 钱包展示配置（§11.4）：后端按账户类型下发展示名称 / 图标 / 说明 / 单位与换算倍率。
 export interface WalletDisplay {
@@ -922,13 +917,8 @@ export type AfterSalePlanAction =
   | 'compensate'
   | 'makeup_service';
 
-// 统一售后来源（§13.1 / §13.3）：订单 / 礼物单 / 储值卡 / 充值流水 / 考核记录。
-export type AfterSaleSourceType =
-  | 'order'
-  | 'gift'
-  | 'stored_value_card'
-  | 'recharge'
-  | 'assessment';
+// 统一售后来源（§13.1 / §13.3）：订单 / 礼物单 / 充值流水 / 考核记录。
+export type AfterSaleSourceType = 'order' | 'gift' | 'recharge' | 'assessment';
 
 export interface EsportsAfterSale {
   id: number;
@@ -2406,8 +2396,6 @@ export interface MemberLevel {
   dedicated_cs: boolean;
   // 优先预约权益：会员可提交预约意向并在客服工作台置顶处理。
   priority_booking: boolean;
-  // 储值卡赠送比例，基点（100 = 1%）。
-  prepay_bonus_bps: number;
   sort_order: number;
   status: MemberLevelStatus;
   version: number;
@@ -2424,7 +2412,6 @@ export interface MemberLevelInput {
   // 编辑时可省略：后端仅在显式传值时更新，未传保持库中原权益。
   dedicated_cs?: boolean;
   priority_booking?: boolean;
-  prepay_bonus_bps: number;
   sort_order: number;
 }
 
@@ -2458,7 +2445,6 @@ export interface MemberPrivilege {
   level_name: string;
   active: boolean;
   discount_bps: number;
-  prepay_bonus_bps: number;
   dedicated_cs: boolean;
   dedicated_channel: boolean;
   offline_event_priority: boolean;
@@ -2482,7 +2468,6 @@ export interface CustomerMemberDetail {
   priority_dispatch: boolean;
   dedicated_channel: boolean;
   offline_event_priority: boolean;
-  prepay_bonus_bps: number;
   // 手动调级覆盖状态（P1-10）：覆盖期内 override_active=true；
   // 到期后由惰性判定回落，override_active 变 false。
   override_level_code: string;
@@ -2607,7 +2592,6 @@ export interface GiftOrder {
   principal_cents: number;
   bonus_cents: number;
   payment_source: string;
-  stored_value_card_id: number | null;
   commission_mode: GiftCommissionMode;
   commission_bp: number;
   commission_cents: number;
@@ -2633,8 +2617,6 @@ export interface GiftIntent {
   unit_price_cents: number;
   amount_cents: number;
   payment_source: string;
-  stored_value_card_id: number | null;
-  stored_value_card_no: string;
   // 礼物档位与风控快照（§9.1-02）：下单时锁定的档位与高价值 / 年龄门槛标记。
   gift_tier_id: number;
   gift_tier_code: string;
@@ -2669,8 +2651,7 @@ export const createGiftIntent = (input: {
   player_id: number;
   quantity: number;
   order_id?: number | null;
-  payment_source?: 'customer_balance_principal' | 'stored_value_card_principal';
-  stored_value_card_id?: number;
+  payment_source?: 'customer_balance_principal';
   client_key: string;
 }) => axios.post<ApiResponse<GiftIntent>>(`${base}/gift-intents`, input);
 
@@ -3374,7 +3355,6 @@ export interface FinanceReport {
   wallet: {
     customer_balance: Record<string, number>;
     player_catfood: Record<string, number>;
-    stored_value_card: Record<string, number>;
   };
   settlement: {
     count: number;
@@ -3698,219 +3678,6 @@ export const setEsportsScriptStatus = (
 export const getEsportsCsWorkbench = (params: ReportQuery = {}) =>
   axios.get<ApiResponse<CsWorkbench>>(`${base}/cs/workbench`, { params });
 
-// ── §4.4 储值卡（预付账户，含 §11.3 储值卡账户） ──
-export type StoredValueSource = 'staff' | 'self';
-export type StoredValuePaymentChannel =
-  | 'wechat_work'
-  | 'merchant_qr'
-  | 'corporate_transfer'
-  | 'customer_balance';
-export type StoredValueStatus =
-  | 'pending_verification'
-  | 'rejected'
-  | 'active'
-  | 'exhausted'
-  | 'refund_pending'
-  | 'refunded'
-  | 'expired'
-  | 'frozen';
-
-export interface EsportsStoredValueCard {
-  id: number;
-  card_no: string;
-  customer_id: number;
-  source: StoredValueSource;
-  payment_channel: StoredValuePaymentChannel;
-  payment_ref: string;
-  open_request_key: string | null;
-  verified_payment_key: string | null;
-  payment_verified_by_admin_id: number | null;
-  payment_verified_at: string | null;
-  payment_verified_amount_cents: number;
-  payment_verification_note: string;
-  principal_cents: number;
-  bonus_cents: number;
-  applicable_scope: number[] | null;
-  allow_gifts: boolean;
-  contract_confirmed: boolean;
-  valid_from: string;
-  valid_until: string;
-  status: StoredValueStatus;
-  opened_by_admin_id: number | null;
-  // 开卡所选套餐（§4.4）：可选，手动开卡为空。
-  package_id: number | null;
-  refund_quote: Record<string, unknown> | null;
-  refund_requested_by_admin_id: number | null;
-  refund_requested_at: string | null;
-  refund_decided_by_admin_id: number | null;
-  refunded_cents: number;
-  refunded_at: string | null;
-  version: number;
-  created_at: string;
-  // 以下由流水派生，不落库。
-  principal_remaining_cents: number;
-  bonus_remaining_cents: number;
-  balance_cents: number;
-  consumed_cents: number;
-}
-
-export interface StoredValueCardInput {
-  customer_id: number;
-  source?: StoredValueSource;
-  payment_channel: StoredValuePaymentChannel;
-  payment_ref?: string;
-  // 选套餐后本金 / 赠送由套餐决定，principal_cents / bonus_cents 可省略（§4.4）。
-  package_id?: number;
-  principal_cents: number;
-  bonus_cents?: number;
-  applicable_scope?: number[];
-  allow_gifts?: boolean;
-  contract_confirmed: boolean;
-  valid_until?: string;
-  validity_days?: number;
-  note?: string;
-  idempotency_key: string;
-}
-
-export interface EsportsStoredValuePackage {
-  id: number;
-  code: string;
-  name: string;
-  principal_cents: number;
-  bonus_cents: number;
-  status: 'on_sale' | 'off_sale';
-  sort_order: number;
-  version: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface StoredValuePackageInput {
-  code: string;
-  name: string;
-  principal_cents: number;
-  bonus_cents: number;
-  sort_order?: number;
-}
-
-export interface StoredValueCardDetail {
-  card: EsportsStoredValueCard;
-  transactions: WalletTx[];
-}
-
-export interface StoredValueRefundQuote {
-  quote: Record<string, unknown>;
-  refundable_cents: number;
-}
-
-export const getEsportsStoredValuePackages = (all = false) =>
-  axios.get<ApiResponse<EsportsStoredValuePackage[]>>(
-    `${base}/stored-value-packages`,
-    { params: all ? { all: '1' } : {} }
-  );
-
-export const createEsportsStoredValuePackage = (
-  input: StoredValuePackageInput
-) =>
-  axios.post<ApiResponse<EsportsStoredValuePackage>>(
-    `${base}/stored-value-packages`,
-    input
-  );
-
-export const updateEsportsStoredValuePackage = (
-  id: number,
-  input: StoredValuePackageInput & { version: number }
-) =>
-  axios.put<ApiResponse<EsportsStoredValuePackage>>(
-    `${base}/stored-value-packages/${id}`,
-    input
-  );
-
-export const setEsportsStoredValuePackageStatus = (
-  id: number,
-  status: 'on_sale' | 'off_sale'
-) =>
-  axios.post<ApiResponse<EsportsStoredValuePackage>>(
-    `${base}/stored-value-packages/${id}/status`,
-    { status }
-  );
-
-export const getEsportsStoredValueCards = (
-  params: {
-    customer_id?: number;
-    status?: StoredValueStatus;
-    remind_days?: number;
-    limit?: number;
-  } = {}
-) =>
-  axios.get<ApiResponse<EsportsStoredValueCard[]>>(
-    `${base}/stored-value-cards`,
-    { params }
-  );
-
-export const getEsportsStoredValueCard = (id: number) =>
-  axios.get<ApiResponse<StoredValueCardDetail>>(
-    `${base}/stored-value-cards/${id}`
-  );
-
-export const createEsportsStoredValueCard = (input: StoredValueCardInput) =>
-  axios.post<ApiResponse<EsportsStoredValueCard>>(
-    `${base}/stored-value-cards`,
-    input
-  );
-
-export const verifyEsportsStoredValueCardPayment = (
-  id: number,
-  input: {
-    approve: boolean;
-    receipt_ref: string;
-    received_cents: number;
-    evidence_note: string;
-  }
-) =>
-  axios.post<ApiResponse<EsportsStoredValueCard>>(
-    `${base}/stored-value-cards/${id}/payment-verification`,
-    input
-  );
-
-export const getEsportsStoredValueCardRefundQuote = (id: number) =>
-  axios.get<ApiResponse<StoredValueRefundQuote>>(
-    `${base}/stored-value-cards/${id}/refund-quote`
-  );
-
-export const requestEsportsStoredValueCardRefund = (id: number) =>
-  axios.post<ApiResponse<EsportsStoredValueCard>>(
-    `${base}/stored-value-cards/${id}/refund-request`
-  );
-
-// 退卡审核：通过与驳回都不得自审；**审核通过即出账**，后端强制登记打款凭证 / 银行流水号
-// （payout_ref 6–128 位，只允许字母、数字与 - _ / . 等字符），不传会被 400。
-// payout 省略时请求体与旧行为一致（仅 {approve}），驳回场景无需凭证。
-export interface StoredValueRefundPayoutInput {
-  // 审核通过时必填；驳回时可省略。
-  payout_ref?: string;
-  payout_note?: string;
-}
-
-export const decideEsportsStoredValueCardRefund = (
-  id: number,
-  approve: boolean,
-  payout: StoredValueRefundPayoutInput = {}
-) =>
-  axios.post<ApiResponse<EsportsStoredValueCard>>(
-    `${base}/stored-value-cards/${id}/refund-decision`,
-    { approve, ...payout }
-  );
-
-export const payEsportsOrderByStoredValueCard = (
-  orderId: number,
-  cardId: number
-) =>
-  axios.post<ApiResponse<EsportsOrder>>(
-    `${base}/orders/${orderId}/pay-by-stored-value-card`,
-    { card_id: cardId }
-  );
-
 // ── 结单规则（§3.4 首版）：可配置结单条件与金额复核阈值 ──
 
 export type CloseRuleScope = 'global' | 'game' | 'sku';
@@ -3968,7 +3735,6 @@ export const CLOSE_CONDITION_FIELD_SPECS: CloseConditionFieldSpec[] = [
   { key: 'addon_units', label: '加钟量', kind: 'units' },
   { key: 'pending_addon_count', label: '待处理加钟数', kind: 'count' },
   { key: 'open_aftersale_count', label: '进行中售后数', kind: 'count' },
-  { key: 'stored_value_consistent', label: '储值卡核销一致', kind: 'bool' },
 ];
 
 export const CLOSE_CONDITION_OPERATORS: CloseConditionOperator[] = [
@@ -4935,7 +4701,6 @@ export const terminateOrderPlayerService = (
 export type AfterSaleRuleSourceType =
   | 'order'
   | 'gift'
-  | 'stored_value_card'
   | 'recharge'
   | 'assessment';
 export type AfterSaleRuleTriggerEvent =
@@ -5288,7 +5053,7 @@ export const executeExternalRefund = (id: number) =>
     `${base}/external-refunds/${id}/execute`
   );
 
-// ── 按充值批次的退款试算（§4.5）：余额账户与储值卡共用同一口径 ──
+// ── 按充值批次的退款试算（§4.5）：余额账户退款试算口径 ──
 export interface RechargeRefundBatch {
   batch_source_type: string;
   batch_source_id: string;
@@ -5355,8 +5120,6 @@ export interface LedgerAnomaly {
 export interface RechargeRefundQuote {
   account_type: string;
   account_id: string;
-  // 储值卡账户才有卡号，便于与退卡试算对照。
-  card_no?: string;
   quoted_at: string;
   basis: RechargeRefundQuoteBasis;
   batches: RechargeRefundBatch[];
@@ -5371,12 +5134,6 @@ export interface RechargeRefundQuote {
 export const getWalletRefundQuote = (ownerId: number) =>
   axios.get<ApiResponse<RechargeRefundQuote>>(
     `${base}/wallets/${ownerId}/refund-quote`
-  );
-
-// 储值卡按预付款批次退款试算。
-export const getStoredValueCardRefundBatchQuote = (cardId: number) =>
-  axios.get<ApiResponse<RechargeRefundQuote>>(
-    `${base}/stored-value-cards/${cardId}/refund-batch-quote`
   );
 
 // ── 账本核验异常（§11.6-01） ──
@@ -5400,105 +5157,6 @@ export const listLedgerReconcileAnomalies = (limit?: number) =>
   axios.get<ApiResponse<LedgerReconcileAnomaly[]>>(
     `${base}/ledger-reconcile-anomalies`,
     { params: { limit } }
-  );
-
-// ── 储值卡一致性异常队列（§4.6-06） ──
-export type StoredValueExceptionStatus =
-  | 'open'
-  | 'following'
-  | 'resolved'
-  | 'ignored';
-
-export interface EsportsStoredValueException {
-  id: number;
-  exception_no: string;
-  card_id: number;
-  order_id: number;
-  customer_id: number;
-  kind: string;
-  status: StoredValueExceptionStatus;
-  reason: string;
-  detail: Record<string, unknown> | null;
-  assignee_admin_id?: number | null;
-  assigned_at?: string | null;
-  occurrences: number;
-  last_hit_at?: string | null;
-  resolved_by_admin_id?: number | null;
-  resolved_at?: string | null;
-  resolution: string;
-  version: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface StoredValueExceptionListParams {
-  status?: StoredValueExceptionStatus;
-  kind?: string;
-  card_id?: number;
-  order_id?: number;
-  assignee_admin_id?: number;
-  // mine=只看指派给自己的；unassigned=只看未指派的。
-  mine?: boolean;
-  unassigned?: boolean;
-  limit?: number;
-}
-
-export interface StoredValueExceptionResolveInput {
-  action: 'resolve' | 'ignore';
-  resolution: string;
-  expected_version: number;
-}
-
-export const listStoredValueExceptions = (
-  params: StoredValueExceptionListParams = {}
-) =>
-  axios.get<ApiResponse<EsportsStoredValueException[]>>(
-    `${base}/stored-value-exceptions`,
-    { params }
-  );
-
-export const getStoredValueException = (id: number) =>
-  axios.get<ApiResponse<EsportsStoredValueException>>(
-    `${base}/stored-value-exceptions/${id}`
-  );
-
-export const assignStoredValueException = (id: number, adminId: number) =>
-  axios.post<ApiResponse<EsportsStoredValueException>>(
-    `${base}/stored-value-exceptions/${id}/assign`,
-    { assignee_admin_id: adminId }
-  );
-
-export const resolveStoredValueException = (
-  id: number,
-  input: StoredValueExceptionResolveInput
-) =>
-  axios.post<ApiResponse<EsportsStoredValueException>>(
-    `${base}/stored-value-exceptions/${id}/resolve`,
-    input
-  );
-
-// 客户自助购卡到账核验（§4.4）：approve=false 驳回并把支付意图置无效。
-export interface StoredValueSelfPurchaseVerifyInput {
-  approve: boolean;
-  received_cents: number;
-  evidence_note: string;
-}
-
-// 核验成功后的卡片视图（卡片字段 + 派生余额口径）。
-export interface StoredValueCardView extends EsportsStoredValueCard {
-  principal_remaining_cents: number;
-  bonus_remaining_cents: number;
-  balance_cents: number;
-  consumed_cents: number;
-}
-
-export const verifyStoredValueCardSelfPurchase = (
-  id: number,
-  input: StoredValueSelfPurchaseVerifyInput
-) =>
-  axios.post<ApiResponse<StoredValueCardView>>(
-    `${base}/stored-value-cards/${id}/verify-self-purchase`,
-    input
   );
 
 // ── 礼物档位与礼物收款（§9.1-02 / §9.2-01） ──

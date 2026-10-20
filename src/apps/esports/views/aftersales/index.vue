@@ -1952,7 +1952,6 @@
   const sourceTypeOptions: { value: AfterSaleSourceType; label: string }[] = [
     { value: 'order', label: '服务订单' },
     { value: 'gift', label: '礼物单' },
-    { value: 'stored_value_card', label: '储值卡' },
     { value: 'recharge', label: '充值流水' },
     { value: 'assessment', label: '考核记录' },
   ];
@@ -1999,8 +1998,6 @@
     switch (createForm.sourceType) {
       case 'gift':
         return '礼物单 ID';
-      case 'stored_value_card':
-        return '储值卡 ID';
       case 'recharge':
         return '充值流水 ID';
       case 'assessment':
@@ -2012,7 +2009,6 @@
   const kindAllowBySource: Record<AfterSaleSourceType, string[]> = {
     order: [],
     gift: ['refund_request', 'wrong_item', 'overcharge', 'other'],
-    stored_value_card: ['refund_request', 'overcharge', 'other'],
     recharge: ['refund_request', 'overcharge', 'other'],
     assessment: ['player_appeal', 'other'],
   };
@@ -2423,11 +2419,9 @@
   const externalRefundLoading = ref(false);
   const refundExecutions = ref<EsportsRechargeRefundExecution[]>([]);
   const batchExecuting = ref(false);
-  // 按充值批次退款执行仅充值 / 储值卡来源可用（后端按售后来源推导退款账户）。
+  // 按充值批次退款执行仅充值来源可用（后端按售后来源推导退款账户）。
   const canBatchRefund = computed(
-    () =>
-      !!detail.value &&
-      ['recharge', 'stored_value_card'].includes(detail.value.source_type)
+    () => !!detail.value && detail.value.source_type === 'recharge'
   );
   const externalRefundStatusMap: Record<string, string> = {
     registered: '待财务执行',
@@ -3079,7 +3073,7 @@
       externalRefunds.value = [];
       refundExecutions.value = [];
       messages.value = [];
-      // 只有订单来源才去补订单号与支付状态；礼物 / 储值卡 / 充值 / 考核来源没有订单上下文。
+      // 只有订单来源才去补订单号与支付状态；礼物 / 充值 / 考核来源没有订单上下文。
       if (item && item.source_type === 'order') {
         try {
           const order = (await getOrder(item.source_id)).data.data;

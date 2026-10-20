@@ -42,11 +42,6 @@
               priorityText(record.priority_booking)
             }}</template>
           </a-table-column>
-          <a-table-column title="储值卡赠送比例">
-            <template #cell="{ record }">{{
-              percentText(record.prepay_bonus_bps)
-            }}</template>
-          </a-table-column>
           <a-table-column data-index="sort_order" title="排序" :width="70" />
           <a-table-column title="状态">
             <template #cell="{ record }">
@@ -389,13 +384,6 @@
           <a-switch v-model="form.priorityBooking" />
           <div class="hint">会员预约意向在客服工作台置顶处理</div>
         </a-form-item>
-        <a-form-item label="储值卡赠送比例（%）">
-          <a-input-number
-            v-model="form.prepayBonusPercent"
-            :min="0"
-            :precision="2"
-          />
-        </a-form-item>
         <a-form-item label="排序">
           <a-input-number v-model="form.sortOrder" :min="0" />
         </a-form-item>
@@ -495,8 +483,6 @@
   // 折扣基点换算为「折」，10000 基点（10 折）即原价。
   const discountText = (value: number) =>
     value === 10000 ? '原价' : `${value / 1000} 折`;
-  // 储值卡赠送比例基点（100 = 1%）换算为百分比。
-  const percentText = (value: number) => `${value / 100}%`;
   const signed = (value: number) => (value > 0 ? `+${value}` : String(value));
   const pad = (value: number) => String(value).padStart(2, '0');
   // 本地时区展示到分钟。
@@ -540,7 +526,6 @@
     priorityDispatch: false,
     dedicatedCs: false,
     priorityBooking: false,
-    prepayBonusPercent: 0,
     sortOrder: 0,
   });
 
@@ -564,7 +549,6 @@
     form.priorityDispatch = false;
     form.dedicatedCs = false;
     form.priorityBooking = false;
-    form.prepayBonusPercent = 0;
     form.sortOrder = 0;
     formVisible.value = true;
   }
@@ -578,7 +562,6 @@
     form.priorityDispatch = record.priority_dispatch;
     form.dedicatedCs = record.dedicated_cs;
     form.priorityBooking = record.priority_booking;
-    form.prepayBonusPercent = record.prepay_bonus_bps / 100;
     form.sortOrder = record.sort_order;
     formVisible.value = true;
   }
@@ -598,7 +581,6 @@
       priority_dispatch: form.priorityDispatch,
       dedicated_cs: form.dedicatedCs,
       priority_booking: form.priorityBooking,
-      prepay_bonus_bps: Math.round((form.prepayBonusPercent || 0) * 100),
       sort_order: form.sortOrder || 0,
     };
   }

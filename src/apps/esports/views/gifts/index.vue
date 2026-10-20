@@ -104,11 +104,7 @@
                 }}</template>
               </a-table-column>
               <a-table-column title="付款来源">
-                <template #cell="{ record }">{{
-                  record.stored_value_card_id
-                    ? `储值卡 ${record.stored_value_card_no} 本金`
-                    : '客户余额本金'
-                }}</template>
+                <template #cell>客户余额本金</template>
               </a-table-column>
               <a-table-column title="收款状态">
                 <template #cell="{ record }">{{
@@ -153,7 +149,7 @@
           </a-table>
           <div class="hint"
             >客户在移动端核对礼物、收礼人、数量和金额后确认；确认单 30
-            分钟内有效。余额与储值卡本金都不足时，由客服对确认单发起收款，收款核销后成单。</div
+            分钟内有效。客户余额本金不足时，由客服对确认单发起收款，收款核销后成单。</div
           >
         </a-tab-pane>
         <a-tab-pane key="payment" title="收款核验">
@@ -263,11 +259,7 @@
             }}</template>
           </a-table-column>
           <a-table-column title="付款来源">
-            <template #cell="{ record }">{{
-              record.stored_value_card_id
-                ? `储值卡 ${record.stored_value_card_id} 本金`
-                : '客户余额本金'
-            }}</template>
+            <template #cell>客户余额本金</template>
           </a-table-column>
           <a-table-column title="陪玩收入">
             <template #cell="{ record }">{{
@@ -841,18 +833,7 @@
         <a-form-item label="付款来源" required>
           <a-radio-group v-model="sendForm.paymentSource">
             <a-radio value="customer_balance_principal">客户余额本金</a-radio>
-            <a-radio value="stored_value_card_principal">储值卡本金</a-radio>
           </a-radio-group>
-        </a-form-item>
-        <a-form-item
-          v-if="sendForm.paymentSource === 'stored_value_card_principal'"
-          label="可送礼储值卡 ID"
-          required
-        >
-          <a-input-number v-model="sendForm.storedValueCardId" :min="1" />
-          <div class="hint"
-            >请从该客户的储值卡列表选择合同允许送礼且仍有实付本金的卡。</div
-          >
         </a-form-item>
         <div class="hint"
           >创建后请客户在移动端“我的 → 待确认礼物”核对并确认，再执行送礼。</div
@@ -871,9 +852,7 @@
           <a-textarea v-model="refundForm.reason" :max-length="255" />
         </a-form-item>
       </a-form>
-      <div class="hint"
-        >退款将原路退还余额或储值卡本金，并冲回礼物分成与会员成长值。</div
-      >
+      <div class="hint">退款将原路退还余额，并冲回礼物分成与会员成长值。</div>
     </a-modal>
   </div>
 </template>
@@ -1419,10 +1398,7 @@
     playerId: 0,
     quantity: 1,
     orderId: 0,
-    paymentSource: 'customer_balance_principal' as
-      | 'customer_balance_principal'
-      | 'stored_value_card_principal',
-    storedValueCardId: 0,
+    paymentSource: 'customer_balance_principal' as const,
   });
 
   // 礼物确认单幂等（§9.5-02）：client_key 与「本次提交内容」绑定——同一份内容连点两次复用同一个键，
@@ -1448,7 +1424,6 @@
       quantity: 1,
       orderId: 0,
       paymentSource: 'customer_balance_principal',
-      storedValueCardId: 0,
     });
     sendClientKey.value = '';
     sendKeyBody = '';
@@ -1462,13 +1437,6 @@
       Message.error('请选择礼物');
       return;
     }
-    if (
-      sendForm.paymentSource === 'stored_value_card_principal' &&
-      !sendForm.storedValueCardId
-    ) {
-      Message.error('请选择可送礼储值卡');
-      return;
-    }
     // 幂等键绑定提交内容（不含 client_key 本身）。
     const body = {
       customer_id: sendForm.customerId,
@@ -1477,10 +1445,6 @@
       quantity: sendForm.quantity,
       order_id: sendForm.orderId ? sendForm.orderId : null,
       payment_source: sendForm.paymentSource,
-      stored_value_card_id:
-        sendForm.paymentSource === 'stored_value_card_principal'
-          ? sendForm.storedValueCardId
-          : 0,
     };
     sendSubmitting.value = true;
     try {

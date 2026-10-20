@@ -103,7 +103,7 @@
         <div v-else-if="comp.type === 'member_entry'" class="pp-member">
           <div>
             <div class="pp-member-title">{{ titleOf(comp, '会员与余额') }}</div>
-            <div class="pp-muted">查看余额、储值卡与会员权益</div>
+            <div class="pp-muted">查看余额与会员权益</div>
           </div>
           <span class="pp-arrow">›</span>
         </div>

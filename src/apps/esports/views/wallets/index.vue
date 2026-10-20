@@ -112,13 +112,10 @@
           >
             <a-option value="customer_balance">客户余额</a-option>
             <a-option value="player_catfood">陪玩猫粮</a-option>
-            <a-option value="stored_value_card"
-              >储值卡（账户号为卡 ID）</a-option
-            >
           </a-select>
           <a-input-number
             v-model="ledgerAccountId"
-            placeholder="账户 ID（钱包归属人 / 卡 ID）"
+            placeholder="账户 ID（钱包归属人）"
             :min="0"
             :style="{ width: '240px' }"
           />

@@ -854,7 +854,6 @@
   const navTargetOptions: { label: string; value: string }[] = [
     { label: '商品分类', value: 'category' },
     { label: '我的订单', value: 'orders' },
-    { label: '储值卡', value: 'prepay_card' },
     { label: '会员', value: 'member' },
     { label: '联系客服', value: 'support' },
   ];
