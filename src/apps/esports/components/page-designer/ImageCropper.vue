@@ -13,10 +13,13 @@
         <a-select
           v-model="ratioKey"
           size="small"
-          :style="{ width: '140px' }"
+          :style="{ width: '170px' }"
           @change="onRatioChange"
         >
           <a-option value="free">自由比例</a-option>
+          <a-option value="9:16">9:16（手机竖屏）</a-option>
+          <a-option value="3:4">3:4（竖屏）</a-option>
+          <a-option value="9:19.5">9:19.5（全面屏）</a-option>
           <a-option value="1:1">1:1</a-option>
           <a-option value="4:3">4:3</a-option>
           <a-option value="16:9">16:9</a-option>
@@ -64,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, nextTick, reactive, ref } from 'vue';
+  import { computed, nextTick, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
 
   const props = withDefaults(
@@ -90,6 +93,22 @@
   // 显示坐标下的裁剪框（相对画布像素）。
   const crop = reactive({ x: 0, y: 0, w: 0, h: 0 });
 
+  // 每次打开弹窗都回到自由比例并清空上一张图，
+  // 避免上次选的竖屏比例成为默认值，导致新图一进来就被裁成窄条。
+  watch(
+    () => props.visible,
+    (visible) => {
+      if (!visible) return;
+      ratioKey.value = 'free';
+      image.value = null;
+      cropping.value = false;
+      crop.x = 0;
+      crop.y = 0;
+      crop.w = 0;
+      crop.h = 0;
+    }
+  );
+
   // 拖拽状态。
   type CropHandle = 'nw' | 'ne' | 'sw' | 'se';
   const MIN_CROP_SIZE = 24;
@@ -98,6 +117,9 @@
   let dragStart = { x: 0, y: 0, cropX: 0, cropY: 0, cropW: 0, cropH: 0 };
 
   const ratios: Record<string, number> = {
+    '9:16': 9 / 16,
+    '3:4': 3 / 4,
+    '9:19.5': 9 / 19.5,
     '1:1': 1,
     '4:3': 4 / 3,
     '16:9': 16 / 9,
