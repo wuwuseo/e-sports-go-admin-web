@@ -44,12 +44,12 @@
 
     <!-- 轮播图 -->
     <div v-else-if="comp.type === 'carousel'" class="pp-carousel">
-      <div v-if="imagesOf(comp).length" class="pp-carousel-inner">
+      <div v-if="carouselItemsOf(comp).length" class="pp-carousel-inner">
         <img
-          v-for="(img, i) in imagesOf(comp)"
+          v-for="(item, i) in carouselItemsOf(comp)"
           :key="i"
           class="pp-carousel-img"
-          :src="img"
+          :src="pageImageSrc(item.image)"
           alt=""
         />
       </div>
@@ -64,7 +64,7 @@
     >
       <img
         v-if="imageOf(comp)"
-        :src="imageOf(comp)"
+        :src="pageImageSrc(imageOf(comp))"
         :style="imageStyle(comp)"
         alt=""
       />
@@ -109,10 +109,9 @@
 
     <!-- 商品/套餐列表 -->
     <div v-else-if="comp.type === 'product_list'" class="pp-product">
-      <div class="pp-title">{{ titleOf(comp, '在售服务') }}</div>
-      <div class="pp-empty">
-        {{ stringOf(comp.props?.empty_text) || '暂无可下单的服务' }}
-      </div>
+      <div v-if="productTitleOf(comp)" class="pp-title">{{
+        productTitleOf(comp)
+      }}</div>
     </div>
 
     <!-- 陪玩推荐 -->
@@ -161,6 +160,19 @@
         <span class="pp-muted">售后进度查询</span>
       </div>
     </div>
+
+    <div v-else-if="comp.type === 'contact_entry'" class="pp-entry">
+      <span class="pp-support-name">联系客服</span>
+      <span class="pp-muted">归属客服跟进</span>
+    </div>
+    <div v-else-if="comp.type === 'orders_entry'" class="pp-entry">
+      <span class="pp-support-name">我的订单</span>
+      <span class="pp-muted">订单与去付款</span>
+    </div>
+    <div v-else-if="comp.type === 'aftersale_entry'" class="pp-entry">
+      <span class="pp-support-name">我的售后</span>
+      <span class="pp-muted">售后进度查询</span>
+    </div>
   </div>
 </template>
 
@@ -206,9 +218,11 @@
     });
   });
 
-  const layoutStyle = computed(() => ({
-    gridTemplateColumns: `repeat(${columns.value}, minmax(0, 1fr))`,
-  }));
+  function layoutDimension(value: unknown, max: number): number | null {
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.min(max, Math.max(0, value))
+      : null;
+  }
 
   function onSelect() {
     if (props.selectable) emit('select', props.path);
@@ -218,14 +232,74 @@
     return typeof value === 'string' ? value : '';
   }
 
+  const layoutStyle = computed(() => {
+    const layoutProps = props.comp.props || {};
+    const gap = layoutDimension(layoutProps.gap, 80);
+    const padding = layoutDimension(layoutProps.padding, 80);
+    const spacing = layoutDimension(layoutProps.spacing, 80);
+    const marginTop = layoutDimension(layoutProps.margin_top, 80) ?? spacing;
+    const marginRight = layoutDimension(layoutProps.margin_right, 80);
+    const marginBottom =
+      layoutDimension(layoutProps.margin_bottom, 80) ?? spacing;
+    const marginLeft = layoutDimension(layoutProps.margin_left, 80);
+    const radius = layoutDimension(layoutProps.radius, 48);
+    const background = stringOf(layoutProps.background_color);
+    return {
+      gridTemplateColumns: `repeat(${columns.value}, minmax(0, 1fr))`,
+      ...(gap !== null ? { gap: `${gap}px` } : {}),
+      ...(padding !== null ? { padding: `${padding}px` } : {}),
+      ...(marginTop !== null ? { marginTop: `${marginTop}px` } : {}),
+      ...(marginRight !== null ? { marginRight: `${marginRight}px` } : {}),
+      ...(marginBottom !== null ? { marginBottom: `${marginBottom}px` } : {}),
+      ...(marginLeft !== null ? { marginLeft: `${marginLeft}px` } : {}),
+      ...(radius !== null ? { borderRadius: `${radius}px` } : {}),
+      ...(/^#[0-9a-fA-F]{6}$/.test(background)
+        ? { backgroundColor: background }
+        : {}),
+    };
+  });
+
   function titleOf(comp: PageComponent, fallback: string): string {
     return stringOf(comp.props?.title) || fallback;
+  }
+
+  function productTitleOf(comp: PageComponent): string {
+    return stringOf(comp.props?.title).trim();
+  }
+
+  // 页面组件保存附件表同款 public/... 存储路径；预览时转成 /uploads/... 公开地址。
+  function pageImageSrc(raw: string): string {
+    const value = (raw || '').trim();
+    if (value.startsWith('public/')) {
+      return `/uploads/${value.slice('public/'.length)}`;
+    }
+    return value;
   }
 
   function imagesOf(comp: PageComponent): string[] {
     const value = comp.props?.images;
     if (!Array.isArray(value)) return [];
     return value.filter((v): v is string => typeof v === 'string');
+  }
+
+  // 轮播项优先读 items（每张图可带跳转链接），旧配置回落 images。
+  function carouselItemsOf(
+    comp: PageComponent
+  ): { image: string; link: string }[] {
+    const value = comp.props?.items;
+    if (Array.isArray(value)) {
+      const items = value
+        .map((item) => {
+          const record = (item || {}) as Record<string, unknown>;
+          return {
+            image: stringOf(record.image),
+            link: stringOf(record.link),
+          };
+        })
+        .filter((item) => item.image);
+      if (items.length) return items;
+    }
+    return imagesOf(comp).map((image) => ({ image, link: '' }));
   }
 
   function imageOf(comp: PageComponent): string {
@@ -326,8 +400,7 @@
   .pp-layout {
     display: grid;
     gap: 8px;
-    margin-bottom: 8px;
-    padding: 4px;
+    margin: 0;
     border-radius: 10px;
     transition: box-shadow 0.15s ease;
   }
@@ -477,5 +550,20 @@
   .pp-support-name {
     font-weight: 600;
     font-size: 13px;
+  }
+
+  .pp-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    text-align: center;
+  }
+
+  .pp-layout-col .pp-card {
+    box-sizing: border-box;
+    height: 100%;
+    margin-bottom: 0;
+    padding: 8px 4px;
   }
 </style>

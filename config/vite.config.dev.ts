@@ -35,6 +35,12 @@ export default mergeConfig(
             });
           },
         },
+        // 公开附件直链（attachment.public_base_url 默认 /uploads）：
+        // 装修图片等公开素材保存站内路径，开发期需与线上同源转发。
+        '/uploads': {
+          target: 'http://127.0.0.1:9501',
+          changeOrigin: true,
+        },
         // 普通 REST 接口：保持原有配置
         '/api': {
           target: 'http://127.0.0.1:9501',

@@ -338,11 +338,7 @@
                   >
                 </a-descriptions>
                 <a-empty
-                  v-if="selectedComponent?.type === 'layout'"
-                  description="布局本身无属性，请在画布中为每列添加组件"
-                />
-                <a-empty
-                  v-else-if="!currentSchema.length"
+                  v-if="!currentSchema.length"
                   description="该组件无自由属性"
                 />
                 <div
@@ -385,6 +381,7 @@
                     :model-value="numberField(field.key)"
                     :min="field.min"
                     :max="field.max"
+                    :placeholder="field.placeholder"
                     @update:model-value="(v) => setField(field.key, v)"
                   />
 
@@ -407,7 +404,7 @@
                     <div class="prop-image-row">
                       <a-input
                         :model-value="stringField(field.key)"
-                        placeholder="https:// 或站内 /path"
+                        placeholder="public/...（附件表路径）或 https://"
                         @update:model-value="(v) => setField(field.key, v)"
                       />
                       <a-button
@@ -415,9 +412,25 @@
                         @click="openCropperForField(field.key)"
                         >裁剪</a-button
                       >
+                      <AttachmentSelector
+                        accept="image/*"
+                        default-directory="public/esports-page"
+                        @select="
+                          (selection) =>
+                            chooseAttachmentForField(field.key, selection)
+                        "
+                      >
+                        <template #trigger="{ open }">
+                          <a-button size="mini" type="outline" @click="open"
+                            >上传</a-button
+                          >
+                        </template>
+                      </AttachmentSelector>
                     </div>
                     <div class="prop-image-hint">
-                      发布前会校验 https、域名白名单与可访问性
+                      本地图片保存为附件表相对路径 public/...，渲染时自动转成
+                      /uploads/...；外部图片发布前会校验
+                      https、域名白名单与可访问性
                     </div>
                     <div
                       v-if="imageIssue(stringField(field.key))"
@@ -427,10 +440,86 @@
                     </div>
                   </div>
 
+                  <div
+                    v-else-if="field.kind === 'carouselItems'"
+                    class="prop-images"
+                  >
+                    <div class="palette-usage">
+                      轮播图按「图片 +
+                      跳转链接」逐张配置，每张图各有一条独立链接； 图片须为
+                      https:// 或附件表相对路径
+                      public/...，跳转支持已注册站内页面或白名单内 HTTPS 域名。
+                    </div>
+                    <div
+                      v-for="(item, i) in carouselItemList()"
+                      :key="i"
+                      class="prop-image-block"
+                    >
+                      <div class="prop-item-label">第 {{ i + 1 }} 张</div>
+                      <div class="prop-image-row">
+                        <a-input
+                          :model-value="item.image"
+                          placeholder="图片：public/... 或 https://"
+                          @update:model-value="
+                            (v) => updateCarouselItem(i, { image: v })
+                          "
+                        />
+                        <a-button
+                          size="mini"
+                          @click="openCropperForCarouselItem(i)"
+                          >裁剪</a-button
+                        >
+                        <AttachmentSelector
+                          accept="image/*"
+                          default-directory="public/esports-page"
+                          @select="
+                            (selection) =>
+                              chooseAttachmentForCarouselItem(i, selection)
+                          "
+                        >
+                          <template #trigger="{ open }">
+                            <a-button size="mini" type="outline" @click="open"
+                              >上传</a-button
+                            >
+                          </template>
+                        </AttachmentSelector>
+                        <a-button
+                          size="mini"
+                          status="danger"
+                          @click="removeCarouselItem(i)"
+                          >删</a-button
+                        >
+                      </div>
+                      <div class="prop-image-row">
+                        <a-input
+                          :model-value="item.link"
+                          :placeholder="`第 ${
+                            i + 1
+                          } 张的跳转链接（可选）：站内 /pages/... 或 https://...`"
+                          @update:model-value="
+                            (v) => updateCarouselItem(i, { link: v })
+                          "
+                        />
+                      </div>
+                      <div v-if="imageIssue(item.image)" class="prop-warn">
+                        第 {{ i + 1 }} 张：{{ imageIssue(item.image) }}
+                      </div>
+                      <div v-if="linkIssue(item.link)" class="prop-warn">
+                        第 {{ i + 1 }} 张跳转：{{ linkIssue(item.link) }}
+                      </div>
+                    </div>
+                    <a-button
+                      size="mini"
+                      type="outline"
+                      @click="addCarouselItem"
+                      >添加轮播图</a-button
+                    >
+                  </div>
+
                   <div v-else-if="field.kind === 'images'" class="prop-images">
                     <div class="palette-usage">
-                      每张图片都须为 https:// 外部地址或站内 /
-                      路径；外部域名须在 app.esports.page_allowed_domains
+                      每张图片都须为 https:// 外部地址或附件表相对路径
+                      public/...；外部域名须在 app.esports.page_allowed_domains
                       白名单内，发布前会逐张探测可访问性，失败时展示后端返回的中文原文。
                     </div>
                     <div
@@ -441,7 +530,7 @@
                       <div class="prop-image-row">
                         <a-input
                           :model-value="url"
-                          placeholder="https:// 或站内 /path"
+                          placeholder="public/... 或 https://"
                           @update:model-value="(v) => updateImage(i, v)"
                         />
                         <a-button size="mini" @click="openCropperForImages(i)"
@@ -473,6 +562,18 @@
                         @click="openCropperForImages(-1)"
                         >上传裁剪</a-button
                       >
+                      <AttachmentSelector
+                        accept="image/*"
+                        multiple
+                        default-directory="public/esports-page"
+                        @select="chooseAttachmentsForImages"
+                      >
+                        <template #trigger="{ open }">
+                          <a-button size="mini" type="outline" @click="open"
+                            >上传</a-button
+                          >
+                        </template>
+                      </AttachmentSelector>
                     </a-space>
                     <!-- 发布 / 保存失败时，后端对具体轮播项的中文报错原样展示在这里。 -->
                     <a-alert
@@ -761,7 +862,7 @@
             />
             <a-input
               v-model="assetForm.url"
-              placeholder="https:// 或站内 /path"
+              placeholder="public/... 或 https://"
               :style="{ width: '280px' }"
             />
             <a-input-number
@@ -799,8 +900,31 @@
           </a-typography-text>
           <a-table :data="assets" row-key="id" :pagination="{ pageSize: 10 }">
             <template #columns>
-              <a-table-column data-index="name" title="名称" />
-              <a-table-column data-index="url" title="地址" />
+              <a-table-column title="预览" :width="90">
+                <template #cell="{ record }">
+                  <a-image
+                    v-if="record.url"
+                    :src="pageImagePublicUrl(record.url)"
+                    :alt="record.name"
+                    width="64"
+                    height="44"
+                    fit="cover"
+                  />
+                  <span v-else>-</span>
+                </template>
+              </a-table-column>
+              <a-table-column
+                data-index="name"
+                title="名称"
+                :ellipsis="true"
+                :tooltip="true"
+              />
+              <a-table-column
+                data-index="url"
+                title="地址"
+                :ellipsis="true"
+                :tooltip="true"
+              />
               <a-table-column title="类型" :width="120">
                 <template #cell="{ record }">{{ record.mime || '-' }}</template>
               </a-table-column>
@@ -897,8 +1021,9 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import { getAdmins } from '@/api/user';
-  import { uploadAttachment } from '@/api/attachment';
-  import { getAttachmentAccessInfo } from '@/services/attachment-access.service';
+  import { getAttachmentAccessUrl, uploadAttachment } from '@/api/attachment';
+  import AttachmentSelector from '@/components/attachment-selector/index.vue';
+  import type { AttachmentResponse } from '@/types/api';
   import {
     PAGE_CHANNEL_CUSTOMER_HOME,
     createEsportsPageAsset,
@@ -937,6 +1062,7 @@
     | 'select'
     | 'image'
     | 'images'
+    | 'carouselItems'
     | 'navItems';
 
   interface PropField {
@@ -954,6 +1080,12 @@
     target: string;
     // 图标（§16.3-04）：https:// / 站内 /path / 内置图标短标识（如 icon-cs）。
     icon: string;
+  }
+
+  // 轮播项（§16.3-02）：每张图独立配置点击跳转，后端以 items 承载。
+  interface CarouselItemDraft {
+    image: string;
+    link: string;
   }
 
   // 组件库分组与用途 / 数据源说明（§16.2-03）：与后端 pagePropsWhitelist 的键保持一一对应。
@@ -987,7 +1119,8 @@
         {
           type: 'carousel',
           label: '轮播图',
-          usage: '顶部轮播，可配图片、切换间隔与生效有效期',
+          usage:
+            '顶部轮播，每张图片各自配置图片与点击跳转，另可设切换间隔与生效有效期',
           dataSource: '素材库 / 手动配置图片地址',
         },
         {
@@ -1043,10 +1176,22 @@
           dataSource: '会员等级 / 钱包余额',
         },
         {
-          type: 'support_entry',
-          label: '客服与订单入口',
-          usage: '客服与订单入口，可配图标、文案与位置',
-          dataSource: '手动配置（跳转已注册页面）',
+          type: 'contact_entry',
+          label: '联系客服',
+          usage: '联系归属客服',
+          dataSource: '归属客服',
+        },
+        {
+          type: 'orders_entry',
+          label: '我的订单',
+          usage: '查看订单与待付款项',
+          dataSource: '客户订单',
+        },
+        {
+          type: 'aftersale_entry',
+          label: '我的售后',
+          usage: '查询售后进度',
+          dataSource: '客户售后单',
         },
       ],
     },
@@ -1065,7 +1210,7 @@
   const propSchemas: Record<PageComponentType, PropField[]> = {
     search: [{ key: 'placeholder', label: '搜索占位文案', kind: 'text' }],
     carousel: [
-      { key: 'images', label: '轮播图片', kind: 'images' },
+      { key: 'items', label: '轮播图片与跳转', kind: 'carouselItems' },
       {
         key: 'interval',
         label: '轮播间隔（毫秒）',
@@ -1127,7 +1272,6 @@
         max: 50,
       },
       { key: 'sku_ids', label: '指定 SKU（逗号分隔）', kind: 'numberList' },
-      { key: 'empty_text', label: '空数据兜底文案', kind: 'text' },
     ],
     player_recommend: [
       { key: 'title', label: '标题', kind: 'text' },
@@ -1140,8 +1284,74 @@
     ],
     member_entry: [{ key: 'title', label: '标题', kind: 'text' }],
     support_entry: [],
-    // 布局本身无自由属性：列数由添加时的 1×1 / 1×2 / 1×3 预设决定。
-    layout: [],
+    contact_entry: [],
+    orders_entry: [],
+    aftersale_entry: [],
+    // 列数由布局预设决定；以下样式属性可在选中布局时调整。
+    layout: [
+      {
+        key: 'gap',
+        label: '列间距（px）',
+        kind: 'number',
+        min: 0,
+        max: 80,
+        placeholder: '默认 8',
+      },
+      {
+        key: 'padding',
+        label: '内边距（px）',
+        kind: 'number',
+        min: 0,
+        max: 80,
+        placeholder: '默认 0',
+      },
+      {
+        key: 'margin_top',
+        label: '上外边距（px）',
+        kind: 'number',
+        min: 0,
+        max: 80,
+        placeholder: '默认 0',
+      },
+      {
+        key: 'margin_right',
+        label: '右外边距（px）',
+        kind: 'number',
+        min: 0,
+        max: 80,
+        placeholder: '默认 0',
+      },
+      {
+        key: 'margin_bottom',
+        label: '下外边距（px）',
+        kind: 'number',
+        min: 0,
+        max: 80,
+        placeholder: '默认 0',
+      },
+      {
+        key: 'margin_left',
+        label: '左外边距（px）',
+        kind: 'number',
+        min: 0,
+        max: 80,
+        placeholder: '默认 0',
+      },
+      {
+        key: 'background_color',
+        label: '背景色',
+        kind: 'text',
+        placeholder: '#FFFFFF，留空为透明',
+      },
+      {
+        key: 'radius',
+        label: '圆角（px）',
+        kind: 'number',
+        min: 0,
+        max: 48,
+        placeholder: '默认 10',
+      },
+    ],
   };
 
   // 组件库的布局分组：三种列容器，添加后在画布中为每列挑选一个组件。
@@ -1256,6 +1466,8 @@
   const components = ref<PageComponent[]>([]);
   const versions = ref<PageVersion[]>([]);
   const assets = ref<PageAsset[]>([]);
+  // 正在登记的素材地址：同一张图并发选择时避免重复创建素材记录。
+  const registeringAssetUrls = new Set<string>();
   const selectedIndex = ref(-1);
   // -1 表示选中布局本身 / 顶层普通组件；>=0 表示选中布局中的某一列。
   const selectedChildIndex = ref(-1);
@@ -1280,7 +1492,24 @@
     adminId ? adminNames.value[adminId] || `#${adminId}` : '—';
 
   const componentLabel = (type: PageComponentType) =>
-    componentTypes.find((item) => item.type === type)?.label || type;
+    componentTypes.find((item) => item.type === type)?.label ||
+    (type === 'support_entry' ? '客服与订单入口（旧版）' : type);
+
+  const expandLegacySupportEntry = (list: PageComponent[]): PageComponent[] =>
+    list.map((comp) =>
+      comp.type === 'support_entry'
+        ? {
+            type: 'layout',
+            visible: comp.visible,
+            props: { columns: 3 },
+            children: [
+              { type: 'contact_entry', visible: true },
+              { type: 'orders_entry', visible: true },
+              { type: 'aftersale_entry', visible: true },
+            ],
+          }
+        : comp
+    );
 
   // 布局列数、子组件与选中路径：布局只允许一层，子组件沿用与顶层相同的属性面板。
   const layoutColumns = (comp: PageComponent | null | undefined): number => {
@@ -1385,6 +1614,16 @@
         return Array.isArray(raw)
           ? raw.filter((v): v is string => typeof v === 'string')
           : [];
+      case 'carouselItems':
+        return Array.isArray(raw)
+          ? raw.map((v) => {
+              const o = (v ?? {}) as Record<string, unknown>;
+              return {
+                image: typeof o.image === 'string' ? o.image : '',
+                link: typeof o.link === 'string' ? o.link : '',
+              };
+            })
+          : [];
       case 'navItems':
         return Array.isArray(raw)
           ? raw.map((v) => {
@@ -1431,6 +1670,17 @@
         );
         return list.length ? list : undefined;
       }
+      case 'carouselItems': {
+        const list = (Array.isArray(value) ? value : [])
+          .map((v) => (v ?? {}) as CarouselItemDraft)
+          .filter((v) => typeof v.image === 'string' && v.image.trim() !== '');
+        return list.length
+          ? list.map((v) => {
+              const link = typeof v.link === 'string' ? v.link.trim() : '';
+              return { image: v.image.trim(), ...(link ? { link } : {}) };
+            })
+          : undefined;
+      }
       case 'navItems': {
         const list = (Array.isArray(value) ? value : [])
           .map((v) => (v ?? {}) as NavItemDraft)
@@ -1458,14 +1708,33 @@
     if (!comp) return;
     const props = comp.props || {};
     (propSchemas[comp.type] || []).forEach((field) => {
-      form[field.key] = deserializeField(field, props[field.key]);
+      const legacySpacing =
+        comp.type === 'layout' &&
+        (field.key === 'margin_top' || field.key === 'margin_bottom')
+          ? props.spacing
+          : undefined;
+      // 旧轮播草稿只有 images 数组：转成 items 行载入，跳转链接留空。
+      const legacyCarouselItems =
+        comp.type === 'carousel' && field.key === 'items'
+          ? props.items ??
+            (Array.isArray(props.images)
+              ? props.images
+                  .filter((v): v is string => typeof v === 'string')
+                  .map((image) => ({ image, link: '' }))
+              : undefined)
+          : undefined;
+      form[field.key] = deserializeField(
+        field,
+        props[field.key] ?? legacySpacing ?? legacyCarouselItems
+      );
     });
   }
 
   function syncForm() {
     const comp = selectedComponent.value;
     if (!comp) return;
-    const props: Record<string, unknown> = {};
+    const props: Record<string, unknown> =
+      comp.type === 'layout' ? { columns: layoutColumns(comp) } : {};
     currentSchema.value.forEach((field) => {
       const serialized = serializeField(field, form[field.key]);
       if (serialized !== undefined) props[field.key] = serialized;
@@ -1517,14 +1786,98 @@
     list.splice(index, 1);
     setImages(list);
   }
-  // 轮播图本地可判定规则（与后端一致）：只允许 https 外部地址或站内相对路径。
-  // 域名白名单与可访问性只能由后端判定，失败时由 pageError 原样展示后端中文提示。
+
+  // 轮播项：新配置写 items（{image, link}）；旧草稿只有 images 时按图片生成，
+  // 第一次编辑即迁移为 items 并移除 images。
+  function carouselItemList(): CarouselItemDraft[] {
+    const value = form.items;
+    if (Array.isArray(value) && value.length > 0) {
+      return (value as CarouselItemDraft[]).map((item) => ({
+        image: typeof item?.image === 'string' ? item.image : '',
+        link: typeof item?.link === 'string' ? item.link : '',
+      }));
+    }
+    return imageList().map((image) => ({ image, link: '' }));
+  }
+  function setCarouselItems(list: CarouselItemDraft[]) {
+    form.items = list;
+    delete form.images;
+    syncForm();
+  }
+  function addCarouselItem() {
+    setCarouselItems([...carouselItemList(), { image: '', link: '' }]);
+  }
+  function updateCarouselItem(
+    index: number,
+    patch: Partial<CarouselItemDraft>
+  ) {
+    setCarouselItems(
+      carouselItemList().map((item, i) =>
+        i === index ? { ...item, ...patch } : item
+      )
+    );
+  }
+  function removeCarouselItem(index: number) {
+    const list = carouselItemList().slice();
+    list.splice(index, 1);
+    setCarouselItems(list);
+  }
+  // 轮播图本地可判定规则（与后端一致）：只允许 https 外部地址、附件表 public/ 存储路径
+  // 或旧版站内 / 路径。域名白名单与可访问性只能由后端判定，失败时由 pageError 原样展示后端中文提示。
+  // 附件表 path 是存储相对路径（public/...）；页面组件保存同一形式，
+  // 渲染时再由 pageImageUrl / PreviewBlock 解析成 /uploads/... 公开地址。
+  // 旧 /uploads/... 会归一成 public/...；非法路径（父目录、空段、反斜杠）返回空串。
+  function pageImageStoragePath(raw: string): string {
+    const value = (raw || '').trim();
+    const normalized = value.startsWith('/uploads/')
+      ? `public/${value.slice('/uploads/'.length)}`
+      : value;
+    if (!normalized.startsWith('public/') || normalized.endsWith('/')) {
+      return '';
+    }
+    if (
+      normalized.includes('..') ||
+      normalized.includes('//') ||
+      normalized.includes('\\')
+    ) {
+      return '';
+    }
+    return /^public\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(normalized)
+      ? normalized
+      : '';
+  }
+
+  // 组件里保存的是附件表路径 public/...；需要真正加载图片时转成 /uploads/... 公开地址。
+  function pageImagePublicUrl(raw: string): string {
+    const path = pageImageStoragePath(raw);
+    return path
+      ? `/uploads/${path.slice('public/'.length)}`
+      : (raw || '').trim();
+  }
+
   function imageIssue(url: string) {
     const value = (url || '').trim();
     if (!value) return '地址为空，客户端会渲染成空图';
+    if (value.startsWith('public/')) {
+      return pageImageStoragePath(value)
+        ? ''
+        : '附件存储路径非法（仅允许 public/ 下、不含 .. 的相对路径）';
+    }
     if (value.startsWith('/')) return '';
     if (!/^https:\/\//i.test(value)) {
-      return '仅支持 https:// 外部地址或站内 / 路径（http 与协议相对地址会被后端拒绝）';
+      return '仅支持 https://、附件表 public/ 路径或站内 / 路径（http 与协议相对地址会被后端拒绝）';
+    }
+    return '';
+  }
+
+  // 轮播项跳转链接：留空表示该图不可点；填写时须为站内 / 路径或 https 地址。
+  // 与后端 validatePageLink 的口径一致，域名白名单仍由后端在发布时判定。
+  function linkIssue(link: string) {
+    const value = (link || '').trim();
+    if (!value) return '';
+    if (value.startsWith('/')) return '';
+    if (!/^https:\/\//i.test(value)) {
+      return '仅支持站内 / 路径或 https:// 地址（http 与协议相对地址会被后端拒绝）';
     }
     return '';
   }
@@ -1601,33 +1954,81 @@
     cropperCallback?.(blob);
   }
 
-  async function uploadImageBlob(
-    blob: Blob,
-    name: string
-  ): Promise<string | null> {
+  // 装修配置只接受「站内相对路径」或「https 绝对地址」：本地存储返回的
+  // /uploads/... 与 CDN/S3 返回的 https 地址原样保存；http 绝对地址只有属于
+  // 当前站点时才能安全退化成路径（否则客户端拿不到图片）。
+  function pageImageStorageUrl(raw: string): string {
+    const value = (raw || '').trim();
+    if (!value) return '';
+    if (value.startsWith('/')) {
+      return value.startsWith('//') ? '' : value;
+    }
     try {
-      const file = new File([blob], name, {
-        type: blob.type || 'image/png',
-      });
-      const res = await uploadAttachment(file, undefined, 'esports-page');
-      // 简单上传后端直接返回附件对象（data.id），分片上传才包在 data.attachment 里。
-      const data = res.data?.data as
-        | { attachment?: { id: number }; id?: number }
-        | undefined;
-      const attachmentId = data?.attachment?.id ?? data?.id;
-      if (typeof attachmentId !== 'number') {
-        Message.error('上传失败，未返回附件');
+      const parsed = new URL(value);
+      if (parsed.protocol === 'https:') return value;
+      if (parsed.protocol === 'http:' && parsed.host === window.location.host) {
+        return `${parsed.pathname}${parsed.search}`;
+      }
+    } catch {
+      return '';
+    }
+    return '';
+  }
+
+  // 附件库选择：只接受公开附件，并保存与附件表一致的存储相对路径（public/...）。
+  async function resolveAttachmentPageImage(item: AttachmentResponse) {
+    const label = item.original_name || item.name || `#${item.id}`;
+    try {
+      const accessRes = await getAttachmentAccessUrl(item.id);
+      const access = accessRes.data?.data;
+      if (!access?.public) {
+        Message.error(`「${label}」不在公开目录，不能用于装修`);
         return null;
       }
-      const access = await getAttachmentAccessInfo(attachmentId);
-      if (access.public === false) {
-        Message.warning('素材为私有文件，访问地址有时效，建议使用公开目录');
+      const accessUrl = pageImageStorageUrl(access.url);
+      if (!accessUrl) {
+        Message.error(`「${label}」的公开地址不可用`);
+        return null;
       }
-      return access.url;
-    } catch (err) {
-      Message.error(errorText(err, '图片上传失败'));
+      // 本地公开附件优先保存附件表 path；CDN/S3 的 https 地址无法映射到 /uploads，保留原地址。
+      const localPath = accessUrl.startsWith('/uploads/')
+        ? pageImageStoragePath(item.path) || pageImageStoragePath(accessUrl)
+        : '';
+      return localPath || accessUrl;
+    } catch {
+      Message.error(`获取「${label}」的图片地址失败`);
       return null;
     }
+  }
+
+  function normalizeAssetMime(mime: string): string {
+    const value = (mime || '').trim().toLowerCase();
+    return value === 'image/jpg' ? 'image/jpeg' : value;
+  }
+
+  function fileNameFromUrl(url: string): string {
+    try {
+      const path = new URL(url, window.location.origin).pathname;
+      return decodeURIComponent(path.split('/').pop() || '') || '装修图片';
+    } catch {
+      return '装修图片';
+    }
+  }
+
+  function imageDimensions(
+    url: string
+  ): Promise<{ width: number; height: number }> {
+    return new Promise((resolve) => {
+      if (!url) {
+        resolve({ width: 0, height: 0 });
+        return;
+      }
+      const img = new Image();
+      img.onload = () =>
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => resolve({ width: 0, height: 0 });
+      img.src = pageImagePublicUrl(url);
+    });
   }
 
   function blobDimensions(
@@ -1648,9 +2049,302 @@
     });
   }
 
+  // 素材 URL 统一按附件表存储路径（public/...）展示与去重；/uploads/... 视为同一地址。
+  function pageAssetURLKey(raw: string): string {
+    return pageImageStoragePath(raw) || (raw || '').trim();
+  }
+
+  function normalizePageAsset(asset: PageAsset): PageAsset {
+    const path = pageImageStoragePath(asset.url);
+    return path ? { ...asset, url: path } : asset;
+  }
+
+  function normalizePageAssets(list: PageAsset[]): PageAsset[] {
+    return list.map(normalizePageAsset);
+  }
+
+  // 组件内上传 / 选择的图片同步登记到素材库（§16.2-06）：这些入口不经过
+  // 「新增素材」表单，若不在这里登记，素材库就看不到运营实际在用的图片。
+  // 同一地址只登记一次；登记失败不阻塞图片使用，只给出提示。
+  async function registerPageAsset(
+    input: {
+      name: string;
+      url: string;
+      mime: string;
+      sizeBytes: number;
+      width: number;
+      height: number;
+    },
+    options: { quiet?: boolean } = {}
+  ): Promise<PageAsset | null> {
+    const url = input.url.trim();
+    const mime = normalizeAssetMime(input.mime);
+    if (!url || !ASSET_MIME_WHITELIST.includes(mime)) return null;
+    if (input.sizeBytes < 1 || input.sizeBytes > ASSET_MAX_BYTES) return null;
+    const key = pageAssetURLKey(url);
+    const existing = assets.value.find(
+      (asset) => pageAssetURLKey(asset.url) === key
+    );
+    if (existing) return existing;
+    if (registeringAssetUrls.has(url)) return null;
+    registeringAssetUrls.add(url);
+    try {
+      const name =
+        (input.name || '').trim().slice(0, 160) ||
+        fileNameFromUrl(url).slice(0, 160);
+      const created = normalizePageAsset(
+        (
+          await createEsportsPageAsset({
+            name,
+            url,
+            mime,
+            size_bytes: Math.round(input.sizeBytes),
+            width: Math.round(input.width) || 0,
+            height: Math.round(input.height) || 0,
+          })
+        ).data.data
+      );
+      // 后端按地址幂等，可能返回素材库里已有的记录，避免重复插入同一行。
+      if (!assets.value.some((asset) => asset.id === created.id)) {
+        assets.value = [created, ...assets.value];
+      }
+      return created;
+    } catch (err) {
+      // 图片地址已可用于装修，素材登记失败只提示，不回滚已选图片。
+      if (!options.quiet) {
+        Message.warning(errorText(err, '图片已使用，但登记到素材库失败'));
+      }
+      return null;
+    } finally {
+      registeringAssetUrls.delete(url);
+    }
+  }
+
+  async function registerAttachmentAsset(
+    item: AttachmentResponse,
+    url: string
+  ) {
+    const dims = await imageDimensions(url);
+    await registerPageAsset({
+      name: item.original_name || item.name || fileNameFromUrl(url),
+      url,
+      mime: item.mime_type,
+      sizeBytes: item.size,
+      width: dims.width,
+      height: dims.height,
+    });
+  }
+
+  // 历史草稿补登记：上传早于素材登记逻辑的本地图片不会出现在素材库，
+  // 加载后按当前配置扫描 /uploads 图片，读取真实类型 / 体积 / 尺寸后补录。
+  function componentImageUrls(comp: PageComponent): string[] {
+    const props = comp.props || {};
+    const urls: string[] = [];
+    const push = (value: unknown) => {
+      if (typeof value === 'string' && value.trim()) urls.push(value.trim());
+    };
+    push(props.image);
+    if (Array.isArray(props.images)) props.images.forEach(push);
+    if (comp.type === 'carousel' && Array.isArray(props.items)) {
+      props.items.forEach((item) => {
+        const record = (item || {}) as Record<string, unknown>;
+        push(record.image);
+      });
+    }
+    return urls;
+  }
+
+  function collectPageImageUrls(comps: PageComponent[]): string[] {
+    return comps.flatMap((comp) => {
+      if (!comp || comp.visible === false) return [];
+      if (comp.type === 'layout') {
+        return collectPageImageUrls(
+          (comp.children || []).filter((child): child is PageComponent =>
+            Boolean(child)
+          )
+        );
+      }
+      return componentImageUrls(comp);
+    });
+  }
+
+  async function syncComponentImagesToAssets() {
+    const urls = Array.from(new Set(collectPageImageUrls(components.value)));
+    await Promise.all(
+      urls.map(async (url) => {
+        // 仅补登记本地公开图片；外部 https 读不到体积 / 类型，由上传入口登记。
+        const storagePath = pageImageStoragePath(url);
+        if (!storagePath) return;
+        if (
+          assets.value.some(
+            (asset) => pageAssetURLKey(asset.url) === storagePath
+          )
+        ) {
+          return;
+        }
+        try {
+          // 旧 /uploads/... 与新的 public/... 都按附件表路径保存，读取时再转公开 URL。
+          const publicUrl = `/uploads/${storagePath.slice('public/'.length)}`;
+          const response = await fetch(publicUrl);
+          if (!response.ok) return;
+          const blob = await response.blob();
+          const mime = normalizeAssetMime(blob.type);
+          if (!ASSET_MIME_WHITELIST.includes(mime)) return;
+          const dims = await blobDimensions(blob);
+          await registerPageAsset(
+            {
+              name: fileNameFromUrl(storagePath),
+              url: storagePath,
+              mime,
+              sizeBytes: blob.size,
+              width: dims.width,
+              height: dims.height,
+            },
+            { quiet: true }
+          );
+        } catch {
+          // 补登记失败不打扰编辑；下次进入页面会再试。
+        }
+      })
+    );
+  }
+
+  async function chooseAttachmentForField(
+    key: string,
+    selection: AttachmentResponse | AttachmentResponse[]
+  ) {
+    const item = Array.isArray(selection) ? selection[0] : selection;
+    if (!item) return;
+    const url = await resolveAttachmentPageImage(item);
+    if (url) {
+      setField(key, url);
+      await registerAttachmentAsset(item, url);
+    }
+  }
+
+  async function chooseAttachmentsForImages(
+    selection: AttachmentResponse | AttachmentResponse[]
+  ) {
+    const items = Array.isArray(selection) ? selection : [selection];
+    const resolved = await Promise.all(
+      items.map(async (item) => ({
+        item,
+        url: await resolveAttachmentPageImage(item),
+      }))
+    );
+    const picked = resolved.filter(
+      (entry): entry is { item: AttachmentResponse; url: string } =>
+        Boolean(entry.url)
+    );
+    if (!picked.length) return;
+    setImages([...imageList(), ...picked.map((entry) => entry.url)]);
+    await Promise.all(
+      picked.map((entry) => registerAttachmentAsset(entry.item, entry.url))
+    );
+  }
+
+  async function uploadImageBlob(blob: Blob): Promise<string | null> {
+    // 裁剪弹窗确认后立即关闭，上传在后台进行；没有提示时大图上传会像「卡住」。
+    const uploading = Message.loading({
+      content: '图片上传中…',
+      duration: 0,
+    });
+    try {
+      const mime = blob.type || 'image/png';
+      if (!ASSET_MIME_WHITELIST.includes(mime) || blob.size > ASSET_MAX_BYTES) {
+        Message.error('仅支持不超过 10MB 的 JPEG / PNG / WebP / GIF 图片');
+        return null;
+      }
+      // 附件按内容和文件名去重；每次使用新文件名，避免命中旧的私有目录附件。
+      const extension = mime === 'image/jpeg' ? 'jpg' : mime.split('/')[1];
+      const uploadName = `page-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${extension}`;
+      const file = new File([blob], uploadName, { type: mime });
+      const res = await uploadAttachment(
+        file,
+        undefined,
+        'public/esports-page'
+      );
+      // 简单上传后端直接返回附件对象（data.id），分片上传才包在 data.attachment 里。
+      const data = res.data?.data as
+        | { attachment?: { id: number }; id?: number }
+        | undefined;
+      const attachmentId = data?.attachment?.id ?? data?.id;
+      if (typeof attachmentId !== 'number') {
+        Message.error('上传失败，未返回附件');
+        return null;
+      }
+      // 取原始访问地址：attachment-access.service 会按当前页面 origin 归一化成
+      // 绝对地址；本地公开图片最终保存附件表同款 public/... 存储路径。
+      const accessRes = await getAttachmentAccessUrl(attachmentId);
+      const access = accessRes.data?.data;
+      if (!access?.public) {
+        Message.error('装修图片未存入公开目录，请重试');
+        return null;
+      }
+      const accessUrl = pageImageStorageUrl(access.url);
+      if (!accessUrl) {
+        Message.error('公开图片地址不可用，请检查附件公开域名配置');
+        return null;
+      }
+      // 本地公开图片保存附件表同款 public/...；CDN/S3 https 保留原地址。
+      const storedPath = accessUrl.startsWith('/uploads/')
+        ? pageImageStoragePath(accessUrl)
+        : '';
+      return storedPath || accessUrl;
+    } catch (err) {
+      Message.error(errorText(err, '图片上传失败'));
+      return null;
+    } finally {
+      uploading.close();
+    }
+  }
+
+  // 组件内裁剪上传：先复用附件上传，再把结果登记到素材库，保证素材库与实际在用图片一致。
+  async function uploadComponentImage(blob: Blob): Promise<string | null> {
+    const url = await uploadImageBlob(blob);
+    if (!url) return null;
+    const mime = normalizeAssetMime(blob.type || 'image/png');
+    const dims = await blobDimensions(blob);
+    const extension =
+      mime === 'image/jpeg' ? 'jpg' : mime.split('/')[1] || 'png';
+    await registerPageAsset({
+      name: `装修图片-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}.${extension}`,
+      url,
+      mime,
+      sizeBytes: blob.size,
+      width: dims.width,
+      height: dims.height,
+    });
+    return url;
+  }
+
+  function openCropperForCarouselItem(index: number) {
+    openCropper(async (blob) => {
+      const url = await uploadComponentImage(blob);
+      if (url) updateCarouselItem(index, { image: url });
+    });
+  }
+
+  async function chooseAttachmentForCarouselItem(
+    index: number,
+    selection: AttachmentResponse | AttachmentResponse[]
+  ) {
+    const item = Array.isArray(selection) ? selection[0] : selection;
+    if (!item) return;
+    const url = await resolveAttachmentPageImage(item);
+    if (url) {
+      updateCarouselItem(index, { image: url });
+      await registerAttachmentAsset(item, url);
+    }
+  }
+
   function openCropperForImages(index: number) {
     openCropper(async (blob) => {
-      const url = await uploadImageBlob(blob, `carousel-${Date.now()}.png`);
+      const url = await uploadComponentImage(blob);
       if (!url) return;
       const list = imageList();
       if (index >= 0 && index < list.length) {
@@ -1665,7 +2359,7 @@
   // 单图字段（图片组件）裁剪后直接回填该图片地址。
   function openCropperForField(key: string) {
     openCropper(async (blob) => {
-      const url = await uploadImageBlob(blob, `image-${Date.now()}.png`);
+      const url = await uploadComponentImage(blob);
       if (url) setField(key, url);
     });
   }
@@ -1673,7 +2367,7 @@
   function openCropperForAsset() {
     openCropper(async (blob) => {
       const name = `素材-${Date.now()}.png`;
-      const url = await uploadImageBlob(blob, name);
+      const url = await uploadImageBlob(blob);
       if (!url) return;
       const dims = await blobDimensions(blob);
       assetForm.name = name;
@@ -1710,10 +2404,7 @@
       Message.warning('图片体积须大于 0 且不超过 10MB');
       return;
     }
-    const url = await uploadImageBlob(
-      file,
-      file.name || `素材-${Date.now()}.png`
-    );
+    const url = await uploadImageBlob(file);
     if (!url) return;
     const dims = await blobDimensions(file);
     assetForm.name = file.name || assetForm.name;
@@ -1775,14 +2466,16 @@
         getEsportsPageAssets(),
       ]);
       doc.value = page.data.data.document;
-      components.value = page.data.data.components;
+      components.value = expandLegacySupportEntry(page.data.data.components);
       versions.value = versionList.data.data;
-      assets.value = assetList.data.data;
+      assets.value = normalizePageAssets(assetList.data.data);
       selectedIndex.value = -1;
       selectedChildIndex.value = -1;
       diffLeftNo.value = undefined;
       diffRightNo.value = undefined;
       await loadPageDocs();
+      // 旧草稿里已上传但未登记的本地图片：加载后补录，避免素材库与实际配置脱节。
+      syncComponentImagesToAssets();
     } catch (err) {
       Message.error(errorText(err, '加载装修配置失败'));
     } finally {
@@ -2141,8 +2834,11 @@
       Message.warning('请填写素材地址');
       return;
     }
-    if (!/^https:\/\//i.test(url) && !url.startsWith('/')) {
-      Message.warning('素材地址仅支持 https 链接或站内相对路径（以 / 开头）');
+    const localPath = pageImageStoragePath(url);
+    if (!/^https:\/\//i.test(url) && !url.startsWith('/') && !localPath) {
+      Message.warning(
+        '素材地址仅支持 https 链接或附件表相对路径（public/...）'
+      );
       return;
     }
     // 后端已收紧为「mime + size_bytes 必填」，先选文件读取真实类型与体积再提交。
@@ -2167,7 +2863,7 @@
     try {
       await createEsportsPageAsset({
         name,
-        url,
+        url: localPath || url,
         mime,
         size_bytes: assetForm.sizeBytes,
         width,
@@ -2179,7 +2875,9 @@
       assetForm.height = 0;
       assetForm.mime = '';
       assetForm.sizeBytes = 0;
-      assets.value = (await getEsportsPageAssets()).data.data;
+      assets.value = normalizePageAssets(
+        (await getEsportsPageAssets()).data.data
+      );
       Message.success('素材已登记');
     } catch (err) {
       Message.error(errorText(err, '新增素材失败'));
@@ -2188,7 +2886,9 @@
   const removeAsset = async (id: number) => {
     try {
       await deleteEsportsPageAsset(id);
-      assets.value = (await getEsportsPageAssets()).data.data;
+      assets.value = normalizePageAssets(
+        (await getEsportsPageAssets()).data.data
+      );
       Message.success('素材已删除');
     } catch (err) {
       Message.error(errorText(err, '删除素材失败'));
@@ -2616,6 +3316,12 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .prop-item-label {
+    color: var(--color-text-2);
+    font-weight: 600;
+    font-size: 12px;
   }
 
   .prop-image-hint {

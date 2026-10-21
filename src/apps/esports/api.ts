@@ -3434,6 +3434,9 @@ export type PageComponentType =
   | 'activity'
   | 'member_entry'
   | 'support_entry'
+  | 'contact_entry'
+  | 'orders_entry'
+  | 'aftersale_entry'
   | 'image'
   | 'layout';
 
@@ -3544,8 +3547,11 @@ export const reviewEsportsPagePublish = (
 export const getEsportsPageVersions = (channel: string) =>
   axios.get<ApiResponse<PageVersion[]>>(`${base}/pages/${channel}/versions`);
 
+// 素材去重与历史补登记依赖完整列表：后端单次最多 200 条，这里取满。
 export const getEsportsPageAssets = () =>
-  axios.get<ApiResponse<PageAsset[]>>(`${base}/page-assets`);
+  axios.get<ApiResponse<PageAsset[]>>(`${base}/page-assets`, {
+    params: { limit: 200 },
+  });
 
 // 新增素材（§16.2-06 / §16.5-04）：mime 与 size_bytes 后端强制必填（体积须 > 0 且在上限内），
 // 因此这里声明为必填；width / height 可留 0 表示未探测。

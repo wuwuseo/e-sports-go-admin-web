@@ -261,13 +261,14 @@
     const img = image.value;
     const canvas = canvasRef.value;
     if (!img || !canvas) return;
-    const maxW = 560;
-    const maxH = 400;
-    const scale = Math.min(
-      maxW / img.naturalWidth,
-      maxH / img.naturalHeight,
-      1
+    // 按原图比例尽量撑满弹窗：宽度取弹窗内容宽度，高度不超出可视区域，
+    // 小图也放大到铺满，裁剪坐标仍按原始图片比例换算，输出不受影响。
+    const maxW = Math.max(
+      240,
+      Math.floor(canvas.parentElement?.clientWidth || 560)
     );
+    const maxH = Math.max(240, window.innerHeight - 220);
+    const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
     canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
     canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
     // 默认裁剪框：自由比例铺满，等比则居中。
