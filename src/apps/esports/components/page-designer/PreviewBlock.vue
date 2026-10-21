@@ -224,6 +224,18 @@
       : null;
   }
 
+  // 列宽比例：按列给出的相对宽度，缺省或非法时各列等宽。
+  const columnWeights = computed<number[]>(() => {
+    const raw = props.comp.props?.column_weights;
+    if (!Array.isArray(raw) || raw.length !== columns.value) return [];
+    const list = raw.map((value) => Number(value));
+    return list.every(
+      (value) => Number.isInteger(value) && value >= 1 && value <= 12
+    )
+      ? list
+      : [];
+  });
+
   function onSelect() {
     if (props.selectable) emit('select', props.path);
   }
@@ -245,7 +257,9 @@
     const radius = layoutDimension(layoutProps.radius, 48);
     const background = stringOf(layoutProps.background_color);
     return {
-      gridTemplateColumns: `repeat(${columns.value}, minmax(0, 1fr))`,
+      gridTemplateColumns: columnWeights.value.length
+        ? columnWeights.value.map((weight) => `${weight}fr`).join(' ')
+        : `repeat(${columns.value}, minmax(0, 1fr))`,
       ...(gap !== null ? { gap: `${gap}px` } : {}),
       ...(padding !== null ? { padding: `${padding}px` } : {}),
       ...(marginTop !== null ? { marginTop: `${marginTop}px` } : {}),

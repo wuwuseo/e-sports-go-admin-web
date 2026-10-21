@@ -97,36 +97,90 @@
           <div class="designer">
             <div class="palette">
               <div class="section-title">组件库</div>
-              <!-- 布局容器：1×1 / 1×2 / 1×3 列，每列放一个已有组件。 -->
-              <div class="palette-group">布局</div>
-              <div
-                v-for="preset in layoutPresets"
-                :key="preset.columns"
-                class="palette-item"
+              <div class="palette-hint"
+                >点击添加；也可拖到画布或布局的空列里。悬停可看用途与数据源。</div
               >
-                <a-button long @click="addLayout(preset.columns)">{{
-                  preset.label
-                }}</a-button>
-                <div class="palette-usage">{{ preset.usage }}</div>
-                <div class="palette-source">数据源：内部组件（每列 1 个）</div>
-              </div>
-              <!-- 组件库按分类分组并标注用途 / 适用数据源（§16.2-03）。 -->
-              <template v-for="group in componentGroups" :key="group.title">
-                <div class="palette-group">{{ group.title }}</div>
-                <div
-                  v-for="item in group.items"
-                  :key="item.type"
-                  class="palette-item"
-                >
-                  <a-button long @click="addComponent(item.type)">{{
-                    item.label
-                  }}</a-button>
-                  <div class="palette-usage">{{ item.usage }}</div>
-                  <div class="palette-source"
-                    >数据源：{{ item.dataSource }}</div
+              <a-tabs
+                v-model:active-key="paletteTab"
+                class="palette-tabs"
+                size="mini"
+              >
+                <!-- 布局容器：1×1 / 1×2 / 1×3 列，每列放一个已有组件。 -->
+                <a-tab-pane key="layout" title="布局">
+                  <div
+                    v-for="preset in layoutPresets"
+                    :key="preset.columns"
+                    class="palette-item palette-drag"
+                    draggable="true"
+                    @dragstart="
+                      onPaletteDragStart($event, {
+                        kind: 'new-layout',
+                        columns: preset.columns,
+                      })
+                    "
+                    @dragend="onDragEnd"
                   >
-                </div>
-              </template>
+                    <a-tooltip position="right" :content-style="tipStyle">
+                      <template #content>
+                        <div class="palette-tip-title">{{ preset.label }}</div>
+                        <div>{{ preset.usage }}</div>
+                        <div class="palette-tip-source"
+                          >数据源：内部组件（每列 1 个）</div
+                        >
+                      </template>
+                      <button
+                        type="button"
+                        class="palette-layout"
+                        @click="addLayout(preset.columns)"
+                      >
+                        <span class="palette-layout-preview">
+                          <i
+                            v-for="cell in preset.columns"
+                            :key="cell"
+                            class="palette-layout-cell"
+                          />
+                        </span>
+                        <span class="palette-layout-label">{{
+                          preset.label
+                        }}</span>
+                      </button>
+                    </a-tooltip>
+                  </div>
+                </a-tab-pane>
+                <!-- 组件库按分类分组，用途 / 适用数据源（§16.2-03）收进悬停气泡。 -->
+                <a-tab-pane
+                  v-for="group in componentGroups"
+                  :key="group.title"
+                  :title="group.title"
+                >
+                  <div
+                    v-for="item in group.items"
+                    :key="item.type"
+                    class="palette-item palette-drag"
+                    draggable="true"
+                    @dragstart="
+                      onPaletteDragStart($event, {
+                        kind: 'new',
+                        type: item.type,
+                      })
+                    "
+                    @dragend="onDragEnd"
+                  >
+                    <a-tooltip position="right" :content-style="tipStyle">
+                      <template #content>
+                        <div class="palette-tip-title">{{ item.label }}</div>
+                        <div>{{ item.usage }}</div>
+                        <div class="palette-tip-source"
+                          >数据源：{{ item.dataSource }}</div
+                        >
+                      </template>
+                      <a-button long @click="addComponent(item.type)">{{
+                        item.label
+                      }}</a-button>
+                    </a-tooltip>
+                  </div>
+                </a-tab-pane>
+              </a-tabs>
             </div>
 
             <div class="canvas">
@@ -187,9 +241,9 @@
                       'canvas-layout': component.type === 'layout',
                     }"
                     draggable="true"
-                    @dragstart="onDragStart(index, $event)"
+                    @dragstart="onCanvasDragStart(index, $event)"
                     @dragover.prevent="dragOverIndex = index"
-                    @drop.prevent="onDrop(index)"
+                    @drop.prevent="onDrop(index, $event)"
                     @dragend="onDragEnd"
                     @click="selectComponent(index)"
                   >
@@ -228,57 +282,19 @@
                           >
                         </div>
                       </div>
-                      <div class="canvas-layout-grid" @click.stop>
-                        <div
-                          v-for="columnIndex in layoutColumns(component)"
-                          :key="columnIndex"
-                          class="canvas-slot"
-                        >
-                          <div
-                            v-if="
-                              layoutChildAt(component, columnIndex - 1) !== null
-                            "
-                            class="canvas-slot-item"
-                            :class="{
-                              active: isChildSelected(index, columnIndex - 1),
-                            }"
-                            @click="selectChild(index, columnIndex - 1)"
-                          >
-                            <span class="canvas-slot-label">{{
-                              componentLabelOf(
-                                layoutChildAt(component, columnIndex - 1)
-                              )
-                            }}</span>
-                            <a-button
-                              size="mini"
-                              status="danger"
-                              @click.stop="removeChild(index, columnIndex - 1)"
-                              >移除</a-button
-                            >
-                          </div>
-                          <a-select
-                            v-else
-                            size="mini"
-                            placeholder="+ 添加组件"
-                            class="canvas-slot-add"
-                            @change="
-                              (value) =>
-                                addChildFromSelect(
-                                  index,
-                                  columnIndex - 1,
-                                  value
-                                )
-                            "
-                          >
-                            <a-option
-                              v-for="item in componentTypes"
-                              :key="item.type"
-                              :value="item.type"
-                              >{{ item.label }}</a-option
-                            >
-                          </a-select>
-                        </div>
-                      </div>
+                      <LayoutSlots
+                        :layout="component"
+                        :path="String(index)"
+                        :selected-key="selectedPath"
+                        :drop-key="dropSlotKey"
+                        :label-of="componentLabelOf"
+                        @select="selectByPath"
+                        @remove="removeNodeAtPath"
+                        @drop="onSlotDrop"
+                        @drag-over="dropSlotKey = $event"
+                        @drag-leave="onSlotDragLeave"
+                        @node-drag-start="onNodeDragStart"
+                      />
                     </template>
                     <template v-else>
                       <span class="drag-handle">⠿</span>
@@ -330,19 +346,16 @@
                   <a-descriptions-item label="类型">{{
                     componentLabelOf(selectedComponent)
                   }}</a-descriptions-item>
-                  <a-descriptions-item
-                    v-if="selectedChildIndex >= 0"
-                    label="位置"
-                    >{{ layoutLabel(components[selectedIndex]) }} · 第
-                    {{ selectedChildIndex + 1 }} 列</a-descriptions-item
-                  >
+                  <a-descriptions-item v-if="selectedLocation" label="位置">{{
+                    selectedLocation
+                  }}</a-descriptions-item>
                 </a-descriptions>
                 <a-empty
-                  v-if="!currentSchema.length"
+                  v-if="!visibleSchema.length"
                   description="该组件无自由属性"
                 />
                 <div
-                  v-for="field in currentSchema"
+                  v-for="field in visibleSchema"
                   :key="field.key"
                   class="prop-field"
                 >
@@ -399,6 +412,40 @@
                     placeholder="例如 1,2,3"
                     @update:model-value="(v) => setField(field.key, v)"
                   />
+
+                  <div
+                    v-else-if="field.kind === 'weights'"
+                    class="prop-weights"
+                  >
+                    <div class="prop-weight-presets">
+                      <a-button
+                        v-for="preset in weightPresets()"
+                        :key="preset.label"
+                        size="mini"
+                        type="text"
+                        @click="setWeights(preset.list)"
+                        >{{ preset.label }}</a-button
+                      >
+                    </div>
+                    <div
+                      v-for="column in weightCount()"
+                      :key="column"
+                      class="prop-weight-row"
+                    >
+                      <span class="prop-weight-label">第 {{ column }} 列</span>
+                      <a-input-number
+                        size="small"
+                        :min="1"
+                        :max="12"
+                        :model-value="weightAt(column - 1)"
+                        @update:model-value="(v) => setWeight(column - 1, v)"
+                      />
+                    </div>
+                    <div class="prop-hint"
+                      >数字是相对宽度，默认各列相等。例如三列填 1、1、2，
+                      右侧列宽就是其它列的两倍（视觉上等同把右边两格并成一格）。</div
+                    >
+                  </div>
 
                   <div v-else-if="field.kind === 'image'" class="prop-images">
                     <div class="prop-image-row">
@@ -988,15 +1035,23 @@
               {{ previewCode.code }}
             </a-typography-paragraph>
           </a-descriptions-item>
-          <a-descriptions-item label="预览路径">
+          <a-descriptions-item label="服务端兑换接口">
             <a-typography-paragraph copyable>
-              {{ previewCode.path }}
+              GET /api/v1/esports{{ previewCode.path }}
             </a-typography-paragraph>
           </a-descriptions-item>
-          <a-descriptions-item label="客户端兑换">
-            公开接口 GET /api/v1/esports{{
-              previewCode.path
-            }}（无需登录，只返回草稿配置）
+          <a-descriptions-item label="客户端打开方式">
+            在客户端首页地址后追加
+            <a-typography-text code
+              >?preview={{ previewCode.code }}</a-typography-text
+            >
+            ；H5 hash 路由为
+            <a-typography-text code
+              >#/?preview={{ previewCode.code }}</a-typography-text
+            >。
+          </a-descriptions-item>
+          <a-descriptions-item label="兑换说明">
+            上面的路径是服务端兑换接口，不是客户端页面地址；该接口无需登录，只返回草稿配置。
           </a-descriptions-item>
         </a-descriptions>
         <a-typography-text type="secondary" class="modal-tip">
@@ -1050,6 +1105,7 @@
     PageVersion,
   } from '../../api';
   import ImageCropper from '../../components/page-designer/ImageCropper.vue';
+  import LayoutSlots from '../../components/page-designer/LayoutSlots.vue';
   import PagePreview from '../../components/page-designer/PagePreview.vue';
 
   // ── 可视化属性面板 schema（§16.2） ──
@@ -1063,7 +1119,8 @@
     | 'image'
     | 'images'
     | 'carouselItems'
-    | 'navItems';
+    | 'navItems'
+    | 'weights';
 
   interface PropField {
     key: string;
@@ -1290,6 +1347,11 @@
     // 列数由布局预设决定；以下样式属性可在选中布局时调整。
     layout: [
       {
+        key: 'column_weights',
+        label: '列宽比例',
+        kind: 'weights',
+      },
+      {
         key: 'gap',
         label: '列间距（px）',
         kind: 'number',
@@ -1361,6 +1423,9 @@
     { label: '1×3 布局', columns: 3, usage: '三列并排，每列 1 个组件' },
   ];
 
+  // 组件库气泡限宽：说明文字较长，避免气泡随内容无限拉宽。
+  const tipStyle = { maxWidth: '260px', lineHeight: '1.5' };
+
   // 首页版本 / 渠道（§16.2-02）：默认客户自助端首页，可由 GET /admin/pages 返回的文档切换。
   const channel = ref(PAGE_CHANNEL_CUSTOMER_HOME);
   const pageDocs = ref<PageDocument[]>([]);
@@ -1372,6 +1437,8 @@
   const saving = ref(false);
   const publishing = ref(false);
   const activeTab = ref('design');
+  // 组件库分组（布局 / 基础 / 内容与商品 / 入口）做成页签，一次只展开一组，避免整列过长。
+  const paletteTab = ref('layout');
   const previewVisible = ref(false);
   const cropperVisible = ref(false);
 
@@ -1468,9 +1535,9 @@
   const assets = ref<PageAsset[]>([]);
   // 正在登记的素材地址：同一张图并发选择时避免重复创建素材记录。
   const registeringAssetUrls = new Set<string>();
-  const selectedIndex = ref(-1);
-  // -1 表示选中布局本身 / 顶层普通组件；>=0 表示选中布局中的某一列。
-  const selectedChildIndex = ref(-1);
+  const selectedPathList = ref<number[]>([]);
+  // 选中节点在顶层的下标（-1 表示未选中）；更深的层级由 selectedPathList 承载。
+  const selectedIndex = computed(() => selectedPathList.value[0] ?? -1);
   const scheduledAt = ref<number>();
   const rollbackVersion = ref<number>();
   // 底部导航（§16.3-12）：路径与数量由客户端构建期固定，这里只编辑文案 / 图标 / 显隐。
@@ -1520,27 +1587,61 @@
   };
   const layoutLabel = (comp: PageComponent | null | undefined) =>
     `1×${layoutColumns(comp)} 布局`;
-  const layoutChildAt = (
-    comp: PageComponent | null | undefined,
-    columnIndex: number
-  ): PageComponent | null => comp?.children?.[columnIndex] || null;
   const componentLabelOf = (comp: PageComponent | null | undefined) => {
     if (!comp) return '';
     return comp.type === 'layout'
       ? layoutLabel(comp)
       : componentLabel(comp.type);
   };
-  const selectedComponent = computed<PageComponent | null>(() => {
-    const comp = components.value[selectedIndex.value];
-    if (!comp) return null;
-    if (selectedChildIndex.value < 0) return comp;
-    return layoutChildAt(comp, selectedChildIndex.value);
-  });
-  const selectedPath = computed(() => {
-    if (selectedIndex.value < 0) return '';
-    return selectedChildIndex.value < 0
-      ? String(selectedIndex.value)
-      : `${selectedIndex.value}.${selectedChildIndex.value}`;
+
+  // 选中节点的下标路径：[] 未选中，[0] 顶层第 1 个组件，[0,1] 它第 2 列里的组件，可继续向下。
+  const parsePath = (path: string): number[] =>
+    path
+      .split('.')
+      .map((part) => Number(part))
+      .filter((part) => Number.isInteger(part) && part >= 0);
+
+  const nodeAtPath = (
+    path: number[],
+    list: (PageComponent | null)[] = components.value
+  ): PageComponent | null => {
+    if (!path.length) return null;
+    let node: PageComponent | null = list[path[0]] ?? null;
+    for (let i = 1; i < path.length && node; i += 1) {
+      node = node.children?.[path[i]] ?? null;
+    }
+    return node;
+  };
+
+  // 沿路径替换节点（updater 返回 null 表示清空该列）：布局 children 复制后回写，预览即时刷新。
+  const updateNodeAtPath = (
+    path: number[],
+    updater: (node: PageComponent) => PageComponent | null,
+    list: (PageComponent | null)[] = components.value
+  ): boolean => {
+    const [head, ...rest] = path;
+    const node = list[head];
+    if (!node) return false;
+    if (!rest.length) {
+      list[head] = updater(node);
+      return true;
+    }
+    const children = [...(node.children || [])];
+    if (!updateNodeAtPath(rest, updater, children)) return false;
+    list[head] = { ...node, children };
+    return true;
+  };
+
+  const selectedComponent = computed<PageComponent | null>(() =>
+    nodeAtPath(selectedPathList.value)
+  );
+  const selectedPath = computed(() => selectedPathList.value.join('.'));
+  // 属性面板的位置描述：布局本体显示层级链，例如「1×3 布局 · 第 2 列 · 第 1 列」。
+  const selectedLocation = computed(() => {
+    const path = selectedPathList.value;
+    if (path.length < 2) return '';
+    const columns = path.slice(1).map((part) => `第 ${part + 1} 列`);
+    return `${layoutLabel(components.value[path[0]])} · ${columns.join(' · ')}`;
   });
 
   const statusLabels: Record<string, string> = {
@@ -1605,6 +1706,14 @@
     if (!selectedComponent.value) return [];
     return propSchemas[selectedComponent.value.type] || [];
   });
+  // 单列布局没有比例可言，列宽比例字段不展示（也不落库）。
+  const visibleSchema = computed(() => {
+    const comp = selectedComponent.value;
+    const columns = comp && comp.type === 'layout' ? layoutColumns(comp) : 0;
+    return currentSchema.value.filter(
+      (field) => !(field.kind === 'weights' && columns <= 1)
+    );
+  });
 
   function deserializeField(field: PropField, raw: unknown): unknown {
     switch (field.kind) {
@@ -1637,6 +1746,8 @@
           : [];
       case 'numberList':
         return Array.isArray(raw) ? raw.map((v) => String(v)).join(',') : '';
+      case 'weights':
+        return Array.isArray(raw) ? raw.map((v) => Number(v)) : [];
       default:
         return typeof raw === 'string' ? raw : '';
     }
@@ -1663,6 +1774,15 @@
           .map((p) => parseInt(p, 10))
           .filter((n) => Number.isInteger(n) && n > 0);
         return nums.length ? nums : undefined;
+      }
+      case 'weights': {
+        const list = (Array.isArray(value) ? value : []).map((v) =>
+          Math.round(Number(v))
+        );
+        const valid = list.every(
+          (n) => Number.isInteger(n) && n >= 1 && n <= 12
+        );
+        return valid && list.length ? list : undefined;
       }
       case 'images': {
         const list = (Array.isArray(value) ? value : []).filter(
@@ -1739,14 +1859,32 @@
       const serialized = serializeField(field, form[field.key]);
       if (serialized !== undefined) props[field.key] = serialized;
     });
-    if (selectedChildIndex.value >= 0) {
-      const layout = components.value[selectedIndex.value];
-      const children = [...(layout.children || [])];
-      children[selectedChildIndex.value] = { ...comp, props };
-      components.value[selectedIndex.value] = { ...layout, children };
-      return;
+    const next = { ...comp, props };
+    // 列数调小时同步裁掉多出的列，避免后端按「子组件超过列数」拒绝保存。
+    if (comp.type === 'layout') {
+      const columns = layoutColumns(next);
+      const children = [...(comp.children || [])].slice(0, columns);
+      while (children.length < columns) children.push(null);
+      next.children = children;
+      // 列宽比例必须与列数等长；单列没有比例，各列相等时不落库，保持 props 干净。
+      const weights = Array.isArray(props.column_weights)
+        ? (props.column_weights as number[]).slice(0, columns)
+        : [];
+      while (weights.length < columns) weights.push(1);
+      if (columns <= 1 || weights.every((weight) => weight === 1)) {
+        delete props.column_weights;
+      } else {
+        props.column_weights = weights;
+      }
     }
-    components.value[selectedIndex.value] = { ...comp, props };
+    updateNodeAtPath(selectedPathList.value, () => next);
+  }
+
+  // 选中某个路径节点并载入其属性；路径不存在（刚被删掉）时不改变选中。
+  function selectPath(path: number[]) {
+    if (path.length && !nodeAtPath(path)) return;
+    selectedPathList.value = path;
+    loadForm();
   }
 
   function stringField(key: string): string {
@@ -1756,6 +1894,47 @@
   function numberField(key: string): number | undefined {
     const v = form[key];
     return typeof v === 'number' ? v : undefined;
+  }
+  // 列宽比例：每列一个 1~12 的整数，按列相对分配宽度。
+  function weightCount(): number {
+    const comp = selectedComponent.value;
+    return comp && comp.type === 'layout' ? layoutColumns(comp) : 0;
+  }
+  function weightAt(index: number): number {
+    const list = form.column_weights;
+    const value = Array.isArray(list) ? Number(list[index]) : 1;
+    return Number.isInteger(value) && value >= 1 ? value : 1;
+  }
+  function setWeight(index: number, value: unknown) {
+    const list = Array.from({ length: weightCount() }, (_, i) => weightAt(i));
+    list[index] =
+      typeof value === 'number' && value >= 1 ? Math.round(value) : 1;
+    form.column_weights = list;
+    syncForm();
+  }
+  // 常用比例一键套用：例如三列「1:1:2」等于把右边两格并成一格宽。
+  function weightPresets(): { label: string; list: number[] }[] {
+    const count = weightCount();
+    const presets = [
+      { label: '均分', list: Array.from({ length: count }, () => 1) },
+    ];
+    if (count === 2) {
+      presets.push(
+        { label: '1:2', list: [1, 2] },
+        { label: '2:1', list: [2, 1] }
+      );
+    } else if (count === 3) {
+      presets.push(
+        { label: '1:1:2', list: [1, 1, 2] },
+        { label: '2:1:1', list: [2, 1, 1] },
+        { label: '1:2:1', list: [1, 2, 1] }
+      );
+    }
+    return presets;
+  }
+  function setWeights(list: number[]) {
+    form.column_weights = list.slice(0, weightCount());
+    syncForm();
   }
   function setField(key: string, value: unknown) {
     form[key] = value;
@@ -1916,31 +2095,182 @@
     setNavItems(list);
   }
 
-  // ── 拖拽排序（HTML5 原生 drag，纵向模块编排） ──
+  // ── 拖拽编排（HTML5 原生 drag） ──
+  // 数据来源：组件库（新增组件 / 新布局）、画布顶层组件、布局列里的组件；落点：画布列表或布局空列。
+  type PageDragPayload =
+    | { kind: 'new'; type: PageComponentType }
+    | { kind: 'new-layout'; columns: number }
+    | { kind: 'node'; path: number[] };
+  const PAGE_DRAG_MIME = 'application/x-esports-page-component';
+  // 与后端 pageLayoutMaxDepth 对齐：布局最多 3 层（顶层 + 2 层嵌套）。
+  const PAGE_LAYOUT_MAX_DEPTH = 2;
   const dragOverIndex = ref(-1);
-  let dragIndex = -1;
+  const dropSlotKey = ref('');
 
-  function onDragStart(index: number, event: DragEvent) {
-    dragIndex = index;
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
+  function writeDragPayload(event: DragEvent, payload: PageDragPayload) {
+    const transfer = event.dataTransfer;
+    if (!transfer) return;
+    transfer.effectAllowed = payload.kind === 'node' ? 'move' : 'copy';
+    const raw = JSON.stringify(payload);
+    transfer.setData(PAGE_DRAG_MIME, raw);
+    transfer.setData('text/plain', raw);
+  }
+
+  function readDragPayload(event: DragEvent): PageDragPayload | null {
+    const transfer = event.dataTransfer;
+    const raw =
+      transfer?.getData(PAGE_DRAG_MIME) || transfer?.getData('text/plain');
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as PageDragPayload;
+      if (!parsed || typeof parsed !== 'object') return null;
+      if (parsed.kind === 'node' && !Array.isArray(parsed.path)) return null;
+      return parsed;
+    } catch {
+      return null;
     }
   }
-  function onDrop(target: number) {
-    if (dragIndex < 0 || dragIndex === target) {
-      dragOverIndex.value = -1;
+
+  function onPaletteDragStart(event: DragEvent, payload: PageDragPayload) {
+    writeDragPayload(event, payload);
+  }
+  function onCanvasDragStart(index: number, event: DragEvent) {
+    writeDragPayload(event, { kind: 'node', path: [index] });
+  }
+  function onNodeDragStart(event: DragEvent, path: string) {
+    writeDragPayload(event, { kind: 'node', path: parsePath(path) });
+  }
+
+  const buildLayout = (columns: number): PageComponent => ({
+    type: 'layout',
+    visible: true,
+    props: { columns },
+    children: Array.from({ length: columns }, () => null),
+  });
+
+  const insertComponentAt = (index: number, comp: PageComponent) => {
+    const at = Math.min(Math.max(index, 0), components.value.length);
+    components.value.splice(at, 0, comp);
+    selectPath([at]);
+  };
+
+  const setSlotComponent = (slotPath: number[], comp: PageComponent | null) => {
+    const parentPath = slotPath.slice(0, -1);
+    const column = slotPath[slotPath.length - 1];
+    updateNodeAtPath(parentPath, (layout) => {
+      const columns = layoutColumns(layout);
+      const children = [...(layout.children || [])];
+      while (children.length < columns) children.push(null);
+      children[column] = comp;
+      return { ...layout, children };
+    });
+  };
+
+  function detachNode(path: number[]) {
+    if (path.length < 2) return;
+    setSlotComponent(path, null);
+  }
+
+  function onDrop(target: number, event: DragEvent) {
+    const payload = readDragPayload(event);
+    dragOverIndex.value = -1;
+    if (!payload) return;
+    if (payload.kind === 'new') {
+      insertComponentAt(target, { type: payload.type, visible: true });
       return;
     }
-    const list = components.value;
-    const [item] = list.splice(dragIndex, 1);
-    list.splice(target, 0, item);
-    selectedIndex.value = target;
-    selectedChildIndex.value = -1;
-    dragOverIndex.value = -1;
+    if (payload.kind === 'new-layout') {
+      insertComponentAt(target, buildLayout(payload.columns));
+      return;
+    }
+    const from = payload.path;
+    if (from.length === 1) {
+      if (from[0] === target) return;
+      const list = components.value;
+      const [item] = list.splice(from[0], 1);
+      list.splice(target, 0, item);
+      selectPath([target]);
+      return;
+    }
+    // 从布局列里拖回顶层：先摘出，再插到目标位置。
+    const node = nodeAtPath(from);
+    if (!node) return;
+    detachNode(from);
+    const at = Math.min(target, components.value.length);
+    components.value.splice(at, 0, node);
+    selectPath([at]);
   }
+
+  // 布局子树里包含的布局层数：非布局为 0，单层布局为 1。
+  const layoutChainDepth = (node: PageComponent): number =>
+    node.type !== 'layout'
+      ? 0
+      : (node.children || []).reduce(
+          (deepest, child) =>
+            child ? Math.max(deepest, 1 + layoutChainDepth(child)) : deepest,
+          1
+        );
+
+  const isSameOrDescendant = (candidate: number[], ancestor: number[]) =>
+    candidate.length >= ancestor.length &&
+    ancestor.every((part, i) => candidate[i] === part);
+
+  // 把节点放进某一列：先校验层级上限，避免存了草稿再被后端拒绝。
+  const canPlaceInSlot = (slotPath: number[], node: PageComponent): boolean => {
+    const depth = layoutChainDepth(node);
+    if (!depth) return true;
+    const parentPath = slotPath.slice(0, -1);
+    if (parentPath.length + depth - 1 > PAGE_LAYOUT_MAX_DEPTH) {
+      Message.warning(
+        `布局最多 ${
+          PAGE_LAYOUT_MAX_DEPTH + 1
+        } 层（顶层 + ${PAGE_LAYOUT_MAX_DEPTH} 层嵌套）`
+      );
+      return false;
+    }
+    return true;
+  };
+
+  function onSlotDrop(event: DragEvent, slotPath: string) {
+    dropSlotKey.value = '';
+    const path = parsePath(slotPath);
+    const payload = readDragPayload(event);
+    if (!payload || !path.length) return;
+    if (nodeAtPath(path)) {
+      Message.warning('该列已有组件，请先移除再拖入');
+      return;
+    }
+    if (payload.kind === 'new') {
+      setSlotComponent(path, { type: payload.type, visible: true });
+      selectPath(path);
+      return;
+    }
+    if (payload.kind === 'new-layout') {
+      const layout = buildLayout(payload.columns);
+      if (!canPlaceInSlot(path, layout)) return;
+      setSlotComponent(path, layout);
+      selectPath(path);
+      return;
+    }
+    if (isSameOrDescendant(path, payload.path)) {
+      Message.warning('不能把组件放进它自己里面');
+      return;
+    }
+    const node = nodeAtPath(payload.path);
+    if (!node) return;
+    if (!canPlaceInSlot(path, node)) return;
+    detachNode(payload.path);
+    setSlotComponent(path, node);
+    selectPath(path);
+  }
+
+  function onSlotDragLeave(path: string) {
+    if (dropSlotKey.value === path) dropSlotKey.value = '';
+  }
+
   function onDragEnd() {
-    dragIndex = -1;
     dragOverIndex.value = -1;
+    dropSlotKey.value = '';
   }
 
   // ── 图片上传裁剪（复用附件上传 + canvas 裁剪） ──
@@ -2469,8 +2799,8 @@
       components.value = expandLegacySupportEntry(page.data.data.components);
       versions.value = versionList.data.data;
       assets.value = normalizePageAssets(assetList.data.data);
-      selectedIndex.value = -1;
-      selectedChildIndex.value = -1;
+      selectedPathList.value = [];
+      loadForm();
       diffLeftNo.value = undefined;
       diffRightNo.value = undefined;
       await loadPageDocs();
@@ -2486,8 +2816,7 @@
   // 切换渠道 / 首页版本：编辑与发布目标随 channel 改变，重新拉取该渠道的文档、版本与素材；
   // 底部导航与预览码都绑定渠道，一并失效。
   const onChannelChange = () => {
-    selectedIndex.value = -1;
-    selectedChildIndex.value = -1;
+    selectedPathList.value = [];
     pageError.value = '';
     tabbarItems.value = [];
     tabbarDraftVersion.value = 0;
@@ -2631,69 +2960,22 @@
   };
 
   const selectComponent = (index: number) => {
-    selectedIndex.value = index;
-    selectedChildIndex.value = -1;
-    loadForm();
-  };
-  const selectChild = (index: number, childIndex: number) => {
-    selectedIndex.value = index;
-    selectedChildIndex.value = childIndex;
-    loadForm();
+    selectPath([index]);
   };
   const selectByPath = (path: string) => {
-    const [top, child] = path.split('.').map((part) => Number(part));
-    if (!Number.isInteger(top) || top < 0 || top >= components.value.length) {
-      return;
-    }
-    if (Number.isInteger(child)) {
-      selectChild(top, child);
-    } else {
-      selectComponent(top);
-    }
+    selectPath(parsePath(path));
   };
-  const isChildSelected = (index: number, childIndex: number) =>
-    selectedIndex.value === index && selectedChildIndex.value === childIndex;
   const addLayout = (columns: number) => {
-    components.value.push({
-      type: 'layout',
-      visible: true,
-      props: { columns },
-      children: Array.from({ length: columns }, () => null),
-    });
+    components.value.push(buildLayout(columns));
     selectComponent(components.value.length - 1);
   };
-  const addChild = (
-    layoutIndex: number,
-    columnIndex: number,
-    type: PageComponentType
-  ) => {
-    const layout = components.value[layoutIndex];
-    if (!layout || layout.type !== 'layout') return;
-    const columns = layoutColumns(layout);
-    if (columnIndex < 0 || columnIndex >= columns) return;
-    const children = [...(layout.children || [])];
-    while (children.length < columns) children.push(null);
-    children[columnIndex] = { type, visible: true };
-    components.value[layoutIndex] = { ...layout, children };
-    selectChild(layoutIndex, columnIndex);
-  };
-  const addChildFromSelect = (
-    layoutIndex: number,
-    columnIndex: number,
-    value: unknown
-  ) => {
-    if (typeof value === 'string') {
-      addChild(layoutIndex, columnIndex, value as PageComponentType);
-    }
-  };
-  const removeChild = (layoutIndex: number, columnIndex: number) => {
-    const layout = components.value[layoutIndex];
-    if (!layout || layout.type !== 'layout') return;
-    const children = [...(layout.children || [])];
-    children[columnIndex] = null;
-    components.value[layoutIndex] = { ...layout, children };
-    if (isChildSelected(layoutIndex, columnIndex)) {
-      selectedChildIndex.value = -1;
+  // 布局列里的「移除」：清空该列，选中状态回到这一列的空白。
+  const removeNodeAtPath = (path: string) => {
+    const target = parsePath(path);
+    if (target.length < 2) return;
+    detachNode(target);
+    if (isSameOrDescendant(selectedPathList.value, target)) {
+      selectedPathList.value = [];
       loadForm();
     }
   };
@@ -2705,8 +2987,7 @@
     const target = index + delta;
     const list = components.value;
     [list[index], list[target]] = [list[target], list[index]];
-    selectedIndex.value = target;
-    selectedChildIndex.value = -1;
+    selectPath([target]);
   };
   const duplicate = (index: number) => {
     const copy = JSON.parse(
@@ -2717,8 +2998,8 @@
   };
   const remove = (index: number) => {
     components.value.splice(index, 1);
-    selectedIndex.value = -1;
-    selectedChildIndex.value = -1;
+    selectedPathList.value = [];
+    loadForm();
   };
 
   const saveDraft = async () => {
@@ -3050,19 +3331,85 @@
 
   .palette {
     flex: none;
-    width: 180px;
+    width: 220px;
   }
 
   .palette-item {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
-  .palette-group {
-    margin: 10px 0 6px;
-    color: var(--color-text-2);
-    font-weight: 600;
+  .palette-drag {
+    cursor: grab;
+  }
+
+  .palette-drag:active {
+    cursor: grabbing;
+  }
+
+  /* 布局入口用格子示意列数：1×2 画两格、1×3 画三格，比纯文字更快认。 */
+  .palette-layout {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 5px 10px;
+    color: var(--color-text-1);
+    font-size: 13px;
+    text-align: left;
+    background: var(--color-fill-2);
+    border: 1px solid transparent;
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+
+  .palette-layout:hover {
+    background: var(--color-fill-1);
+    border-color: var(--color-border-3);
+  }
+
+  .palette-layout-preview {
+    display: flex;
+    flex: none;
+    gap: 3px;
+    width: 54px;
+    height: 22px;
+  }
+
+  .palette-layout-cell {
+    flex: 1;
+    border: 1px dashed var(--color-text-4);
+    border-radius: 2px;
+  }
+
+  .palette-layout-label {
+    white-space: nowrap;
+  }
+
+  /* 组件库分组页签：列宽有限，收紧页签间距并压掉卡片式的上下留白。 */
+  .palette-tabs {
+    margin-top: 2px;
+  }
+
+  .palette-tabs :deep(.arco-tabs-nav-type-line .arco-tabs-tab) {
+    margin: 0 8px;
+    padding: 4px 0;
+  }
+
+  .palette-tabs :deep(.arco-tabs-nav-type-line .arco-tabs-tab:first-child) {
+    margin-left: 0;
+  }
+
+  .palette-tabs :deep(.arco-tabs-content) {
+    padding-top: 8px;
+  }
+
+  .palette-hint {
+    margin-bottom: 8px;
+    color: var(--color-text-3);
     font-size: 12px;
-    border-bottom: 1px solid var(--color-border-2);
+    line-height: 1.4;
   }
 
   .palette-usage {
@@ -3072,10 +3419,14 @@
     line-height: 1.4;
   }
 
-  .palette-source {
-    color: var(--color-text-3);
-    font-size: 12px;
-    line-height: 1.4;
+  .palette-tip-title {
+    margin-bottom: 2px;
+    font-weight: 600;
+  }
+
+  .palette-tip-source {
+    margin-top: 4px;
+    opacity: 0.75;
   }
 
   .canvas {
@@ -3183,47 +3534,6 @@
     align-items: center;
   }
 
-  .canvas-layout-grid {
-    display: grid;
-    gap: 8px;
-  }
-
-  .canvas-slot {
-    min-height: 48px;
-    padding: 6px;
-    background: var(--color-fill-1);
-    border: 1px dashed var(--color-border-2);
-    border-radius: 4px;
-  }
-
-  .canvas-slot-item {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 34px;
-    padding: 4px 6px;
-    background: var(--color-bg-2);
-    border: 1px solid var(--color-border-2);
-    border-radius: 4px;
-    cursor: pointer;
-  }
-
-  .canvas-slot-item.active {
-    border-color: rgb(var(--primary-6));
-  }
-
-  .canvas-slot-label {
-    overflow: hidden;
-    font-size: 12px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .canvas-slot-add {
-    width: 100%;
-  }
-
   .canvas-item.active {
     border-color: rgb(var(--primary-6));
   }
@@ -3293,6 +3603,42 @@
     margin-bottom: 4px;
     color: var(--color-text-2);
     font-size: 12px;
+  }
+
+  .prop-weights {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .prop-weight-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .prop-weight-presets :deep(.arco-btn) {
+    height: 22px;
+    padding: 0 6px;
+    font-size: 12px;
+  }
+
+  .prop-weight-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .prop-weight-label {
+    flex: none;
+    width: 48px;
+    color: var(--color-text-3);
+    font-size: 12px;
+  }
+
+  .prop-weight-row :deep(.arco-input-number) {
+    flex: 1;
+    min-width: 0;
   }
 
   .prop-color {
