@@ -85,7 +85,11 @@
       @cancel="createVisible = false"
     >
       <a-form :model="createForm">
-        <a-form-item label="用户" required>
+        <a-form-item
+          label="用户"
+          tooltip="只列出尚未建陪玩档案的用户；选择后自动带出昵称，可再修改。"
+          required
+        >
           <a-select
             v-model="createForm.userId"
             allow-search
@@ -103,9 +107,6 @@
               >{{ userCandidateLabel(item) }}</a-option
             >
           </a-select>
-          <a-typography-text type="secondary" class="user-tip">
-            只列出尚未建陪玩档案的用户；选择后自动带出昵称，可再修改。
-          </a-typography-text>
         </a-form-item>
         <a-form-item label="昵称" required>
           <a-input v-model="createForm.displayName" :max-length="120" />
@@ -519,7 +520,10 @@
   };
 
   const createVisible = ref(false);
-  const createForm = reactive({ userId: 0, displayName: '' });
+  const createForm = reactive({
+    userId: undefined as number | undefined,
+    displayName: '',
+  });
   // 新建陪玩时的用户候选：远程按关键词搜索，只列出尚未建档案的用户。
   const userCandidates = ref<PlayerUserCandidate[]>([]);
   const userCandidatesLoading = ref(false);
@@ -600,7 +604,7 @@
   }
 
   function openCreate() {
-    createForm.userId = 0;
+    createForm.userId = undefined;
     createForm.displayName = '';
     selectedUserCandidate.value = null;
     userCandidates.value = [];
@@ -932,10 +936,5 @@
   .user-meta {
     color: var(--color-text-3);
     font-size: 12px;
-  }
-
-  .user-tip {
-    display: block;
-    margin-top: 4px;
   }
 </style>

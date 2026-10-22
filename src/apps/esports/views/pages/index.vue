@@ -1200,8 +1200,8 @@
         {
           type: 'product_list',
           label: '商品/套餐列表',
-          usage: '商品列表，可配标题、数量、指定 SKU 与排序 / 筛选',
-          dataSource: '在售 SKU（可取数规则 rule_code）',
+          usage: '商品列表，可配标题、数量、指定 商品 与排序 / 筛选',
+          dataSource: '在售 商品（可取数规则 rule_code）',
         },
         {
           type: 'player_recommend',
@@ -1328,7 +1328,11 @@
         min: 0,
         max: 50,
       },
-      { key: 'sku_ids', label: '指定 SKU（逗号分隔）', kind: 'numberList' },
+      {
+        key: 'product_ids',
+        label: '指定 商品（逗号分隔）',
+        kind: 'numberList',
+      },
     ],
     player_recommend: [
       { key: 'title', label: '标题', kind: 'text' },

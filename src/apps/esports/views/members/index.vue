@@ -360,29 +360,39 @@
         <a-form-item label="名称" required>
           <a-input v-model="form.name" :max-length="120" />
         </a-form-item>
-        <a-form-item label="成长值门槛（元）" required>
+        <a-form-item
+          label="成长值门槛（元）"
+          tooltip="按累计消费金额计，消费 1 元计 1 元成长值"
+          required
+        >
           <a-input-number v-model="form.growthYuan" :min="0" :precision="2" />
-          <div class="hint">按累计消费金额计，消费 1 元计 1 元成长值</div>
         </a-form-item>
-        <a-form-item label="折扣（折）" required>
+        <a-form-item
+          label="折扣（折）"
+          tooltip="如 9.5 表示 9.5 折；填 10 表示原价不打折"
+          required
+        >
           <a-input-number
             v-model="form.discountZhe"
             :min="0"
             :max="10"
             :precision="2"
           />
-          <div class="hint">如 9.5 表示 9.5 折；填 10 表示原价不打折</div>
         </a-form-item>
         <a-form-item label="会员订单优先">
           <a-switch v-model="form.priorityDispatch" />
         </a-form-item>
-        <a-form-item label="专属客服">
+        <a-form-item
+          label="专属客服"
+          tooltip="客户绑定固定负责客服、不参与轮转"
+        >
           <a-switch v-model="form.dedicatedCs" />
-          <div class="hint">客户绑定固定负责客服、不参与轮转</div>
         </a-form-item>
-        <a-form-item label="优先预约">
+        <a-form-item
+          label="优先预约"
+          tooltip="会员预约意向在客服工作台置顶处理"
+        >
           <a-switch v-model="form.priorityBooking" />
-          <div class="hint">会员预约意向在客服工作台置顶处理</div>
         </a-form-item>
         <a-form-item label="排序">
           <a-input-number v-model="form.sortOrder" :min="0" />

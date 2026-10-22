@@ -109,13 +109,6 @@
         <a-form-item label="名称" required>
           <a-input v-model="form.name" :max-length="120" />
         </a-form-item>
-        <a-form-item label="编码" required>
-          <a-input
-            v-model="form.code"
-            :max-length="48"
-            :disabled="!!formTarget"
-          />
-        </a-form-item>
         <a-form-item label="类型" required>
           <a-select v-model="form.activityType">
             <a-option value="full_gift">满赠</a-option>
@@ -123,7 +116,11 @@
             <a-option value="limited">限时</a-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="奖励发放账户" required>
+        <a-form-item
+          label="奖励发放账户"
+          tooltip="猫粮奖励只能发给陪玩受众；客户余额活动不接受陪玩受众。"
+          required
+        >
           <a-select
             v-model="form.targetAccountType"
             @change="onTargetAccountChange"
@@ -131,37 +128,51 @@
             <a-option value="customer_balance">客户余额</a-option>
             <a-option value="player_catfood">陪玩猫粮</a-option>
           </a-select>
-          <div class="hint">
-            猫粮奖励只能发给陪玩受众；客户余额活动不接受陪玩受众（§11.2）。
-          </div>
         </a-form-item>
-        <a-form-item label="阶梯档位（元）" required>
-          <div
-            v-for="(tier, index) in form.tiers"
-            :key="index"
-            class="tier-row"
-          >
-            <a-input-number
-              v-model="tier.thresholdYuan"
-              :min="0"
-              :precision="2"
-              placeholder="门槛（满）"
-            />
-            <a-input-number
-              v-model="tier.bonusYuan"
-              :min="0"
-              :precision="2"
-              placeholder="赠送额"
-            />
-            <a-button
-              type="text"
-              status="danger"
-              :disabled="form.tiers.length <= 1"
-              @click="removeTier(index)"
-              >删除</a-button
+        <a-form-item label="阶梯档位" required>
+          <div class="tier-editor">
+            <table class="tier-table">
+              <thead>
+                <tr>
+                  <th scope="col">充值门槛（元）</th>
+                  <th scope="col">赠送金额（元）</th>
+                  <th scope="col">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(tier, index) in form.tiers" :key="index">
+                  <td>
+                    <a-input-number
+                      v-model="tier.thresholdYuan"
+                      class="tier-input"
+                      :min="0"
+                      :precision="2"
+                    />
+                  </td>
+                  <td>
+                    <a-input-number
+                      v-model="tier.bonusYuan"
+                      class="tier-input"
+                      :min="0"
+                      :precision="2"
+                    />
+                  </td>
+                  <td>
+                    <a-button
+                      type="text"
+                      status="danger"
+                      :disabled="form.tiers.length <= 1"
+                      @click="removeTier(index)"
+                      >删除</a-button
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <a-button type="dashed" long class="tier-add" @click="addTier"
+              >添加档位</a-button
             >
           </div>
-          <a-button type="dashed" long @click="addTier">添加档位</a-button>
         </a-form-item>
         <a-form-item label="叠加规则" required>
           <a-select v-model="form.stackRule">
@@ -199,9 +210,11 @@
             allow-clear
           />
         </a-form-item>
-        <a-form-item label="赠送有效期（天）">
+        <a-form-item
+          label="赠送有效期"
+          tooltip="单位：天。0 或留空表示赠送永久有效，不会被到期作废。"
+        >
           <a-input-number v-model="form.bonusValidDays" :min="0" />
-          <div class="hint">0 或留空表示赠送永久有效，不会被到期作废</div>
         </a-form-item>
         <a-form-item label="活动开始时间" required>
           <a-date-picker
@@ -358,7 +371,6 @@
   const formTarget = ref<RechargeCampaign | null>(null);
   const form = reactive<{
     name: string;
-    code: string;
     activityType: CampaignActivityType;
     tiers: CampaignTierForm[];
     stackRule: CampaignStackRule;
@@ -371,7 +383,6 @@
     endsAt?: number;
   }>({
     name: '',
-    code: '',
     activityType: 'full_gift',
     tiers: [{ thresholdYuan: 0, bonusYuan: 0 }],
     stackRule: 'exclusive',
@@ -422,7 +433,6 @@
   function openCreate() {
     formTarget.value = null;
     form.name = '';
-    form.code = '';
     form.activityType = 'full_gift';
     form.tiers = [{ thresholdYuan: 0, bonusYuan: 0 }];
     form.stackRule = 'exclusive';
@@ -440,7 +450,6 @@
     const ext = record as CampaignExt;
     formTarget.value = record;
     form.name = record.name;
-    form.code = record.code;
     form.activityType = record.activity_type;
     form.tiers = record.tiers.map((tier) => ({
       thresholdYuan: tier.threshold_cents / 100,
@@ -469,15 +478,14 @@
   }
 
   function buildInput():
-    | (CampaignInput & {
+    | (Omit<CampaignInput, 'code'> & {
         audience_player_ids: number[];
         target_account_type: CampaignTargetAccount;
       })
     | null {
     const name = form.name.trim();
-    const code = form.code.trim();
-    if (!name || !code) {
-      Message.warning('请填写名称与编码');
+    if (!name) {
+      Message.warning('请填写名称');
       return null;
     }
     if (!form.tiers.length) {
@@ -523,7 +531,6 @@
       return null;
     }
     return {
-      code,
       name,
       activity_type: form.activityType,
       tiers,
@@ -569,7 +576,7 @@
       Message.success(target ? '已更新活动' : '已创建活动');
       await load();
     } catch (err) {
-      Message.error(errorText(err, '提交失败：编码重复、版本已变化或参数无效'));
+      Message.error(errorText(err, '提交失败：版本已变化或参数无效'));
     }
   }
 
@@ -594,16 +601,38 @@
     margin-bottom: 16px;
   }
 
-  .tier-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 8px;
+  .tier-editor {
+    width: 100%;
+    min-width: 0;
   }
 
-  .hint {
-    margin-top: 4px;
-    color: var(--color-text-3);
-    font-size: 12px;
+  .tier-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+
+  .tier-table th,
+  .tier-table td {
+    padding: 8px;
+    border: 1px solid var(--color-border-2);
+  }
+
+  .tier-table th {
+    font-weight: 500;
+    text-align: left;
+    background: var(--color-fill-2);
+  }
+
+  .tier-table th:last-child {
+    width: 72px;
+  }
+
+  .tier-input {
+    width: 100%;
+  }
+
+  .tier-add {
+    margin-top: 8px;
   }
 </style>

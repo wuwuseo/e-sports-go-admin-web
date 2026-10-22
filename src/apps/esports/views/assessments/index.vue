@@ -392,7 +392,10 @@
             >
           </a-select>
         </a-form-item>
-        <a-form-item label="目标等级">
+        <a-form-item
+          label="目标等级"
+          tooltip="入职默认「新手」；升级 / 抽查 / 复考须指定目标等级"
+        >
           <a-select v-model="createForm.target_level" allow-clear>
             <a-option
               v-for="item in playerLevels"
@@ -401,9 +404,6 @@
               >{{ item.label }}</a-option
             >
           </a-select>
-          <div class="hint">
-            入职默认「新手」；升级 / 抽查 / 复考须指定目标等级
-          </div>
         </a-form-item>
         <a-form-item label="备注">
           <a-input v-model="createForm.note" :max-length="500" />

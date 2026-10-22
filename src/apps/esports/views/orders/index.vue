@@ -469,24 +469,6 @@
           </template>
         </a-table>
       </template>
-      <!-- 席位角色快照（§15.1）：多人规格订单的逐席角色与承诺量，派单与结单校验同口径。 -->
-      <template v-if="detail && canViewSeatRoles">
-        <a-divider>席位角色</a-divider>
-        <a-typography-text v-if="seatRoles.length === 0" type="secondary"
-          >该单无席位角色快照（历史单或未配置多人规格）</a-typography-text
-        >
-        <a-space v-else wrap>
-          <a-tag
-            v-for="role in seatRoles"
-            :key="role.seat_index"
-            color="arcoblue"
-          >
-            第 {{ role.seat_index }} 席 · {{ role.role || '不限' }} · 需
-            {{ role.promised_units }} 服务量 ·
-            {{ role.substitutable ? '可替代' : '不可替代' }}
-          </a-tag>
-        </a-space>
-      </template>
       <!-- 改期提案（§3.3）：已付款改期须客户与已接单成员逐人确认，撤回后订单档期不变。 -->
       <template v-if="detail && canListProposals">
         <a-divider>改期提案</a-divider>
@@ -889,7 +871,7 @@
         <a-form-item label="追加服务量">
           <a-input-number v-model="addonForm.addedUnits" :min="0" />
           <a-typography-text type="secondary">
-            金额与服务量至少一项为正；单位与订单 SKU 的服务计量单位一致。
+            金额与服务量至少一项为正；单位与订单 商品 的服务计量单位一致。
           </a-typography-text>
         </a-form-item>
         <a-form-item label="备注">
@@ -1011,12 +993,12 @@
             :precision="0"
           />
         </a-form-item>
-        <a-form-item label="实际成交单价（元，留空按 SKU 价）">
+        <a-form-item label="实际成交单价（元，留空按 商品 价）">
           <a-input-number
             v-model="backfillForm.unitPriceYuan"
             :min="0"
             :precision="2"
-            placeholder="留空按 SKU 当前规格价"
+            placeholder="留空按 商品 当前商品价"
           />
         </a-form-item>
         <a-form-item label="实际成交时间" required>
@@ -1412,7 +1394,6 @@
     getOrderCloseApproval,
     getOrderCloseConditions,
     getOrderCloseForm,
-    getOrderSeatRoles,
     getTeammateCandidates,
     getAppointmentDisposalOptions,
     getOrderServiceTiming,
@@ -1458,7 +1439,6 @@
     EsportsOrder,
     EsportsOrderAddon,
     EsportsOrderCollaborator,
-    EsportsSeatSpec,
     EsportsSku,
     OrderCloseApprovalView,
     OrderCloseFormView,
@@ -1477,9 +1457,9 @@
   const { hasButtonPermission, hasAnyPermission } = usePermission();
   const userStore = useUserStore();
   const currentAdminId = computed(() => Number(userStore.accountId || 0));
-  // 商品目录读取权限：财务等只读订单角色没有该权限，商品名直接读订单 sku_name 快照。
+  // 商品目录读取权限：财务等只读订单角色没有该权限，商品名直接读订单 product_name 快照。
   const canViewSkuCatalog = computed(() =>
-    hasAnyPermission(['esports:skus:list'])
+    hasAnyPermission(['esports:products:list'])
   );
   const canApprovePrice = computed(
     () =>
@@ -1522,9 +1502,6 @@
   );
   const canWithdrawProposal = computed(() =>
     hasButtonPermission('esports:orders:reschedule_withdraw')
-  );
-  const canViewSeatRoles = computed(() =>
-    hasButtonPermission('esports:orders:seat_roles')
   );
   const canViewSeats = computed(() =>
     hasButtonPermission('esports:dispatch:seats')
@@ -1594,19 +1571,21 @@
     }
   }
   const orders = ref<EsportsOrder[]>([]);
-  // 商品名以订单快照 sku_name 为准；历史单快照为空时回落当前 SKU 标题。
+  // 商品名以订单快照 product_name 为准；历史单快照为空时回落当前 商品 标题。
   const skus = ref<EsportsSku[]>([]);
   const skuTitleById = computed(
     () => new Map(skus.value.map((sku) => [sku.id, sku.title]))
   );
   const orderSkuLabel = (order: EsportsOrder) =>
-    order.sku_name || skuTitleById.value.get(order.sku_id) || '未知商品';
+    order.product_name ||
+    skuTitleById.value.get(order.product_id) ||
+    '未知商品';
   async function ensureSkuLabels() {
     if (!canViewSkuCatalog.value || skus.value.length > 0) return;
     try {
       skus.value = (await listSkus({ limit: 500 })).data.data || [];
     } catch {
-      // 商品列表读取失败时仍展示订单上的 sku_name 快照，不阻断订单列表。
+      // 商品列表读取失败时仍展示订单上的 product_name 快照，不阻断订单列表。
     }
   }
   const detail = ref<EsportsOrder | null>(null);
@@ -2455,7 +2434,6 @@
   // ── 席位与席位角色（§5.5 / §15.1）──
   const seats = ref<EsportsDispatchSeat[]>([]);
   const seatsLoading = ref(false);
-  const seatRoles = ref<EsportsSeatSpec[]>([]);
 
   async function loadSeats(orderId: number) {
     if (!canViewSeats.value) return;
@@ -2467,17 +2445,6 @@
       Message.error(errorText(err, '无法获取席位信息'));
     } finally {
       seatsLoading.value = false;
-    }
-  }
-
-  async function loadSeatRoles(orderId: number) {
-    if (!canViewSeatRoles.value) return;
-    try {
-      seatRoles.value =
-        (await getOrderSeatRoles(orderId)).data.data?.seat_roles || [];
-    } catch {
-      // 席位角色只用于展示约束，读取失败不阻断详情。
-      seatRoles.value = [];
     }
   }
 
@@ -2824,7 +2791,6 @@
       loadCollaborators(id);
       loadAdminOptions();
       loadSeats(id);
-      loadSeatRoles(id);
       loadProposals(id);
     } catch {
       Message.error('无法获取订单详情');
@@ -3189,7 +3155,7 @@
       await backfillOrder(
         {
           customer_id: backfillForm.customerId,
-          sku_id: backfillForm.skuId,
+          product_id: backfillForm.skuId,
           quantity: backfillForm.quantity,
           unit_price_cents:
             backfillForm.unitPriceYuan == null

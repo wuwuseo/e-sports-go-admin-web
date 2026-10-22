@@ -87,7 +87,7 @@
             >
           </a-space>
           <a-typography-text type="secondary" class="tip">
-            按 SKU &gt; 游戏分区 &gt; 全局
+            按 商品 &gt; 游戏分区 &gt; 全局
             +金额区间命中订单；同层取版本最高，且仅草稿可生效，
             改模板生成新版本，回滚以历史版本为模板生成更高版本。
           </a-typography-text>
@@ -161,7 +161,7 @@
           <a-typography-text type="secondary" class="tip">
             规定结单前「陪玩个人服务段上报」需多少成员完成：单人提交只需 1
             名成员、多人提交须所有实际服务成员逐人提交、自定义按提交比例向上取整；
-            未达标可禁止结单、放行并催办或视为已提交。按 SKU &gt; 游戏分区 &gt;
+            未达标可禁止结单、放行并催办或视为已提交。按 商品 &gt; 游戏分区 &gt;
             全局选层，同层取版本最高。
           </a-typography-text>
           <a-table
@@ -396,7 +396,7 @@
           >
             <a-option value="global">全局</a-option>
             <a-option value="game">按游戏分区</a-option>
-            <a-option value="sku">按 SKU</a-option>
+            <a-option value="sku">按 商品</a-option>
             <a-option value="order_type">按订单类型（即时 / 预约）</a-option>
           </a-select>
         </a-form-item>
@@ -418,7 +418,7 @@
           <a-input
             v-model="templateForm.scopeKey"
             :max-length="64"
-            placeholder="游戏分区名或 SKU 编号"
+            placeholder="游戏分区名或 商品 编号"
           />
         </a-form-item>
         <a-form-item label="金额下限（元，0 = 不限）">
@@ -486,7 +486,7 @@
           <a-select v-model="submitForm.scope">
             <a-option value="global">全局</a-option>
             <a-option value="game">按游戏分区</a-option>
-            <a-option value="sku">按 SKU</a-option>
+            <a-option value="sku">按 商品</a-option>
           </a-select>
         </a-form-item>
         <a-form-item
@@ -497,7 +497,7 @@
           <a-input
             v-model="submitForm.scopeKey"
             :max-length="64"
-            placeholder="游戏分区名或 SKU 编号"
+            placeholder="游戏分区名或 商品 编号"
           />
         </a-form-item>
         <a-form-item label="提交模式" required>
@@ -564,7 +564,7 @@
           <a-select v-model="approvalForm.scope">
             <a-option value="global">全局</a-option>
             <a-option value="game">按游戏分区</a-option>
-            <a-option value="sku">按 SKU</a-option>
+            <a-option value="sku">按 商品</a-option>
           </a-select>
         </a-form-item>
         <a-form-item
@@ -575,7 +575,7 @@
           <a-input
             v-model="approvalForm.scopeKey"
             :max-length="64"
-            placeholder="游戏分区名或 SKU 编号"
+            placeholder="游戏分区名或 商品 编号"
           />
         </a-form-item>
         <a-form-item label="触发金额（元，0 = 所有结单）">
@@ -729,7 +729,7 @@
   }) =>
     item.scope === 'global'
       ? '全局'
-      : `${item.scope === 'game' ? '游戏分区' : 'SKU'}：${item.scope_key}`;
+      : `${item.scope === 'game' ? '游戏分区' : '商品'}：${item.scope_key}`;
   const approvalRoleLabels: Record<CloseApprovalRole, string> = {
     admin: '任一管理员',
     super_admin: '超级管理员',
@@ -754,7 +754,7 @@
       return `订单类型：${
         item.scope_key === 'request' ? '预约单' : '即时单'
       }（${item.scope_key}）`;
-    return `${scope === 'game' ? '游戏分区' : 'SKU'}：${item.scope_key}`;
+    return `${scope === 'game' ? '游戏分区' : '商品'}：${item.scope_key}`;
   };
   const amountRangeLabel = (item: EsportsCloseFormTemplate) => {
     const min =
@@ -973,7 +973,7 @@
     templateVisible.value = true;
   }
 
-  // 切换范围时清掉旧的 scope_key，避免把 SKU 编号当成订单类型提交被后端拒绝。
+  // 切换范围时清掉旧的 scope_key，避免把 商品 编号当成订单类型提交被后端拒绝。
   function onTemplateScopeChange() {
     if (templateForm.scope === 'global') {
       templateForm.scopeKey = '';

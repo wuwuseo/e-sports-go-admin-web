@@ -33,11 +33,11 @@
               <a-table-column title="客户 / 商品">
                 <template #cell="{ record }">
                   <template v-if="maskedPoolIds.includes(record.id)"
-                    >*** / {{ record.sku_name || '未知商品' }}</template
+                    >*** / {{ record.product_name || '未知商品' }}</template
                   >
                   <template v-else
                     >{{ record.customer_id }} /
-                    {{ record.sku_name || '未知商品' }}</template
+                    {{ record.product_name || '未知商品' }}</template
                   >
                 </template>
               </a-table-column>

@@ -647,7 +647,7 @@
           </a-space>
           <a-typography-text type="secondary" class="close-rule-tip">
             把「服务凭证不少于 N 张、服务时长不为零、无未处理加钟 /
-            售后」做成可配置规则，按 全局 / 游戏分区 / SKU
+            售后」做成可配置规则，按 全局 / 游戏分区 / 商品
             绑定；金额达阈值时须由非负责客服的管理员复核结单。规则版本化：草稿 →
             生效，改规则生成新版本，回滚以历史版本为模板生成更高版本。
           </a-typography-text>
@@ -888,7 +888,7 @@
           <a-select v-model="closeRuleForm.scope">
             <a-option value="global">全局</a-option>
             <a-option value="game">按游戏分区</a-option>
-            <a-option value="sku">按 SKU</a-option>
+            <a-option value="sku">按 商品</a-option>
           </a-select>
         </a-form-item>
         <a-form-item
@@ -899,7 +899,7 @@
           <a-input
             v-model="closeRuleForm.scopeKey"
             :max-length="64"
-            placeholder="游戏分区名或 SKU 编号"
+            placeholder="游戏分区名或 商品 编号"
           />
         </a-form-item>
         <a-form-item label="服务凭证最少张数" required>
@@ -1991,7 +1991,7 @@
   const closeRuleScopeMap: Record<string, string> = {
     global: '全局',
     game: '按游戏分区',
-    sku: '按 SKU',
+    sku: '按 商品',
   };
   const closeRuleStatusMap: Record<string, string> = {
     draft: '草稿',

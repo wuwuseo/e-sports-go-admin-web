@@ -655,12 +655,12 @@
             :precision="0"
           />
         </a-form-item>
-        <a-form-item label="实际成交单价（元，留空按 SKU 价）">
+        <a-form-item label="实际成交单价（元，留空按 商品 价）">
           <a-input-number
             v-model="backfillForm.unitPriceYuan"
             :min="0"
             :precision="2"
-            placeholder="留空按 SKU 当前规格价"
+            placeholder="留空按 商品 当前商品价"
           />
         </a-form-item>
         <a-form-item label="实际成交时间" required>
@@ -1206,7 +1206,7 @@
       await backfillOrder(
         {
           customer_id: customer.id,
-          sku_id: backfillForm.skuId,
+          product_id: backfillForm.skuId,
           quantity: backfillForm.quantity,
           unit_price_cents:
             backfillForm.unitPriceYuan == null

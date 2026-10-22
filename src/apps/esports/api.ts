@@ -22,19 +22,13 @@ export interface EsportsSku {
   title: string;
   service_type: 'play' | 'teaching' | 'entertainment';
   category_id: number | null;
-  // 商品父实体（§15.1）与规格组（§15.5）的挂载：可空，未挂载为 null。
-  product_id: number | null;
-  spec_group_id: number | null;
   description: string;
   unit_price_cents: number;
   min_unit_price_cents: number;
   adjustment_approval_bp: number;
   service_units: number;
   service_unit_name: string;
-  required_seats: number;
-  // 每席承诺服务量（§15.3-01 / §15.5-01）：0 表示未配置，多人 SKU 下单前必须配置。
-  per_seat_service_units: number;
-  // SKU 成本（分，§15.8-03）：可空，未登记为 null；仅授权角色能读到真实值。
+  // 商品 成本（分，§15.8-03）：可空，未登记为 null；仅授权角色能读到真实值。
   cost_cents: number | null;
   // 单次服务时长（分钟，§5.5）：用于预约时段重叠与容量判定，0 表示未配置。
   service_duration_minutes: number;
@@ -49,21 +43,12 @@ export interface EsportsSku {
   status: 'draft' | 'on_sale' | 'off_sale';
 }
 
-// 写入模型：三态字段与读模型不同——未传表示「不挂载 / 保持既有」：
-// - product_id / spec_group_id：创建时未传即不挂载，编辑时传 0 表示显式解除挂载；
-// - cost_cents：编辑时传 null 表示清空已登记成本（后端 optionalInt64 区分「不传」与「传 null」）。
+// 编辑成本价时，未传表示保持不变，null 表示清空。
 export interface SkuInput
   extends Omit<
     EsportsSku,
-    | 'id'
-    | 'quota_reserved'
-    | 'quota_sold'
-    | 'product_id'
-    | 'spec_group_id'
-    | 'cost_cents'
+    'id' | 'quota_reserved' | 'quota_sold' | 'cost_cents'
   > {
-  product_id?: number;
-  spec_group_id?: number;
   cost_cents?: number | null;
 }
 
@@ -126,11 +111,11 @@ export interface EsportsOrder {
   id: number;
   order_no: string;
   customer_id: number;
-  sku_id: number;
-  // 下单时的商品 / 规格名快照（§15.6-03）：读取时优先于 SKU 实时标题，
-  // 历史单可能为空串，调用方回落实时 SKU 标题。
-  sku_code: string;
-  sku_name: string;
+  product_id: number;
+  // 下单时的商品 / 规格名快照（§15.6-03）：读取时优先于 商品 实时标题，
+  // 历史单可能为空串，调用方回落实时 商品 标题。
+  product_code: string;
+  product_name: string;
   spec_name: string;
   channel_source: CustomerSource;
   entry_point:
@@ -171,7 +156,7 @@ export interface EsportsOrder {
   // 预约档期（§3.2 / §5.5）：requested_start_at 为预约开始时间，deadline 为档期确认时限。
   requested_start_at: string | null;
   appointment_confirmation_deadline: string | null;
-  // 服务时长快照（分钟，§5.5）：0 表示 SKU 未配置，容量判定回落保守口径。
+  // 服务时长快照（分钟，§5.5）：0 表示 商品 未配置，容量判定回落保守口径。
   service_duration_minutes: number;
   // 已知渠道成本（§12.1）：结单计提客服提成时从可分基数扣除。
   channel_cost_cents: number;
@@ -188,22 +173,22 @@ export interface EsportsOrder {
 
 export interface OrderInput {
   customer_id: number;
-  sku_id: number;
+  product_id: number;
   quantity: number;
   // 客户指定陪玩（§5.4）：可选；留空则由客服指派，不留空则不进入优先通知窗口。
   preferred_player_id?: number;
   // 经授权的人工调整（§4.2）：金额（分，可正可负）非零时须同时给出 4–255 字原因，
-  // 且绝对值不得超过 SKU 免审额度（adjustment_approval_bp），否则须先落单再走改价审批。
+  // 且绝对值不得超过 商品 免审额度（adjustment_approval_bp），否则须先落单再走改价审批。
   manual_adjust_cents?: number;
   manual_adjust_reason?: string;
   // 负责客服（§4.2）：留空默认建单人；显式指定时须为启用中的管理员。
   responsible_admin_id?: number;
 }
 
-// 报单页报价试算（§15.6-01 / §4.2）：GET /admin/skus?quote_customer_id=&quote_quantity= 的
-// quotes 段，不落单即可看到会员折扣、应付、每席承诺量与结单要求。
+// 报单页报价试算（§15.6-01 / §4.2）：GET /admin/products?quote_customer_id=&quote_quantity= 的
+// quotes 段，不落单即可看到会员折扣、应付、服务量与结单要求。
 export interface SkuQuotePreview {
-  sku_id: number;
+  product_id: number;
   quantity: number;
   member_level_code: string;
   member_discount_bps: number;
@@ -226,9 +211,9 @@ export interface SkuQuoteResult {
 // 管理员历史订单补录（entry_point=admin_backfill）：为历史成交生成订单，不计入自助下单流程。
 export interface BackfillOrderInput {
   customer_id: number;
-  sku_id: number;
+  product_id: number;
   quantity: number;
-  // 实际成交单价（分）：留 0 表示按 SKU 当前规格价。
+  // 实际成交单价（分）：留 0 表示按 商品 当前商品价。
   unit_price_cents: number;
   // 实际成交时间（RFC3339）：不晚于当前、不早于 5 年前。
   settled_at: string;
@@ -418,22 +403,22 @@ export interface SkuListParams {
 
 export const listSkus = (params?: SkuListParams) =>
   axios.get<ApiResponse<EsportsSku[]>>(
-    `${base}/skus`,
+    `${base}/products`,
     params ? { params } : undefined
   );
 
 // 带报价试算的商品列表（§15.6-01 / §4.2）：响应由数组变为 { items, quotes }，
-// 供报单页在选定客户 / 份数后逐 SKU 展示会员折扣、应付、每席承诺量与结单要求。
+// 供报单页在选定客户 / 份数后逐商品展示会员折扣、应付、服务量与结单要求。
 export const listSkusWithQuote = (customerId: number, quantity: number) =>
-  axios.get<ApiResponse<SkuQuoteResult>>(`${base}/skus`, {
+  axios.get<ApiResponse<SkuQuoteResult>>(`${base}/products`, {
     params: { quote_customer_id: customerId, quote_quantity: quantity },
   });
 
 export const createSku = (input: SkuInput) =>
-  axios.post<ApiResponse<EsportsSku>>(`${base}/skus`, input);
+  axios.post<ApiResponse<EsportsSku>>(`${base}/products`, input);
 
 export const updateSku = (id: number, input: SkuUpdateInput) =>
-  axios.put<ApiResponse<EsportsSku>>(`${base}/skus/${id}`, input);
+  axios.put<ApiResponse<EsportsSku>>(`${base}/products/${id}`, input);
 
 export const listCategories = () =>
   axios.get<ApiResponse<EsportsProductCategory[]>>(`${base}/categories`);
@@ -2380,8 +2365,14 @@ export const listCampaigns = (status = '') =>
     params: { status },
   });
 
-export const createCampaign = (input: CampaignInput) =>
-  axios.post<ApiResponse<RechargeCampaign>>(`${base}/campaigns`, input);
+export const createCampaign = (input: Omit<CampaignInput, 'code'>) => {
+  // 兼容尚未重启的旧后端；新版后端会忽略传入值并重新生成编码。
+  const code = `RC-${crypto.randomUUID().replace(/-/g, '').toUpperCase()}`;
+  return axios.post<ApiResponse<RechargeCampaign>>(`${base}/campaigns`, {
+    ...input,
+    code,
+  });
+};
 
 // 编辑活动不提交 code 改动（编码创建后不可变），由调用方保持原值。
 export const updateCampaign = (
@@ -3253,7 +3244,7 @@ export interface ReportQuery {
   end?: string;
   responsible_admin_id?: number;
   created_by_admin_id?: number;
-  sku_id?: number;
+  product_id?: number;
   game?: string;
   channel_source?: CustomerSource;
   entry_point?: EsportsOrder['entry_point'];
@@ -4200,126 +4191,7 @@ export const getOrderCloseApproval = (orderId: number) =>
 // 的路由表与同目录 *_handlers.go 实际解析的 JSON 字段为准。
 
 // ── 商品父实体 / 规格组 / 逐席角色（§15.1 / §15.5） ──
-export type ProductStatus = 'draft' | 'on_sale' | 'off_sale';
-
-export interface EsportsProduct {
-  id: number;
-  name: string;
-  category_id: number | null;
-  description: string;
-  status: ProductStatus;
-  version: number;
-  created_at: string;
-  updated_at: string;
-}
-
-// 商品内的子 SKU：字段与后端 productChildSkuInput 一一对应。
-export interface ProductChildSkuInput {
-  id: number;
-  code: string;
-  title: string;
-  service_type: EsportsSku['service_type'];
-  description: string;
-  unit_price_cents: number;
-  min_unit_price_cents: number;
-  adjustment_approval_bp: number;
-  service_units: number;
-  service_unit_name: string;
-  required_seats: number;
-  per_seat_service_units: number;
-  // 成本（分，§15.8-03）：三态——不传表示保持既有成本（新建即未登记），传 null 表示清空。
-  cost_cents?: number | null;
-  service_duration_minutes: number;
-  close_rule_code: string;
-  spec_group_id: number | null;
-  quota_total: number;
-  sort_order: number;
-  status: EsportsSku['status'];
-}
-
-export interface ProductInput {
-  name: string;
-  category_id: number | null;
-  description: string;
-  status: ProductStatus;
-  skus: ProductChildSkuInput[];
-}
-
-// 席位约束（§15.5）：规格组与订单逐席角色快照共用同一结构。
-export interface EsportsSeatSpec {
-  seat_index: number;
-  role: string;
-  substitutable: boolean;
-  promised_units: number;
-  spec: string;
-}
-
-export interface EsportsSpecGroup {
-  id: number;
-  code: string;
-  name: string;
-  seats: EsportsSeatSpec[];
-  per_seat_service_units: number;
-  status: 'enabled' | 'disabled';
-  version: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SpecGroupInput {
-  code: string;
-  name: string;
-  seats: EsportsSeatSpec[];
-  per_seat_service_units: number;
-  status: 'enabled' | 'disabled';
-}
-
-// 商品详情内的子 SKU 与列表同为 ent 实体直出：商品归属、规格组、每席量与成本已在
-// EsportsSku 中声明，这里只补时间戳。成本按角色可见性脱敏：未获授权时后端返回 null（§15.8-03）。
-export interface EsportsProductSku extends EsportsSku {
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ProductDetail {
-  product: EsportsProduct;
-  skus: EsportsProductSku[];
-  spec_groups: EsportsSpecGroup[];
-}
-
-export interface OrderSeatRolesView {
-  order_id: number;
-  seat_roles: EsportsSeatSpec[];
-}
-
-export const listProducts = () =>
-  axios.get<ApiResponse<EsportsProduct[]>>(`${base}/products`);
-
-export const getProduct = (id: number) =>
-  axios.get<ApiResponse<ProductDetail>>(`${base}/products/${id}`);
-
-export const createProduct = (input: ProductInput) =>
-  axios.post<ApiResponse<EsportsProduct>>(`${base}/products`, input);
-
-export const updateProduct = (id: number, input: ProductInput) =>
-  axios.put<ApiResponse<EsportsProduct>>(`${base}/products/${id}`, input);
-
-export const listSpecGroups = () =>
-  axios.get<ApiResponse<EsportsSpecGroup[]>>(`${base}/spec-groups`);
-
-export const createSpecGroup = (input: SpecGroupInput) =>
-  axios.post<ApiResponse<EsportsSpecGroup>>(`${base}/spec-groups`, input);
-
-export const updateSpecGroup = (id: number, input: SpecGroupInput) =>
-  axios.put<ApiResponse<EsportsSpecGroup>>(`${base}/spec-groups/${id}`, input);
-
-// 订单逐席角色快照（§15.1）：多人规格订单的席位约束，供派单与结单校验对照。
-export const getOrderSeatRoles = (orderId: number) =>
-  axios.get<ApiResponse<OrderSeatRolesView>>(
-    `${base}/orders/${orderId}/seat-roles`
-  );
-
-// ── SKU 停服（§15.7）：申请 → 异人审批 → 受影响订单逐单处置 ──
+// ── 商品 停服（§15.7）：申请 → 异人审批 → 受影响订单逐单处置 ──
 export type SkuSuspensionStatus =
   | 'pending'
   | 'approved'
@@ -4335,7 +4207,7 @@ export type SkuSuspensionSuggestedAction =
 
 export interface EsportsSkuSuspension {
   id: number;
-  sku_id: number;
+  product_id: number;
   requested_by_admin_id: number;
   reason: string;
   effective_mode: SkuSuspensionEffectiveMode;
@@ -4408,30 +4280,35 @@ export const requestSkuSuspension = (
   input: SkuSuspensionRequestInput
 ) =>
   axios.post<ApiResponse<EsportsSkuSuspension>>(
-    `${base}/skus/${skuId}/suspensions`,
+    `${base}/products/${skuId}/suspensions`,
     input
   );
 
 export const listSkuSuspensions = (status?: SkuSuspensionStatus) =>
-  axios.get<ApiResponse<EsportsSkuSuspension[]>>(`${base}/sku-suspensions`, {
-    params: { status },
-  });
+  axios.get<ApiResponse<EsportsSkuSuspension[]>>(
+    `${base}/product-suspensions`,
+    {
+      params: { status },
+    }
+  );
 
 export const getSkuSuspension = (id: number) =>
-  axios.get<ApiResponse<SkuSuspensionReport>>(`${base}/sku-suspensions/${id}`);
+  axios.get<ApiResponse<SkuSuspensionReport>>(
+    `${base}/product-suspensions/${id}`
+  );
 
 export const decideSkuSuspension = (
   id: number,
   input: SkuSuspensionDecisionInput
 ) =>
   axios.post<ApiResponse<EsportsSkuSuspension>>(
-    `${base}/sku-suspensions/${id}/decision`,
+    `${base}/product-suspensions/${id}/decision`,
     input
   );
 
 export const cancelSkuSuspension = (id: number) =>
   axios.post<ApiResponse<EsportsSkuSuspension>>(
-    `${base}/sku-suspensions/${id}/cancel`
+    `${base}/product-suspensions/${id}/cancel`
   );
 
 export const disposeSkuSuspensionOrder = (
@@ -4440,7 +4317,7 @@ export const disposeSkuSuspensionOrder = (
   input: SkuSuspensionDisposalInput
 ) =>
   axios.post<ApiResponse<EsportsSkuSuspensionItem>>(
-    `${base}/sku-suspensions/${suspensionId}/orders/${orderId}/disposal`,
+    `${base}/product-suspensions/${suspensionId}/orders/${orderId}/disposal`,
     input
   );
 
@@ -4772,7 +4649,7 @@ export interface EsportsAfterSaleRule {
   threshold_value: number;
   window_minutes: number;
   scope_game: string;
-  scope_sku_id: number | null;
+  scope_product_id: number | null;
   after_sale_kind: AfterSaleKind;
   // 建单通道：system 自动建单 / admin 只推待办由客服确认后建单。
   channel: 'system' | 'admin';
@@ -4797,7 +4674,7 @@ export interface AfterSaleRuleInput {
   threshold_value: number;
   window_minutes: number;
   scope_game: string;
-  scope_sku_id: number | null;
+  scope_product_id: number | null;
   after_sale_kind: AfterSaleKind;
   channel: 'system' | 'admin';
   fault_party: string;

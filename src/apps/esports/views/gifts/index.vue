@@ -587,7 +587,14 @@
       </a-form>
 
       <template v-if="formTarget && canReadTiers">
-        <a-divider>价格档位</a-divider>
+        <a-divider>
+          价格档位
+          <a-tooltip
+            content="同一礼物下档位编码与价格唯一，至多一个默认档；已被引用的档位不可删除，只能停用。"
+          >
+            <icon-info-circle class="section-help-icon" />
+          </a-tooltip>
+        </a-divider>
         <a-space class="toolbar">
           <a-button
             v-if="canCreateTier"
@@ -658,9 +665,6 @@
             </a-table-column>
           </template>
         </a-table>
-        <div class="hint"
-          >同一礼物下档位编码与价格唯一，至多一个默认档；已被引用的档位不可删除，只能停用。</div
-        >
       </template>
     </a-modal>
 
@@ -672,24 +676,30 @@
       @cancel="tierVisible = false"
     >
       <a-form :model="tierForm">
-        <a-form-item label="档位编码" required>
+        <a-form-item
+          label="档位编码"
+          tooltip="创建后不可修改，同一礼物下不可重复。"
+          required
+        >
           <a-input
             v-model="tierForm.tierCode"
             :max-length="48"
             :disabled="!!tierTarget"
           />
-          <div class="hint">创建后不可修改，同一礼物下不可重复。</div>
         </a-form-item>
         <a-form-item label="名称" required>
           <a-input v-model="tierForm.name" :max-length="120" />
         </a-form-item>
-        <a-form-item label="价格（元）" required>
+        <a-form-item
+          label="价格（元）"
+          tooltip="同一礼物下价格不可重复。"
+          required
+        >
           <a-input-number
             v-model="tierForm.priceYuan"
             :min="0.01"
             :precision="2"
           />
-          <div class="hint">同一礼物下价格不可重复。</div>
         </a-form-item>
         <a-form-item label="高额档（需二次确认）">
           <a-switch v-model="tierForm.highValue" />
@@ -697,9 +707,11 @@
         <a-form-item label="仅成年客户可送">
           <a-switch v-model="tierForm.requireAge" />
         </a-form-item>
-        <a-form-item label="默认档">
+        <a-form-item
+          label="默认档"
+          tooltip="设为默认会清除同礼物的其它默认档。"
+        >
           <a-switch v-model="tierForm.isDefault" />
-          <div class="hint">设为默认会清除同礼物的其它默认档。</div>
         </a-form-item>
         <a-form-item label="排序">
           <a-input-number v-model="tierForm.sortOrder" :min="0" />
@@ -1701,6 +1713,12 @@
   .hint {
     color: var(--color-text-3);
     font-size: 12px;
+  }
+
+  .section-help-icon {
+    margin-left: 4px;
+    color: var(--color-text-3);
+    cursor: help;
   }
 
   .pay-url {

@@ -134,7 +134,7 @@
         </a-form-item>
         <a-form-item label="商品" required>
           <a-select
-            v-model="orderForm.sku_id"
+            v-model="orderForm.product_id"
             allow-search
             placeholder="搜索商品名称或编码"
             @change="onSkuChange"
@@ -194,11 +194,9 @@
                   money(estimatedPayableCents)
                 }}</a-typography-text>
               </a-descriptions-item>
-              <a-descriptions-item label="席位 / 承诺服务量">
-                {{ currentQuote.required_seats }} 席 ·
+              <a-descriptions-item label="承诺服务量">
                 {{ currentQuote.promised_service_units }}
-                {{ currentQuote.service_unit_name || '服务量' }}（每席
-                {{ currentQuote.per_seat_service_units }}）
+                {{ currentQuote.service_unit_name || '服务量' }}
               </a-descriptions-item>
               <a-descriptions-item label="结单要求">
                 {{ currentQuote.close_rule_code || '按游戏 / 全局规则回落' }}
@@ -281,7 +279,7 @@
             <a-table-column title="商品">
               <template #cell="{ record }">
                 <a-select
-                  v-model="record.sku_id"
+                  v-model="record.product_id"
                   allow-search
                   :style="{ width: '220px' }"
                   placeholder="搜索商品"
@@ -435,11 +433,11 @@
   const skus = ref<EsportsSku[]>([]);
   const customers = ref<EsportsCustomer[]>([]);
   const orders = ref<EsportsOrder[]>([]);
-  // 商品列展示名称：优先订单上的 sku_name 快照，历史单回落当前 SKU 标题。
+  // 商品列展示名称：优先订单上的 product_name 快照，历史单回落当前 商品 标题。
   const skuName = (skuId: number) =>
     skus.value.find((sku) => sku.id === skuId)?.title || '未知商品';
   const skuLabel = (order: EsportsOrder) =>
-    order.sku_name || skuName(order.sku_id);
+    order.product_name || skuName(order.product_id);
   const ageChecks = ref<AgeCheck[]>([]);
   const ageCustomerName = ref('');
   const selectedEvidence = ref<AttachmentResponse | null>(null);
@@ -456,7 +454,7 @@
   const customerForm = reactive({ display_name: '' });
   const orderForm = reactive<OrderInput>({
     customer_id: 0,
-    sku_id: 0,
+    product_id: 0,
     quantity: 1,
   });
   const orderRequestKey = ref(crypto.randomUUID());
@@ -476,10 +474,12 @@
   const manualAdjustYuan = ref(0);
   const manualAdjustReason = ref('');
   const currentQuote = computed<SkuQuotePreview | null>(() =>
-    orderForm.sku_id ? quotes.value[String(orderForm.sku_id)] || null : null
+    orderForm.product_id
+      ? quotes.value[String(orderForm.product_id)] || null
+      : null
   );
   const currentSku = computed<EsportsSku | null>(
-    () => skus.value.find((sku) => sku.id === orderForm.sku_id) || null
+    () => skus.value.find((sku) => sku.id === orderForm.product_id) || null
   );
   const manualAdjustCents = computed(() =>
     Number.isFinite(manualAdjustYuan.value)
@@ -534,7 +534,7 @@
 
   function openOrder() {
     orderForm.customer_id = 0;
-    orderForm.sku_id = 0;
+    orderForm.product_id = 0;
     orderForm.quantity = 1;
     preferredPlayerId.value = 0;
     manualAdjustYuan.value = 0;
@@ -544,7 +544,7 @@
     orderVisible.value = true;
   }
 
-  // 换 SKU 时人工调整归零：免审额度与最低价都随 SKU 变化，避免带着旧调整额提交。
+  // 换 商品 时人工调整归零：免审额度与最低价都随 商品 变化，避免带着旧调整额提交。
   function onSkuChange() {
     manualAdjustYuan.value = 0;
   }
@@ -553,7 +553,7 @@
   interface BatchRow {
     key: string;
     customer_id: number;
-    sku_id: number;
+    product_id: number;
     quantity: number;
   }
   interface BatchResult {
@@ -575,7 +575,7 @@
   const newBatchRow = (): BatchRow => ({
     key: crypto.randomUUID(),
     customer_id: 0,
-    sku_id: 0,
+    product_id: 0,
     quantity: 1,
   });
 
@@ -627,7 +627,7 @@
       batchRows.value.push({
         key: crypto.randomUUID(),
         customer_id: customerId,
-        sku_id: skuId,
+        product_id: skuId,
         quantity,
       });
       imported += 1;
@@ -672,7 +672,7 @@
       return;
     }
     const invalid = rows.some(
-      (row) => row.customer_id < 1 || row.sku_id < 1 || row.quantity < 1
+      (row) => row.customer_id < 1 || row.product_id < 1 || row.quantity < 1
     );
     if (invalid) {
       Message.warning('存在未填写完整或份数无效的行，请检查后重试');
@@ -688,7 +688,7 @@
         createOrder(
           {
             customer_id: row.customer_id,
-            sku_id: row.sku_id,
+            product_id: row.product_id,
             quantity: row.quantity,
           },
           crypto.randomUUID()
@@ -703,7 +703,7 @@
           key: row.key,
           row: i + 1,
           customerId: row.customer_id,
-          skuId: row.sku_id,
+          skuId: row.product_id,
           ok: true,
           message: '报单成功',
         });
@@ -713,7 +713,7 @@
           key: row.key,
           row: i + 1,
           customerId: row.customer_id,
-          skuId: row.sku_id,
+          skuId: row.product_id,
           ok: false,
           message: errorText(
             res.reason,
@@ -740,7 +740,11 @@
   }
 
   async function saveOrder() {
-    if (!orderForm.customer_id || !orderForm.sku_id || orderForm.quantity < 1)
+    if (
+      !orderForm.customer_id ||
+      !orderForm.product_id ||
+      orderForm.quantity < 1
+    )
       return;
     const adjustCents = manualAdjustCents.value;
     const quote = currentQuote.value;
@@ -767,7 +771,7 @@
             currentSku.value.unit_price_cents) * quote.quantity;
         if (quote.subtotal_cents + adjustCents < floor) {
           Message.warning(
-            `人工议价后小计不得低于 SKU 最低允许价（${money(floor)}）`
+            `人工议价后小计不得低于 商品 最低允许价（${money(floor)}）`
           );
           return;
         }

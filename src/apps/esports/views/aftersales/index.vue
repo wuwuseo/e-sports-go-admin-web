@@ -786,7 +786,7 @@
                 <a-form-item label="补足服务量">
                   <a-input-number v-model="planForm.makeupUnits" :min="0" />
                   <a-typography-text type="secondary">
-                    单位与订单 SKU 的服务计量单位一致；补钟须大于零。
+                    单位与订单 商品 的服务计量单位一致；补钟须大于零。
                   </a-typography-text>
                 </a-form-item>
                 <a-form-item label="公司承担报酬（元）">
@@ -2700,7 +2700,7 @@
 
   // ── 售后自动建单规则与命中留痕（§13.2-05）──
   const rules = ref<EsportsAfterSaleRule[]>([]);
-  // 售后规则范围展示商品名而不是 SKU ID；商品下拉自身按关键词远程取数。
+  // 售后规则范围展示商品名而不是 商品 ID；商品下拉自身按关键词远程取数。
   const skus = ref<EsportsSku[]>([]);
   const skuLabel = (skuId: number) =>
     skus.value.find((sku) => sku.id === skuId)?.title || '未知商品';
@@ -2746,8 +2746,8 @@
   const ruleScopeLabel = (record: EsportsAfterSaleRule) => {
     const parts: string[] = [];
     if (record.scope_game) parts.push(record.scope_game);
-    if (record.scope_sku_id)
-      parts.push(`商品：${skuLabel(record.scope_sku_id)}`);
+    if (record.scope_product_id)
+      parts.push(`商品：${skuLabel(record.scope_product_id)}`);
     return parts.length ? parts.join(' / ') : '全部';
   };
   const ruleStatusMap: Record<string, string> = {
@@ -2929,7 +2929,7 @@
       ruleForm.thresholdValue = item.threshold_value;
       ruleForm.windowMinutes = item.window_minutes;
       ruleForm.scopeGame = item.scope_game;
-      ruleForm.scopeSkuId = item.scope_sku_id ?? 0;
+      ruleForm.scopeSkuId = item.scope_product_id ?? 0;
       ruleForm.afterSaleKind = item.after_sale_kind;
       ruleForm.channel = item.channel;
       ruleForm.faultParty = item.fault_party as AfterSaleFaultParty;
@@ -2953,7 +2953,7 @@
       threshold_value: ruleForm.thresholdValue,
       window_minutes: ruleForm.windowMinutes,
       scope_game: ruleForm.scopeGame.trim(),
-      scope_sku_id: ruleForm.scopeSkuId > 0 ? ruleForm.scopeSkuId : null,
+      scope_product_id: ruleForm.scopeSkuId > 0 ? ruleForm.scopeSkuId : null,
       after_sale_kind: ruleForm.afterSaleKind,
       channel: ruleForm.channel,
       fault_party: ruleForm.faultParty,
