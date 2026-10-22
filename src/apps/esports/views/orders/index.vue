@@ -1374,6 +1374,7 @@
   import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import useUserStore from '@/store/modules/user';
   import { getAdmins } from '@/api/user';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
@@ -1810,7 +1811,7 @@
   }
 
   async function submitAddon() {
-    const addedCents = Math.round(addonForm.addedYuan * 100);
+    const addedCents = yuanToCents(addonForm.addedYuan);
     if (addedCents <= 0 && addonForm.addedUnits <= 0) {
       Message.warning('追加金额与追加服务量至少填一项');
       return;
@@ -1958,7 +1959,7 @@
         const result = await previewReprice(opsTarget.value.id, {
           expected_version: opsTarget.value.version,
           quantity: opsForm.quantity,
-          manual_adjust_cents: Math.round(opsForm.manualAdjustYuan * 100),
+          manual_adjust_cents: yuanToCents(opsForm.manualAdjustYuan),
           reason: '',
         });
         if (sequence === repricePreviewSequence) {
@@ -2902,7 +2903,7 @@
         const payload = {
           expected_version: order.version,
           quantity: opsForm.quantity,
-          manual_adjust_cents: Math.round(opsForm.manualAdjustYuan * 100),
+          manual_adjust_cents: yuanToCents(opsForm.manualAdjustYuan),
           reason: opsForm.reason.trim(),
         };
         if (repriceQuote.value.requires_approval) {
@@ -2994,7 +2995,7 @@
   }
 
   async function submitChannelCost() {
-    const cents = Math.round(channelCostForm.yuan * 100);
+    const cents = yuanToCents(channelCostForm.yuan);
     if (cents < 0) {
       Message.warning('渠道成本不能为负');
       return;
@@ -3160,7 +3161,7 @@
           unit_price_cents:
             backfillForm.unitPriceYuan == null
               ? 0
-              : Math.round(backfillForm.unitPriceYuan * 100),
+              : yuanToCents(backfillForm.unitPriceYuan),
           settled_at: new Date(backfillForm.settledAt).toISOString(),
           fulfillment_status: backfillForm.fulfillmentStatus,
           payment_status: 'paid',

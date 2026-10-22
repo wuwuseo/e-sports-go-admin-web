@@ -1515,6 +1515,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import type { AttachmentResponse } from '@/types/api';
   import SkuSelect from '../../components/SkuSelect.vue';
@@ -2176,7 +2177,7 @@
     const input: AfterSaleActionInput = { action_type: action.actionType };
     if (action.note.trim()) input.note = action.note.trim();
     if (isFundingAction(action.actionType)) {
-      input.amount_cents = Math.round(action.amountYuan * 100);
+      input.amount_cents = yuanToCents(action.amountYuan);
       if (action.actionType === 'refund' && action.disputePlayerId > 0) {
         input.dispute_player_id = action.disputePlayerId;
       }
@@ -2185,7 +2186,7 @@
     input.player_id = action.playerId;
     input.seat_index = action.seatIndex;
     input.units = action.units;
-    input.company_pay_cents = Math.round(action.companyPayYuan * 100);
+    input.company_pay_cents = yuanToCents(action.companyPayYuan);
     return input;
   }
   // 多动作方案的聚合摘要（§13.6）：plan_action 取主导类型，refund_cents 由后端按动作项求和。
@@ -2282,7 +2283,7 @@
     const payload: AfterSalePlanInput = {
       fault_party: planForm.faultParty,
       plan_action: planForm.planAction,
-      refund_cents: Math.round(planForm.refundYuan * 100),
+      refund_cents: yuanToCents(planForm.refundYuan),
       resolution: planForm.resolution.trim(),
     };
     if (planForm.mode === 'multi') {
@@ -2296,7 +2297,7 @@
       payload.refund_cents = 0;
       payload.actions = planForm.actions.map(planActionInput);
       if (planForm.recoveryYuan > 0) {
-        payload.recovery_cents = Math.round(planForm.recoveryYuan * 100);
+        payload.recovery_cents = yuanToCents(planForm.recoveryYuan);
         payload.recovery_player_id = planForm.recoveryPlayerId;
       }
       try {
@@ -2322,12 +2323,12 @@
         payload.makeup_player_id = planForm.makeupPlayerId;
         payload.makeup_seat_index = planForm.makeupSeatIndex;
         payload.makeup_units = planForm.makeupUnits;
-        payload.makeup_company_pay_cents = Math.round(
-          planForm.makeupCompanyPayYuan * 100
+        payload.makeup_company_pay_cents = yuanToCents(
+          planForm.makeupCompanyPayYuan
         );
       } else if (planForm.recoveryYuan > 0) {
         // 追偿（§13.4）：赔付由陪玩承担时另建待审批的追偿明细。
-        payload.recovery_cents = Math.round(planForm.recoveryYuan * 100);
+        payload.recovery_cents = yuanToCents(planForm.recoveryYuan);
         payload.recovery_player_id = planForm.recoveryPlayerId;
       }
       if (
@@ -2494,7 +2495,7 @@
       await registerExternalRefund({
         channel: externalRefundForm.channel,
         transaction_no: externalRefundForm.transactionNo.trim(),
-        amount_cents: Math.round(externalRefundForm.amountYuan * 100),
+        amount_cents: yuanToCents(externalRefundForm.amountYuan),
         order_id: externalRefundForm.orderId,
         aftersale_id: record.id,
         reason: externalRefundForm.reason.trim(),

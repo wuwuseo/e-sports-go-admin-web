@@ -247,25 +247,35 @@
             <a-option value="entertainment">娱乐</a-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="每份标价（分）" required>
-          <a-input-number v-model="productForm.unit_price_cents" :min="1" />
-        </a-form-item>
-        <a-form-item label="每份最低议价（分）" required>
+        <a-form-item label="每份标价（元）" required>
           <a-input-number
-            v-model="productForm.min_unit_price_cents"
-            :min="1"
-            :max="productForm.unit_price_cents"
+            :model-value="productForm.unit_price_cents / 100"
+            :min="0.01"
+            :precision="2"
+            @change="onUnitPriceChange"
+          />
+        </a-form-item>
+        <a-form-item label="每份最低议价（元）" required>
+          <a-input-number
+            :model-value="productForm.min_unit_price_cents / 100"
+            :min="0.01"
+            :max="productForm.unit_price_cents / 100"
+            :precision="2"
+            @change="onMinUnitPriceChange"
           />
         </a-form-item>
         <a-form-item
-          label="免审幅度（基点）"
-          tooltip="1000 基点 = 标价小计的 10%；超过该幅度须异人审批。"
+          label="议价免审（%）"
+          tooltip="占标价小计的百分比；超过该幅度须异人审批。提交时自动换算为基点保存。"
           required
         >
           <a-input-number
-            v-model="productForm.adjustment_approval_bp"
-            :min="1"
-            :max="10000"
+            :model-value="productForm.adjustment_approval_bp / 100"
+            :min="0.01"
+            :max="100"
+            :precision="2"
+            :step="1"
+            @change="onApprovalBpChange"
           />
         </a-form-item>
         <a-form-item label="一份服务量" required>
@@ -585,6 +595,7 @@
   import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import {
     cancelSkuSuspension,
     createCategory,
@@ -833,6 +844,20 @@
   function onCostChange(value: unknown) {
     productForm.cost_yuan = typeof value === 'number' ? value : null;
   }
+  // 价格类字段表单按元录入，落库仍以分保存
+  function onUnitPriceChange(value: unknown) {
+    productForm.unit_price_cents =
+      typeof value === 'number' ? yuanToCents(value) : 0;
+  }
+  function onMinUnitPriceChange(value: unknown) {
+    productForm.min_unit_price_cents =
+      typeof value === 'number' ? yuanToCents(value) : 0;
+  }
+  // 表单按百分比录入，落库仍以基点保存（1% = 100 基点）
+  function onApprovalBpChange(value: unknown) {
+    productForm.adjustment_approval_bp =
+      typeof value === 'number' ? yuanToCents(value) : 0;
+  }
   function openProduct(record?: EsportsSku) {
     originalProduct.value = record || null;
     const costYuan =
@@ -844,7 +869,7 @@
     productVisible.value = true;
   }
   const costCents = (yuan: number | null) =>
-    yuan === null ? null : Math.round(yuan * 100);
+    yuan === null ? null : yuanToCents(yuan);
   function productPayload(): SkuUpdateInput {
     const payload: SkuUpdateInput = {
       title: productForm.title.trim(),
@@ -882,14 +907,14 @@
       productForm.min_unit_price_cents < 1 ||
       productForm.min_unit_price_cents > productForm.unit_price_cents
     ) {
-      Message.error('最低议价须在 1 分与标价之间');
+      Message.error('最低议价须在 0.01 元与标价之间');
       return;
     }
     if (
       productForm.adjustment_approval_bp < 1 ||
       productForm.adjustment_approval_bp > 10000
     ) {
-      Message.error('免审幅度须在 1–10000 基点之间');
+      Message.error('议价免审须在 0.01%–100% 之间');
       return;
     }
     if (productForm.service_units < 1 || productForm.quota_total < -1) {

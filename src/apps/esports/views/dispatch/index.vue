@@ -876,6 +876,7 @@
   import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import useUserStore from '@/store/modules/user';
   import {
     approveCloseReview,
@@ -1820,7 +1821,7 @@
     addonSubmitting.value = true;
     try {
       await createOrderAddon(order.id, {
-        added_cents: Math.round(addonForm.addedYuan * 100),
+        added_cents: yuanToCents(addonForm.addedYuan),
         added_units: addonForm.addedUnits,
         note: addonForm.note.trim() || undefined,
       });

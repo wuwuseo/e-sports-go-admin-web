@@ -704,6 +704,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import useUserStore from '@/store/modules/user';
   import SkuSelect from '../../components/SkuSelect.vue';
   import {
@@ -1211,7 +1212,7 @@
           unit_price_cents:
             backfillForm.unitPriceYuan == null
               ? 0
-              : Math.round(backfillForm.unitPriceYuan * 100),
+              : yuanToCents(backfillForm.unitPriceYuan),
           settled_at: new Date(backfillForm.settledAt).toISOString(),
           fulfillment_status: backfillForm.fulfillmentStatus,
           payment_status: 'paid',

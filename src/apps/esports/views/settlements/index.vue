@@ -1459,9 +1459,11 @@
               align="center"
             >
               <a-input-number
-                v-model="tier.thresholdBaseCents"
-                placeholder="基数阈值（分）"
-                :min="1"
+                :model-value="tier.thresholdBaseCents / 100"
+                placeholder="基数阈值（元）"
+                :min="0.01"
+                :precision="2"
+                @change="(value) => onTierThresholdChange(tier, value)"
               />
               <a-input-number
                 v-model="tier.valueBp"
@@ -1781,6 +1783,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import {
     activateCloseRule,
     activateCommissionRule,
@@ -2099,9 +2102,7 @@
       require_duration: closeRuleForm.requireDuration,
       require_no_pending_addon: closeRuleForm.requireNoPendingAddon,
       require_no_open_aftersale: closeRuleForm.requireNoOpenAftersale,
-      review_threshold_cents: Math.round(
-        closeRuleForm.reviewThresholdYuan * 100
-      ),
+      review_threshold_cents: yuanToCents(closeRuleForm.reviewThresholdYuan),
       condition_tree: closeRuleForm.conditionTree,
       note: closeRuleForm.note.trim(),
     };
@@ -2366,9 +2367,7 @@
       calc_mode: ruleForm.calcMode,
       value_bp: ruleForm.calcMode === 'percent' ? ruleForm.valueBp : 0,
       value_cents:
-        ruleForm.calcMode === 'percent'
-          ? 0
-          : Math.round(ruleForm.valueYuan * 100),
+        ruleForm.calcMode === 'percent' ? 0 : yuanToCents(ruleForm.valueYuan),
       unit_basis: ruleForm.unitBasis,
       note: ruleForm.note.trim(),
     };
@@ -2854,6 +2853,15 @@
     csRuleForm.tiers.push({ thresholdBaseCents: 0, valueBp: 0 });
   }
 
+  // 阶梯阈值表单按元录入，落库仍以分保存
+  function onTierThresholdChange(
+    tier: { thresholdBaseCents: number },
+    value: unknown
+  ) {
+    tier.thresholdBaseCents =
+      typeof value === 'number' ? yuanToCents(value) : 0;
+  }
+
   function csRuleIncomplete() {
     if (csRuleForm.scope === 'admin' && !csRuleForm.scopeKey) return true;
     if (csRuleForm.calcMode === 'fixed_per_order') {
@@ -2885,7 +2893,7 @@
       calc_mode: csRuleForm.calcMode,
       include_gifts: csRuleForm.includeGifts,
       value_bp: percent ? csRuleForm.valueBp : 0,
-      value_cents: percent ? 0 : Math.round(csRuleForm.valueYuan * 100),
+      value_cents: percent ? 0 : yuanToCents(csRuleForm.valueYuan),
       tiers: csRuleForm.tiers.map((tier) => ({
         threshold_base_cents: tier.thresholdBaseCents,
         value_bp: tier.valueBp,

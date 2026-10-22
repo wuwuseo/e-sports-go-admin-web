@@ -454,6 +454,7 @@
   import { Message, Modal } from '@arco-design/web-vue';
   import { IconGift, IconSafe } from '@arco-design/web-vue/es/icon';
   import usePermission from '@/hooks/permission';
+  import yuanToCents, { divideToInt } from '@/utils/money';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     adjustWallet,
@@ -554,13 +555,13 @@
   const walletIcon = (icon?: string): Component | null =>
     icon ? walletIconMap[icon] || null : walletIconMap.wallet;
 
-  // §11.4 按账户单位倍率换算：cents / unitCents 保留两位，整数运算避免浮点误差。
+  // §11.4 按账户单位倍率换算：cents / unitCents 保留两位，用高精度除法避免浮点误差。
   const fmtByUnit = (cents: number, unitCents?: number) => {
     const unit = unitCents && unitCents > 0 ? unitCents : 100;
     const sign = cents < 0 ? '-' : '';
     const abs = Math.abs(cents);
     let intPart = Math.floor(abs / unit);
-    let fracPart = Math.round(((abs % unit) / unit) * 100);
+    let fracPart = divideToInt(abs % unit, unit, 100);
     if (fracPart === 100) {
       intPart += 1;
       fracPart = 0;
@@ -654,8 +655,8 @@
 
   async function submitEntry() {
     const ownerId = entryTarget.value?.owner_id || entryForm.ownerId || 0;
-    const principalCents = Math.round(entryForm.principalYuan * 100);
-    const bonusCents = Math.round(entryForm.bonusYuan * 100);
+    const principalCents = yuanToCents(entryForm.principalYuan);
+    const bonusCents = yuanToCents(entryForm.bonusYuan);
     const note = entryForm.note.trim();
     if (ownerId <= 0) {
       Message.warning('请选择归属人');

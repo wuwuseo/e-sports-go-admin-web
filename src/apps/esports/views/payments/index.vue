@@ -772,6 +772,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message, Modal } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import {
     createPaymentAccount,
     decidePaymentReversal,
@@ -1201,7 +1202,7 @@
         order_id: proofCreateForm.orderId,
         account_id: proofCreateForm.accountId,
         transaction_no: proofCreateForm.transactionNo.trim(),
-        amount_cents: Math.round(proofCreateForm.amountYuan * 100),
+        amount_cents: yuanToCents(proofCreateForm.amountYuan),
         proof_ref: proofCreateForm.proofRef.trim(),
         note: proofCreateForm.note.trim(),
       });
@@ -1359,7 +1360,7 @@
     }
     const ok = await confirmFundsAction(
       `确认登记${reversalKindText(reversalCreateForm.kind)}，金额 ${yuan(
-        Math.round(reversalCreateForm.amountYuan * 100)
+        yuanToCents(reversalCreateForm.amountYuan)
       )}？登记后须由其他管理员处置。`,
       '登记撤销 / 拒付'
     );
@@ -1368,7 +1369,7 @@
       await registerPaymentReversal({
         receipt_id: reversalCreateForm.receiptId,
         kind: reversalCreateForm.kind,
-        amount_cents: Math.round(reversalCreateForm.amountYuan * 100),
+        amount_cents: yuanToCents(reversalCreateForm.amountYuan),
         reason,
         evidence_ref: reversalCreateForm.evidenceRef.trim(),
       });

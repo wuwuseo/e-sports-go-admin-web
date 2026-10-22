@@ -243,6 +243,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import {
     createCampaign,
     listCampaigns,
@@ -493,8 +494,8 @@
       return null;
     }
     const tiers = form.tiers.map((tier) => ({
-      threshold_cents: Math.round((tier.thresholdYuan || 0) * 100),
-      bonus_cents: Math.round((tier.bonusYuan || 0) * 100),
+      threshold_cents: yuanToCents(tier.thresholdYuan || 0),
+      bonus_cents: yuanToCents(tier.bonusYuan || 0),
     }));
     for (let i = 1; i < tiers.length; i += 1) {
       if (tiers[i].threshold_cents <= tiers[i - 1].threshold_cents) {

@@ -646,6 +646,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import {
     activateCloseApprovalFlow,
     activateCloseFormTemplate,
@@ -1006,8 +1007,8 @@
       // 模板 scope 在后端已支持 order_type，api.ts 的联合类型尚未包含，此处显式断言。
       scope: templateForm.scope as CloseFormScope,
       scope_key: templateForm.scopeKey.trim(),
-      min_cents: Math.round(templateForm.minYuan * 100),
-      max_cents: Math.round(templateForm.maxYuan * 100),
+      min_cents: yuanToCents(templateForm.minYuan),
+      max_cents: yuanToCents(templateForm.maxYuan),
       fields: templateForm.bindings.map((binding, index) => ({
         field_key: binding.fieldKey,
         required: binding.required,
@@ -1129,9 +1130,7 @@
       scope_key: submitForm.scopeKey.trim(),
       mode: submitForm.mode,
       min_submit_ratio_bp:
-        submitForm.mode === 'custom'
-          ? Math.round(submitForm.ratioPercent * 100)
-          : 0,
+        submitForm.mode === 'custom' ? yuanToCents(submitForm.ratioPercent) : 0,
       allow_substitute: submitForm.allowSubstitute,
       on_missing: submitForm.onMissing,
       note: submitForm.note.trim(),
@@ -1298,7 +1297,7 @@
       name: approvalForm.name.trim(),
       scope: approvalForm.scope,
       scope_key: approvalForm.scopeKey.trim(),
-      min_cents: Math.round(approvalForm.minYuan * 100),
+      min_cents: yuanToCents(approvalForm.minYuan),
       nodes: approvalForm.nodes.map((node, index) => ({
         seq: index + 1,
         name: node.name.trim(),

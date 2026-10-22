@@ -870,6 +870,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import {
     createGift,
     createGiftDisputeByAdmin,
@@ -1124,7 +1125,7 @@
     return {
       tier_code: tierCode,
       name,
-      price_cents: Math.round(tierForm.priceYuan * 100),
+      price_cents: yuanToCents(tierForm.priceYuan),
       high_value: tierForm.highValue,
       require_age: tierForm.requireAge,
       is_default: tierForm.isDefault,
@@ -1211,17 +1212,15 @@
       code: form.code,
       name: form.name,
       icon: '',
-      price_cents: Math.round(form.priceYuan * 100),
+      price_cents: yuanToCents(form.priceYuan),
       category: form.category,
       commission_mode: form.commissionMode,
       commission_bp:
         form.commissionMode === 'percent'
-          ? Math.round(form.commissionPercent * 100)
+          ? yuanToCents(form.commissionPercent)
           : 0,
       commission_cents:
-        form.commissionMode === 'fixed'
-          ? Math.round(form.commissionYuan * 100)
-          : 0,
+        form.commissionMode === 'fixed' ? yuanToCents(form.commissionYuan) : 0,
       high_value: form.highValue,
       require_age: form.requireAge,
       sort_order: form.sortOrder,
@@ -1622,9 +1621,7 @@
         customer_id: order.customer_id,
         kind: disputeCreateForm.kind,
         demand: disputeCreateForm.demand.trim(),
-        requested_refund_cents: Math.round(
-          disputeCreateForm.requestedYuan * 100
-        ),
+        requested_refund_cents: yuanToCents(disputeCreateForm.requestedYuan),
       });
       disputeCreateVisible.value = false;
       Message.success('已建争议单，待审核');
@@ -1667,7 +1664,7 @@
       await reviewGiftDispute(target.id, {
         approve: disputeReviewForm.approve,
         approved_refund_cents: disputeReviewForm.approve
-          ? Math.round(disputeReviewForm.approvedYuan * 100)
+          ? yuanToCents(disputeReviewForm.approvedYuan)
           : undefined,
         resolution: disputeReviewForm.resolution.trim(),
       });

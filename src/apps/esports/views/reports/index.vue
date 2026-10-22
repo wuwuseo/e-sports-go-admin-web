@@ -388,6 +388,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents from '@/utils/money';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
   import type { AttachmentResponse } from '@/types/api';
@@ -483,7 +484,7 @@
   );
   const manualAdjustCents = computed(() =>
     Number.isFinite(manualAdjustYuan.value)
-      ? Math.round(manualAdjustYuan.value * 100)
+      ? yuanToCents(manualAdjustYuan.value)
       : 0
   );
   const manualAdjustReasonOk = computed(() => {

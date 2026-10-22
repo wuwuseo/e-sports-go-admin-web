@@ -434,6 +434,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import yuanToCents, { scaleToInt } from '@/utils/money';
   import {
     createMemberLevel,
     deleteMemberLevel,
@@ -586,8 +587,8 @@
     return {
       code,
       name,
-      growth_threshold: Math.round((form.growthYuan || 0) * 100),
-      discount_bps: Math.round((form.discountZhe || 0) * 1000),
+      growth_threshold: yuanToCents(form.growthYuan || 0),
+      discount_bps: scaleToInt(form.discountZhe || 0, 1000),
       priority_dispatch: form.priorityDispatch,
       dedicated_cs: form.dedicatedCs,
       priority_booking: form.priorityBooking,
