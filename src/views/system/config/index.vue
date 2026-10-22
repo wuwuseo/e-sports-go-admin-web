@@ -57,7 +57,7 @@
                       <!-- String / Number 类型 -->
                       <a-form-item
                         v-if="item.type === 'string' || item.type === 'number'"
-                        :extra="item.remark"
+                        :tooltip="item.remark"
                       >
                         <template #label>
                           <div

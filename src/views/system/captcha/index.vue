@@ -57,7 +57,7 @@
                     locale
                   )
                 "
-                :help="secretHelp"
+                :tooltip="secretHelp"
               >
                 <a-input-password
                   v-model="selectedDraft.secret"
@@ -65,6 +65,11 @@
                   :disabled="!canEdit || selectedDraft.clearSecret"
                   allow-clear
                 />
+                <a-tag
+                  :color="selectedDraft.secretConfigured ? 'green' : 'gray'"
+                >
+                  {{ secretStatus }}
+                </a-tag>
                 <a-checkbox
                   v-model="selectedDraft.clearSecret"
                   :disabled="!canEdit || clearSecretLocked"
@@ -81,7 +86,7 @@
                 v-for="field in selectedDraft.descriptor.fields"
                 :key="field.key"
                 :label="localizeCaptchaText(field.label, locale)"
-                :help="localizeCaptchaText(field.help, locale)"
+                :tooltip="localizeCaptchaText(field.help, locale)"
               >
                 <a-select
                   v-if="field.type === 'multi_select'"
@@ -236,16 +241,18 @@
       state.persistedSceneEnabled &&
       state.activeProvider === state.selectedProvider
   );
-  const secretHelp = computed(() => {
+  const secretStatus = computed(() => {
     if (!selectedDraft.value) return '';
-    const status = selectedDraft.value.secretConfigured
+    return selectedDraft.value.secretConfigured
       ? t('system.captcha.provider.secretConfigured')
       : t('system.captcha.provider.secretNotConfigured');
-    const help = localizeCaptchaText(
+  });
+  const secretHelp = computed(() => {
+    if (!selectedDraft.value) return '';
+    return localizeCaptchaText(
       selectedDraft.value.descriptor.secret.help,
       locale.value
     );
-    return help ? `${status} · ${help}` : status;
   });
 
   function providerName(provider: string) {

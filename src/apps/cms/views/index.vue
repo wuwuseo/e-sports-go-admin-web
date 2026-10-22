@@ -199,6 +199,7 @@
         <a-form-item
           v-if="contentForm.format === 'image'"
           label="图片"
+          tooltip="可多选、可重复添加，数量不限"
           required
         >
           <div class="cms-image-field">
@@ -236,7 +237,7 @@
                 </template>
               </AttachmentSelector>
               <span class="cms-image-hint">
-                可多选、可重复添加，数量不限；当前 {{ contentImages.length }} 张
+                当前 {{ contentImages.length }} 张
               </span>
             </div>
           </div>
