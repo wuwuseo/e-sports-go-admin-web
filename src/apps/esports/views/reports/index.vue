@@ -159,11 +159,11 @@
           <a-input-number v-model="preferredPlayerId" :min="0" />
           <a-typography-text type="secondary">
             填陪玩档案
-            ID；指定后订单直接由客服指派该陪玩、不进入优先通知窗口（§5.4），陪玩须资质合格。
+            ID；指定后订单直接由客服指派该陪玩、不进入优先通知窗口，陪玩须资质合格。
           </a-typography-text>
         </a-form-item>
 
-        <a-divider>报价构成（§4.2 / §15.6-01）</a-divider>
+        <a-divider>报价构成</a-divider>
         <a-spin :loading="quoteLoading" style="width: 100%">
           <template v-if="currentQuote">
             <a-descriptions :column="1" size="small" bordered>
@@ -461,8 +461,8 @@
     quantity: 1,
   });
   const orderRequestKey = ref(crypto.randomUUID());
-  // 指定陪玩（§5.4）：0 表示不指定，由客服指派。
-  // 指定陪玩（§5.4）：留空（undefined）表示不指定；0 是合法 ID 占位，不能用它当「未填」。
+  // 指定陪玩：0 表示不指定，由客服指派。
+  // 指定陪玩：留空（undefined）表示不指定；0 是合法 ID 占位，不能用它当「未填」。
   const preferredPlayerId = ref<number>();
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
   // 透出后端返回的中文错误信息（如客户归属校验），取不到时回退默认文案。
@@ -471,7 +471,7 @@
     return response?.data?.message || fallback;
   };
 
-  // ── 报价构成（§4.2 / §15.6-01）：选客户 / 商品 / 份数后调用后端试算，逐项展示标价、
+  // ── 报价构成：选客户 / 商品 / 份数后调用后端试算，逐项展示标价、
   //    会员折扣、承诺服务量与结单要求；人工调整按「元」录入，正负号与后端一致。 ──
   const quoteLoading = ref(false);
   const quotes = ref<Record<string, SkuQuotePreview>>({});
@@ -494,7 +494,7 @@
     const reason = manualAdjustReason.value.trim();
     return reason.length >= 4 && reason.length <= 255;
   });
-  // 免审额度（§4.2-02）：subtotal × adjustment_approval_bp ‰，与后端同一算式。
+  // 免审额度：subtotal × adjustment_approval_bp ‰，与后端同一算式。
   const approvalThresholdCents = computed(() => {
     const quote = currentQuote.value;
     const sku = currentSku.value;

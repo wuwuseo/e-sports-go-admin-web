@@ -213,7 +213,7 @@
             >
           </a-descriptions>
 
-          <a-divider>动作项与逐项进度（§13.6）</a-divider>
+          <a-divider>动作项与逐项进度</a-divider>
           <template v-if="detailActions">
             <a-space wrap class="summary">
               <a-tag>共 {{ detailActions.progress.total }} 项</a-tag>
@@ -273,7 +273,7 @@
           </template>
           <a-empty v-else description="该售后单无动作项（单动作方案）" />
 
-          <a-divider>复核申请（§13.6）</a-divider>
+          <a-divider>复核申请</a-divider>
           <a-space class="toolbar" wrap>
             <a-button
               v-if="canRequestReview"
@@ -567,7 +567,7 @@
               v-if="!messages.length && !messageLoading"
               description="暂无沟通记录"
             />
-            <!-- §8.1-3 客服回复：后端 POST /admin/after-sales/:id/messages 已注册，
+            <!-- 客服回复：后端 POST /admin/after-sales/:id/messages 已注册，
                  走 api.ts 的 sendAfterSaleMessage（未改动 api.ts）。 -->
             <div v-if="canCreateMessage" class="message-reply">
               <a-textarea
@@ -1590,7 +1590,7 @@
   const canOperate = computed(() =>
     hasButtonPermission('esports:aftersales:operate')
   );
-  // 复核三权限（§13.6）：申请 / 异人审查 / 撤回，各自独立。
+  // 复核三权限：申请 / 异人审查 / 撤回，各自独立。
   const canRequestReview = computed(() =>
     hasButtonPermission('esports:aftersales:review_request')
   );
@@ -1620,7 +1620,7 @@
   const canViewMessages = computed(() =>
     hasButtonPermission('esports:aftersales:messages_list')
   );
-  // 回复沟通记录（§8.1-3）：权限码取自 app.go 的 PermAPI 声明（只有 API 授权、无同名按钮），
+  // 回复沟通记录：权限码取自 app.go 的 PermAPI 声明（只有 API 授权、无同名按钮），
   // 因此按「按钮码 || 同码 API 授权」并集判断，避免非超管被误隐藏。
   const canCreateMessage = computed(
     () =>
@@ -1689,7 +1689,7 @@
     }
   }
 
-  // ── 动作项与逐项进度（§13.6） ──
+  // ── 动作项与逐项进度 ──
   const detailActions = ref<{
     progress: AfterSaleActionProgress;
     actions: EsportsAfterSaleAction[];
@@ -1769,7 +1769,7 @@
     }
   }
 
-  // ── 终态售后复核（§13.6） ──
+  // ── 终态售后复核 ──
   const reviews = ref<EsportsAfterSaleReview[]>([]);
   const reviewLoading = ref(false);
   const reviewRequestVisible = ref(false);
@@ -1956,7 +1956,7 @@
   const channelMap: Record<string, string> = Object.fromEntries(
     channelOptions.map((item) => [item.value, item.label])
   );
-  // §13.1 / §13.3 统一售后来源：按来源切换 ID 字段名，并限制可选问题类型。
+  // 统一售后来源：按来源切换 ID 字段名，并限制可选问题类型。
   const sourceTypeOptions: { value: AfterSaleSourceType; label: string }[] = [
     { value: 'order', label: '服务订单' },
     { value: 'gift', label: '礼物单' },
@@ -1967,7 +1967,7 @@
     sourceTypeOptions.map((item) => [item.value, item.label])
   );
   const createVisible = ref(false);
-  // 建单凭证附件（§13.2）：只可引用本人上传的私有附件，后端校验归属与 MIME 后才落 evidence_ref。
+  // 建单凭证附件：只可引用本人上传的私有附件，后端校验归属与 MIME 后才落 evidence_ref。
   const createEvidence = ref<AttachmentResponse[]>([]);
   const evidenceSelectedText = computed(() =>
     createEvidence.value.length
@@ -2052,7 +2052,7 @@
   const statusLabel = (value: string) => statusMap[value] || value;
   const faultLabel = (value: string) => faultMap[value] || value;
   const planLabel = (value: string) => planMap[value] || value;
-  // §13.5 限时：展示当前阶段剩余时间，已超时显示超时时长（列表加载时计算一次）。
+  // 限时：展示当前阶段剩余时间，已超时显示超时时长（列表加载时计算一次）。
   const slaLabel = (record: EsportsAfterSale) => {
     if (!record.sla_deadline) return '—';
     const minutes = Math.round(
@@ -2070,7 +2070,7 @@
 
   const planVisible = ref(false);
   const planTarget = ref<EsportsAfterSale | null>(null);
-  // 多动作方案的动作项草稿（§13.6）：金额 / 公司承担在前端按「元」录入，提交时转「分」。
+  // 多动作方案的动作项草稿：金额 / 公司承担在前端按「元」录入，提交时转「分」。
   interface PlanActionDraft {
     key: string;
     actionType: AfterSaleActionType;
@@ -2106,23 +2106,23 @@
     note: '',
   });
   const planForm = reactive<{
-    // 方案模式（§13.6）：single 走既有单动作路径，multi 提交多动作项并逐项执行。
+    // 方案模式：single 走既有单动作路径，multi 提交多动作项并逐项执行。
     mode: 'single' | 'multi';
     faultParty: AfterSaleFaultParty;
     planAction: AfterSalePlanAction;
     refundYuan: number;
     resolution: string;
     actions: PlanActionDraft[];
-    // 补履约方案参数（§13.6）：plan_action=makeup_service 时使用。
+    // 补履约方案参数：plan_action=makeup_service 时使用。
     makeupKind: MakeupKind;
     makeupPlayerId: number;
     makeupSeatIndex: number;
     makeupUnits: number;
     makeupCompanyPayYuan: number;
-    // 追偿（§13.4）：责任方为陪玩时可填向陪玩追偿的陪玩与金额。
+    // 追偿：责任方为陪玩时可填向陪玩追偿的陪玩与金额。
     recoveryPlayerId: number;
     recoveryYuan: number;
-    // 争议涉及陪玩（§13.3 成员明细冲回）：退款类方案可指定优先冲回该成员分成。
+    // 争议涉及陪玩（成员明细冲回）：退款类方案可指定优先冲回该成员分成。
     disputePlayerId: number;
   }>({
     mode: 'single',
@@ -2147,7 +2147,7 @@
   function removePlanAction(index: number) {
     planForm.actions.splice(index, 1);
   }
-  // 多动作方案的动作项校验（§13.6）：资金类金额须大于零；补履约须给承接陪玩与订单内席位，
+  // 多动作方案的动作项校验：资金类金额须大于零；补履约须给承接陪玩与订单内席位，
   // 补钟须给大于零的补足量；一张售后单最多一条补履约动作项。
   function planActionError(): string {
     if (!planForm.actions.length) return '多动作方案至少需要一项动作';
@@ -2189,7 +2189,7 @@
     input.company_pay_cents = yuanToCents(action.companyPayYuan);
     return input;
   }
-  // 多动作方案的聚合摘要（§13.6）：plan_action 取主导类型，refund_cents 由后端按动作项求和。
+  // 多动作方案的聚合摘要：plan_action 取主导类型，refund_cents 由后端按动作项求和。
   const multiPlanSummary = computed<AfterSalePlanAction>(() => {
     const types = planForm.actions.map((action) => action.actionType);
     if (types.includes('refund')) return 'refund_original';
@@ -2287,7 +2287,7 @@
       resolution: planForm.resolution.trim(),
     };
     if (planForm.mode === 'multi') {
-      // 多动作方案（§13.6）：refund_cents 由后端按资金类动作项求和，这里固定送 0。
+      // 多动作方案：refund_cents 由后端按资金类动作项求和，这里固定送 0。
       const error = planActionError();
       if (error) {
         Message.warning(error);
@@ -2317,7 +2317,7 @@
     }
     try {
       if (planForm.planAction === 'makeup_service') {
-        // 补履约不产生退款金额（§13.6）。
+        // 补履约不产生退款金额。
         payload.refund_cents = 0;
         payload.makeup_kind = planForm.makeupKind;
         payload.makeup_player_id = planForm.makeupPlayerId;
@@ -2327,7 +2327,7 @@
           planForm.makeupCompanyPayYuan
         );
       } else if (planForm.recoveryYuan > 0) {
-        // 追偿（§13.4）：赔付由陪玩承担时另建待审批的追偿明细。
+        // 追偿：赔付由陪玩承担时另建待审批的追偿明细。
         payload.recovery_cents = yuanToCents(planForm.recoveryYuan);
         payload.recovery_player_id = planForm.recoveryPlayerId;
       }
@@ -2335,7 +2335,7 @@
         planForm.planAction !== 'makeup_service' &&
         planForm.disputePlayerId > 0
       ) {
-        // 争议涉及陪玩（§13.3）：退款类方案可指定优先冲回该成员分成。
+        // 争议涉及陪玩：退款类方案可指定优先冲回该成员分成。
         payload.dispute_player_id = planForm.disputePlayerId;
       }
       await planAfterSale(record.id, payload);
@@ -2422,7 +2422,7 @@
     }
   }
 
-  // ── 外部渠道退款单（§13 补全）──
+  // ── 外部渠道退款单（补全）──
   const externalRefunds = ref<EsportsExternalRefund[]>([]);
   const externalRefundLoading = ref(false);
   const refundExecutions = ref<EsportsRechargeRefundExecution[]>([]);
@@ -2613,7 +2613,7 @@
     }
   }
 
-  // ── 售后单内沟通记录 / 补证 / 客服回复（§13.3-04）──
+  // ── 售后单内沟通记录 / 补证 / 客服回复──
   // 读写均走 api.ts 封装（listAfterSaleMessages / sendAfterSaleMessage /
   // requestAfterSaleEvidence），不再直连裸 axios。
   const messages = ref<EsportsAfterSaleMessage[]>([]);
@@ -2647,7 +2647,7 @@
     }
   }
 
-  // §8.1-3：客服回复（visibility=internal 为内部备注，客户不可见）；成功后就地刷新消息流。
+  // ：客服回复（visibility=internal 为内部备注，客户不可见）；成功后就地刷新消息流。
   async function submitMessage() {
     const record = detail.value;
     if (!record) return;
@@ -2699,7 +2699,7 @@
     }
   }
 
-  // ── 售后自动建单规则与命中留痕（§13.2-05）──
+  // ── 售后自动建单规则与命中留痕──
   const rules = ref<EsportsAfterSaleRule[]>([]);
   // 售后规则范围展示商品名而不是 商品 ID；商品下拉自身按关键词远程取数。
   const skus = ref<EsportsSku[]>([]);
@@ -3014,7 +3014,7 @@
     }
   }
 
-  // ── 补履约任务（§13.6） ──
+  // ── 补履约任务 ──
   const makeupLoading = ref(false);
   const makeupStatusFilter = ref('');
   const makeups = ref<EsportsFulfillmentMakeup[]>([]);

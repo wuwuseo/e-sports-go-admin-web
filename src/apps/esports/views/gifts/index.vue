@@ -978,7 +978,7 @@
       d.getDate()
     )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
-  // 礼物确认单视图已返回收款字段与档位快照（§9.2-01 / §9.1-02），api.ts 的 GiftIntent
+  // 礼物确认单视图已返回收款字段与档位快照，api.ts 的 GiftIntent
   // 尚未收录，页面侧就地补齐只读字段。
   type GiftIntentRow = GiftIntent & {
     payment_channel?: string;
@@ -1046,7 +1046,7 @@
     sortOrder: 0,
   });
 
-  // ── 礼物价格档位（§9.1-02）：随礼物编辑弹窗维护，gift_id / tier_code 创建后不可改 ──
+  // ── 礼物价格档位：随礼物编辑弹窗维护，gift_id / tier_code 创建后不可改 ──
   const tiers = ref<EsportsGiftTier[]>([]);
   const tierLoading = ref(false);
   const tierVisible = ref(false);
@@ -1312,7 +1312,7 @@
     }
   }
 
-  // ── 礼物意向直接支付（§9.2-01）：发起收款 → 财务核销成单 ──
+  // ── 礼物意向直接支付：发起收款 → 财务核销成单 ──
   const paymentVisible = ref(false);
   const paymentSubmitting = ref(false);
   const paymentTarget = ref<GiftIntentRow | null>(null);
@@ -1406,7 +1406,7 @@
     paymentSource: 'customer_balance_principal' as const,
   });
 
-  // 礼物确认单幂等（§9.5-02）：client_key 与「本次提交内容」绑定——同一份内容连点两次复用同一个键，
+  // 礼物确认单幂等：client_key 与「本次提交内容」绑定——同一份内容连点两次复用同一个键，
   // 只产生一张确认单（服务端按 client_key + 请求体哈希去重）；内容变了就换键，
   // 否则同键异体会被后端判为冲突，改正表单后重试将一直失败。
   const sendSubmitting = ref(false);
@@ -1522,7 +1522,7 @@
     }
   }
 
-  // ── 礼物争议（§9.5）：客户申请 → 客服审核 → 执行部分退款 ──
+  // ── 礼物争议：客户申请 → 客服审核 → 执行部分退款 ──
   const disputeKindMap: Record<GiftDisputeKind, string> = {
     not_received: '未收到礼物',
     wrong_gift: '送错对象',

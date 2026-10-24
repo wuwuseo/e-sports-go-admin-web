@@ -158,7 +158,7 @@
                 </template>
               </a-table-column>
               <a-table-column data-index="created_at" title="创建时间" />
-              <!-- 争议冻结（§12.6）：冻结 / 解冻按订单维度作用于待结算明细，需二次确认。 -->
+              <!-- 争议冻结：冻结 / 解冻按订单维度作用于待结算明细，需二次确认。 -->
               <a-table-column title="操作" :width="140">
                 <template #cell="{ record }">
                   <a-button
@@ -181,7 +181,7 @@
           </a-table>
         </a-tab-pane>
 
-        <!-- 客服提成规则（§12.2） -->
+        <!-- 客服提成规则 -->
         <a-tab-pane key="cs_rules" title="客服提成规则">
           <a-space class="toolbar">
             <a-input
@@ -265,7 +265,7 @@
           </a-table>
         </a-tab-pane>
 
-        <!-- 客服提成明细（§12.2 / §12.7） -->
+        <!-- 客服提成明细 -->
         <a-tab-pane key="cs_entries" title="客服提成明细">
           <a-space class="toolbar">
             <a-input-number
@@ -503,7 +503,7 @@
           </a-table>
         </a-tab-pane>
 
-        <!-- 提现审核（§6.3 / §12.6） -->
+        <!-- 提现审核 -->
         <a-tab-pane key="withdrawals" title="提现审核">
           <a-space class="toolbar">
             <a-input-number
@@ -635,7 +635,7 @@
           </a-table>
         </a-tab-pane>
 
-        <!-- 结单规则（§3.4 首版） -->
+        <!-- 结单规则（首版） -->
         <a-tab-pane key="close_rules" title="结单规则">
           <a-space class="toolbar">
             <a-button type="primary" @click="openCloseRuleCreate"
@@ -723,7 +723,7 @@
           </a-table>
         </a-tab-pane>
 
-        <!-- 结算周期（§12.6）：日/周/月/自定义间隔，按 全局 → 游戏 → 等级 → 陪玩 逐级覆盖 -->
+        <!-- 结算周期：日/周/月/自定义间隔，按 全局 → 游戏 → 等级 → 陪玩 逐级覆盖 -->
         <a-tab-pane key="settlement_cycles" title="结算周期">
           <a-space class="toolbar">
             <a-button type="primary" @click="openCycleCreate"
@@ -777,7 +777,7 @@
           </a-table>
         </a-tab-pane>
 
-        <!-- 陪玩追偿（§13.4） -->
+        <!-- 陪玩追偿 -->
         <a-tab-pane key="recoveries" title="陪玩追偿">
           <a-space class="toolbar">
             <a-input-number
@@ -1003,7 +1003,7 @@
       </a-form>
     </a-modal>
 
-    <!-- 结算单详情（§12.6-06）：后端返回 { settlement, entries, entry_count, detail_truncated } 包体。 -->
+    <!-- 结算单详情：后端返回 { settlement, entries, entry_count, detail_truncated } 包体。 -->
     <a-drawer
       v-model:visible="detailVisible"
       title="结算单详情"
@@ -1182,7 +1182,7 @@
       </a-spin>
     </a-drawer>
 
-    <!-- 冻结订单分成（§12.6 争议冻结）：必须填写原因，确认后按订单 + 陪玩冻结待结算明细。 -->
+    <!-- 冻结订单分成（争议冻结）：必须填写原因，确认后按订单 + 陪玩冻结待结算明细。 -->
     <a-modal
       v-model:visible="freezeVisible"
       title="冻结订单分成（二次确认）"
@@ -1588,7 +1588,7 @@
       </a-form>
     </a-modal>
 
-    <!-- 打款执行记录（§11.2）：pay_requested 可确认成功 / 标记失败，失败后可重新提交。 -->
+    <!-- 打款执行记录：pay_requested 可确认成功 / 标记失败，失败后可重新提交。 -->
     <a-drawer
       v-model:visible="withdrawalPayoutsVisible"
       title="提现打款记录"
@@ -1870,7 +1870,7 @@
   const canOperate = computed(() =>
     hasButtonPermission('esports:settlements:manage')
   );
-  // 冻结 / 解冻（§12.6）与客服提成作废 / 重开（P0-6 / P0-8）的按钮级权限，
+  // 冻结 / 解冻与客服提成作废 / 重开（P0-6 / P0-8）的按钮级权限，
   // 复用后端 app.go 已声明的 PermAPI code。
   const canFreeze = computed(() =>
     hasButtonPermission('esports:settlements:freeze')
@@ -1962,7 +1962,7 @@
 
   const activeTab = ref('rules');
 
-  // ── 结单规则（§3.4 首版） ──
+  // ── 结单规则（首版） ──
   const closeRules = ref<EsportsCloseRule[]>([]);
   const closeRulesLoading = ref(false);
   const closeRuleVisible = ref(false);
@@ -1978,7 +1978,7 @@
     requireNoPendingAddon: boolean;
     requireNoOpenAftersale: boolean;
     reviewThresholdYuan: number;
-    /** 通用 AND/OR 条件树（§3.4）；null 表示未配置，结单回落结构化条件项。 */
+    /** 通用 AND/OR 条件树；null 表示未配置，结单回落结构化条件项。 */
     conditionTree: CloseConditionNode | null;
     note: string;
   }>({
@@ -2015,7 +2015,7 @@
   const closeRuleStatusLabel = (value: string) =>
     closeRuleStatusMap[value] || value;
 
-  // 条件树（§3.4）：后端未配置时零值序列化为 {}，按 op / field 非空判定是否已配置。
+  // 条件树：后端未配置时零值序列化为 {}，按 op / field 非空判定是否已配置。
   const ruleHasConditionTree = (record: EsportsCloseRule) =>
     isCloseConditionTreeConfigured(record.condition_tree);
   const closeRuleTreeSummary = (record: EsportsCloseRule) =>
@@ -2091,7 +2091,7 @@
       Message.warning('请填写范围键');
       return;
     }
-    // 结单条件树（§3.4）：与后端 normalizeCloseConditionTree 同口径（深度 / 节点数 / 叶子完整性），
+    // 结单条件树：与后端 normalizeCloseConditionTree 同口径（深度 / 节点数 / 叶子完整性），
     // 前端先拦一道，后端写入时仍会原子校验。
     const treeErrors = validateCloseConditionTree(closeRuleForm.conditionTree);
     if (treeErrors.length > 0) {
@@ -2153,7 +2153,7 @@
     }
   }
 
-  // ── 结算周期（§12.6 逐级覆盖） ──
+  // ── 结算周期（逐级覆盖） ──
   const cycles = ref<SettlementCycle[]>([]);
   const cyclesLoading = ref(false);
   const cycleVisible = ref(false);
@@ -2289,7 +2289,7 @@
     level: '按陪玩等级',
     player: '按陪玩',
   };
-  // 技能等级文案走系统配置（§5.5 配置驱动）。
+  // 技能等级文案走系统配置（配置驱动）。
   const skillLevels = ref<SkillLevel[]>([]);
   const playerLevelMap = computed<Record<string, string>>(() =>
     Object.fromEntries(skillLevels.value.map((item) => [item.code, item.name]))
@@ -2552,7 +2552,7 @@
     }
   }
 
-  // ── 争议冻结（§12.6）：冻结 / 解冻按订单维度，作用于该订单的待结算分成明细。
+  // ── 争议冻结：冻结 / 解冻按订单维度，作用于该订单的待结算分成明细。
   const freezeVisible = ref(false);
   const freezeForm = reactive({ orderId: 0, playerId: 0, reason: '' });
 
@@ -2744,7 +2744,7 @@
     }
   }
 
-  // ── 客服提成规则（§12.2） ──
+  // ── 客服提成规则 ──
   const csRules = ref<CsCommissionRule[]>([]);
   const csRulesLoading = ref(false);
   const csRuleNoFilter = ref('');
@@ -2915,7 +2915,7 @@
     }
   }
 
-  // ── 客服提成明细与概览（§12.7） ──
+  // ── 客服提成明细与概览 ──
   const csEntries = ref<CsCommissionEntry[]>([]);
   const csEntriesLoading = ref(false);
   const csSummary = ref<CsCommissionSummary | null>(null);
@@ -3022,7 +3022,7 @@
     }
   }
 
-  // ── 提现审核（§6.3 / §12.6） ──
+  // ── 提现审核 ──
   const withdrawals = ref<EsportsWithdrawal[]>([]);
   const withdrawalsLoading = ref(false);
   const withdrawalFilters = reactive<{
@@ -3157,7 +3157,7 @@
     }
   }
 
-  // ── 提现打款执行状态机（§11.2 补全） ──
+  // ── 提现打款执行状态机（补全） ──
   const withdrawalPayoutStatusMap: Record<WithdrawalPayoutStatus, string> = {
     pay_requested: '待确认到账',
     paid: '已打款',
@@ -3366,7 +3366,7 @@
     }
   }
 
-  // ── 陪玩追偿（§13.4） ──
+  // ── 陪玩追偿 ──
   const recoveries = ref<EsportsPlayerRecovery[]>([]);
   const recoveriesLoading = ref(false);
   const recoveryFilters = reactive<{ playerId?: number; status?: string }>({

@@ -918,7 +918,7 @@
       ignore: '认定为误报',
     }[action] || action);
 
-  // 收款主体白名单 fail-closed（§4.3-07）：白名单未配置时后端拒绝一切提交 / 审核。
+  // 收款主体白名单 fail-closed：白名单未配置时后端拒绝一切提交 / 审核。
   // 上线自检（/admin/readiness）目前没有该检查项，前端只能按错误文案识别；
   // 一旦识别到即在页面顶部常驻提示，避免运营反复撞同一个 400。
   const whitelistBlocked = ref(false);
@@ -1264,7 +1264,7 @@
     }
   }
 
-  // ── 渠道撤销 / 拒付（§3.2） ──
+  // ── 渠道撤销 / 拒付 ──
   const reversals = ref<EsportsPaymentReversal[]>([]);
   const reversalsLoading = ref(false);
   const reversalFilterStatus = ref<PaymentReversalStatus>();
@@ -1288,7 +1288,7 @@
     }
   }
 
-  // ── 充值退款执行批次（§4.5，只读，api.ts 的 listRechargeRefundExecutions）：
+  // ── 充值退款执行批次（，只读，api.ts 的 listRechargeRefundExecutions）：
   // 金额单位分，列表按批次 ID 倒序。 ──
   const refundExecutions = ref<RechargeRefundExecutionView[]>([]);
   const refundExecutionsLoading = ref(false);

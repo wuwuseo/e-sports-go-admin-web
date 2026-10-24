@@ -977,7 +977,7 @@
 
   const loading = ref(false);
   const board = ref<EsportsDispatchBoard | null>(null);
-  // 催单优先级排序（§5.7-05）：后端 sort=remind_priority 时各订单桶按催单优先级降序重排。
+  // 催单优先级排序：后端 sort=remind_priority 时各订单桶按催单优先级降序重排。
   const remindPrioritySort = ref(false);
 
   // 透出后端返回的中文错误信息，取不到时回退默认文案。
@@ -1006,16 +1006,16 @@
     load();
   }
 
-  // 会员订单优先（§10.4）：后端已把会员订单置顶，这里只做标记展示。
+  // 会员订单优先：后端已把会员订单置顶，这里只做标记展示。
   const memberPriorityIds = computed(
     () => board.value?.member_priority_order_ids ?? []
   );
-  // 公共池脱敏（§5.1 / §8.2）：非超管在公共池看到的订单已被后端掩码客户身份与金额。
+  // 公共池脱敏：非超管在公共池看到的订单已被后端掩码客户身份与金额。
   const maskedPoolIds = computed(
     () => board.value?.masked_public_pool_ids ?? []
   );
 
-  // ── 客服坐班在线状态（§1.1-08）──
+  // ── 客服坐班在线状态──
   // presence 表是权威口径；看板顶部的 online_players 是陪玩在线数，两者不要混用。
   const presences = ref<CsPresenceList | null>(null);
   const presencesLoading = ref(false);
@@ -1104,7 +1104,7 @@
     )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
-  // ── 派单候选（§5.5 首版） ──
+  // ── 派单候选（首版） ──
   const candidates = ref<DispatchCandidate[]>([]);
   const candidatesLoading = ref(false);
   // 指定陪玩：留空（undefined）表示不指定；0 是合法 ID 占位，不能用它当「未填」。
@@ -1155,7 +1155,7 @@
     }
   }
 
-  // ── 优先派单权（§5.4） ──
+  // ── 优先派单权 ──
   const priorityGrants = ref<DispatchPriorityGrant[]>([]);
   const priorityLoading = ref(false);
   const priorityFilters = reactive<{
@@ -1293,7 +1293,7 @@
     }
   }
 
-  // ── 独占优先通知窗口（§5.4 业务口径） ──
+  // ── 独占优先通知窗口（业务口径） ──
   const noticesVisible = ref(false);
   const noticesLoading = ref(false);
   const notices = ref<DispatchPriorityNotice[]>([]);
@@ -1323,7 +1323,7 @@
     }
   };
 
-  // 订单级窗口状态（§5.4）：pending 才是「通知中」；人工指派 / 固排成队确定陪玩后后端立即闭合。
+  // 订单级窗口状态：pending 才是「通知中」；人工指派 / 固排成队确定陪玩后后端立即闭合。
   const priorityNoticeOptions: {
     value: PriorityNoticeStatus;
     label: string;
@@ -1408,7 +1408,7 @@
     }
   }
 
-  // ── 陪玩转单（§5.7） ──
+  // ── 陪玩转单 ──
   const transfers = ref<SeatTransferRequest[]>([]);
   const transfersLoading = ref(false);
   const transferFilters = reactive<{ status?: SeatTransferStatus }>({});
@@ -1497,7 +1497,7 @@
 
   const assignVisible = ref(false);
   const assignForm = reactive({ seatIndex: 1, playerId: 1 });
-  // 固排成队（§5.3）
+  // 固排成队
   const teamVisible = ref(false);
   const teamForm = reactive({ mainPlayerId: 1 });
   const teamCandidates = ref<TeammateDispatchCandidate[]>([]);
@@ -1528,7 +1528,7 @@
     }
   }
 
-  // 发布到抢单大厅（§5.2 / §5.6）：没有优先名单的游戏分区由此对全部陪玩开放。
+  // 发布到抢单大厅：没有优先名单的游戏分区由此对全部陪玩开放。
   async function handlePublishGrab(order: DispatchOrder) {
     try {
       await publishOrderToGrabHall(order.id, '客服发布到抢单大厅');
@@ -1610,7 +1610,7 @@
     teamCandidatesLoaded.value = false;
   }
 
-  // 技能等级文案走系统配置（§5.5 配置驱动），拉取失败按编码原样回显。
+  // 技能等级文案走系统配置（配置驱动），拉取失败按编码原样回显。
   const skillLevels = ref<SkillLevel[]>([]);
   const levelLabel = (level: string) =>
     skillLevelName(skillLevels.value, level) || level;
@@ -1626,7 +1626,7 @@
     }
   };
 
-  // ── 指派前查陪玩档期（§10.4-04）──
+  // ── 指派前查陪玩档期──
   const availability = ref<PlayerAvailabilityView | null>(null);
   const availabilityLoading = ref(false);
 
@@ -1760,7 +1760,7 @@
     remindVisible.value = true;
   }
 
-  // ── 结单复核（§3.4）：待结单桶可直接复核通过 / 驳回，替代到订单页逐单寻找 ──
+  // ── 结单复核：待结单桶可直接复核通过 / 驳回，替代到订单页逐单寻找 ──
   const closeRejectVisible = ref(false);
   const closeRejectOrder = ref<DispatchOrder | null>(null);
   const closeRejectForm = reactive({ reason: '' });
@@ -1803,7 +1803,7 @@
     }
   }
 
-  // ── 加钟（§3.3 / §12.5）：服务中订单可直接在看板发起加钟 ──
+  // ── 加钟：服务中订单可直接在看板发起加钟 ──
   const addonVisible = ref(false);
   const addonOrder = ref<DispatchOrder | null>(null);
   const addonSubmitting = ref(false);
@@ -1853,7 +1853,7 @@
     }
   }
 
-  // 状态变更需秒级反映（§5.8-03）：固定 5 秒轮询，不再用 15 秒；页面不可见时跳过请求。
+  // 状态变更需秒级反映：固定 5 秒轮询，不再用 15 秒；页面不可见时跳过请求。
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   onMounted(async () => {
     skillLevels.value = await fetchSkillLevels();

@@ -264,7 +264,7 @@
     hasButtonPermission('esports:campaigns:manage')
   );
 
-  // 奖励目标账户（§11.2-01）与陪玩受众在 app.go / 后端 campaignInput 已支持，
+  // 奖励目标账户与陪玩受众在 app.go / 后端 campaignInput 已支持，
   // api.ts 的 RechargeCampaign / CampaignInput 尚未声明这两个字段（本轮不改 api.ts），
   // 因此按扩展交集类型读取，提交时单独带上。
   type CampaignExt = RechargeCampaign & {
@@ -536,7 +536,7 @@
       activity_type: form.activityType,
       tiers,
       // 受众取值为 api.ts 的 CampaignAudience 之外新增的 player，故此处显式断言；
-      // 后端 campaignInput.Audience 已接受 player（§11.2-01）。
+      // 后端 campaignInput.Audience 已接受 player。
       audience: form.audience as CampaignAudience,
       audience_customer_ids:
         form.audience === 'specified'

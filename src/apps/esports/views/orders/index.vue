@@ -87,7 +87,7 @@
                 @click="confirmAppointment(record)"
                 >确认档期</a-button
               >
-              <!-- 在线收款（§4.3-02）：待付款订单由客服选渠道发起收款，未配置渠道时后端 503。 -->
+              <!-- 在线收款：待付款订单由客服选渠道发起收款，未配置渠道时后端 503。 -->
               <a-button
                 v-if="canStartPayment && isUnpaid(record)"
                 type="text"
@@ -95,14 +95,14 @@
                 @click="openPayment(record)"
                 >在线收款</a-button
               >
-              <!-- 已付款改期（§3.3）：付费档期已被席位占用，必须走限时提案，不能直改。 -->
+              <!-- 已付款改期：付费档期已被席位占用，必须走限时提案，不能直改。 -->
               <a-button
                 v-if="canProposeReschedule && canProposeRescheduleFor(record)"
                 type="text"
                 @click="openProposal(record)"
                 >改期提案</a-button
               >
-              <!-- 档期确认超时处置（§5.5-06）：超时挂起后只能退款或改期。 -->
+              <!-- 档期确认超时处置：超时挂起后只能退款或改期。 -->
               <a-button
                 v-if="canDisposeAppointment && isAppointmentExpired(record)"
                 type="text"
@@ -177,7 +177,7 @@
                 @click="restore(record)"
                 >恢复</a-button
               >
-              <!-- 转公共池（§5.1）：待派单订单由负责客服交回公共池，清空负责客服。 -->
+              <!-- 转公共池：待派单订单由负责客服交回公共池，清空负责客服。 -->
               <a-button
                 v-if="canReleasePool && isPendingDispatch(record)"
                 type="text"
@@ -400,7 +400,7 @@
           </template>
         </a-table>
       </template>
-      <!-- 席位与服务段（§5.5 / §3.3）：席位来自派单看板同一接口，服务段代操作按事件留痕。 -->
+      <!-- 席位与服务段：席位来自派单看板同一接口，服务段代操作按事件留痕。 -->
       <template v-if="detail && canViewSeats">
         <a-divider>席位与服务段</a-divider>
         <div class="seat-toolbar">
@@ -469,7 +469,7 @@
           </template>
         </a-table>
       </template>
-      <!-- 改期提案（§3.3）：已付款改期须客户与已接单成员逐人确认，撤回后订单档期不变。 -->
+      <!-- 改期提案：已付款改期须客户与已接单成员逐人确认，撤回后订单档期不变。 -->
       <template v-if="detail && canListProposals">
         <a-divider>改期提案</a-divider>
         <a-table
@@ -557,7 +557,7 @@
           >人工调整超过 {{ repriceQuote.approval_threshold_bp / 100 }}%
           免审幅度，提交后先由其他管理员审批。</div
         >
-        <!-- 取消试算（§3.3 公示取消政策）：先展示免费窗口、手续费与退款构成，再确认取消。 -->
+        <!-- 取消试算（公示取消政策）：先展示免费窗口、手续费与退款构成，再确认取消。 -->
         <template v-if="opsAction === 'cancel'">
           <a-divider>取消试算</a-divider>
           <a-spin v-if="cancelPreviewLoading" />
@@ -724,7 +724,7 @@
             </a-space>
           </a-form-item>
         </template>
-        <!-- 查看服务凭证（§3.4-03）：后端要求结单回传覆盖全部图片附件的 viewed_evidence_attachment_ids。 -->
+        <!-- 查看服务凭证：后端要求结单回传覆盖全部图片附件的 viewed_evidence_attachment_ids。 -->
         <template
           v-if="opsAction === 'close' && evidenceAttachmentIds.length > 0"
         >
@@ -1039,7 +1039,7 @@
       </a-form>
     </a-modal>
 
-    <!-- 在线收款（§4.3-02）：渠道配置态来自 /admin/payment-channels，未开通渠道由后端 503 明确失败。 -->
+    <!-- 在线收款：渠道配置态来自 /admin/payment-channels，未开通渠道由后端 503 明确失败。 -->
     <a-modal
       v-model:visible="paymentVisible"
       title="在线收款"
@@ -1108,7 +1108,7 @@
       </a-form>
     </a-modal>
 
-    <!-- 档期确认超时处置（§5.5-06）：只提供后端契约里的退还 / 改期两种处置。 -->
+    <!-- 档期确认超时处置：只提供后端契约里的退还 / 改期两种处置。 -->
     <a-modal
       v-model:visible="appointmentVisible"
       title="档期确认超时处置"
@@ -1181,7 +1181,7 @@
       </a-form>
     </a-modal>
 
-    <!-- 释放到公共池（§5.1）：清空负责客服并留痕，订单回到待派单公共池。 -->
+    <!-- 释放到公共池：清空负责客服并留痕，订单回到待派单公共池。 -->
     <a-modal
       v-model:visible="releasePoolVisible"
       title="转公共池"
@@ -1203,7 +1203,7 @@
       </a-form>
     </a-modal>
 
-    <!-- 限时改期提案（§3.3）：已付款订单改期须客户与已接单成员逐人确认，提案本身不改订单。 -->
+    <!-- 限时改期提案：已付款订单改期须客户与已接单成员逐人确认，提案本身不改订单。 -->
     <a-modal
       v-model:visible="proposalVisible"
       title="发起改期提案"
@@ -1235,7 +1235,7 @@
       </a-form>
     </a-modal>
 
-    <!-- 服务段代操作（§3.3）：暂停 / 恢复 / 终止 / 时长更正，全部按事件留痕。 -->
+    <!-- 服务段代操作：暂停 / 恢复 / 终止 / 时长更正，全部按事件留痕。 -->
     <a-modal
       v-model:visible="serviceVisible"
       :title="serviceTitle"
@@ -1330,7 +1330,7 @@
       </a-form>
     </a-modal>
 
-    <!-- 固排成队（§5.3）：主陪玩 + 其固排一次占满空席位，候选由后端过滤资格/在线/分区。 -->
+    <!-- 固排成队：主陪玩 + 其固排一次占满空席位，候选由后端过滤资格/在线/分区。 -->
     <a-modal
       v-model:visible="teamVisible"
       title="固排成队"
@@ -1589,7 +1589,7 @@
   }
   const detail = ref<EsportsOrder | null>(null);
   const detailVisible = ref(false);
-  // 结单审批进度（§3.4）：详情抽屉展示当前待审批节点。
+  // 结单审批进度：详情抽屉展示当前待审批节点。
   const detailApproval = ref<OrderCloseApprovalView | null>(null);
   const approvalProgressLabel = computed(() => {
     const view = detailApproval.value;
@@ -1611,7 +1611,7 @@
     reason: '',
   });
 
-  // ── 结单表单（§3.4）：按订单适用模板动态渲染，值随结单一起提交 ──
+  // ── 结单表单：按订单适用模板动态渲染，值随结单一起提交 ──
   const closeForm = ref<OrderCloseFormView | null>(null);
   const closeFormValues = ref<Record<string, unknown>>({});
   const closeFormFields = computed<EsportsCloseFormField[]>(
@@ -1671,7 +1671,7 @@
   const closeFormSubmitRule = computed(
     () => closeForm.value?.submit_rule || null
   );
-  // 客服代提交行（§3.4）：仅在生效提交规则允许代提交且存在未上报成员时渲染。
+  // 客服代提交行：仅在生效提交规则允许代提交且存在未上报成员时渲染。
   const substituteRows = ref<
     { seatIndex: number; playerId: number; units: number; evidence: string }[]
   >([]);
@@ -1686,7 +1686,7 @@
   const appointmentSuspendedAt = (order: EsportsOrder) =>
     (order as EsportsOrder & { appointment_suspended_at?: string | null })
       .appointment_suspended_at || '';
-  // 档期确认超时（§5.5-06）：只有挂起态才开放退还 / 改期处置入口。
+  // 档期确认超时：只有挂起态才开放退还 / 改期处置入口。
   const isAppointmentExpired = (order: EsportsOrder) =>
     order.appointment_status === 'pending_confirm' &&
     !!appointmentSuspendedAt(order);
@@ -1696,7 +1696,7 @@
     order.fulfillment_status !== 'completed' &&
     order.fulfillment_status !== 'cancelled';
 
-  // ── 加钟（§3.3 / §6.2 / §12.5）：客服对服务中订单发起，陪玩确认后累加并生成加钟分成 ──
+  // ── 加钟：客服对服务中订单发起，陪玩确认后累加并生成加钟分成 ──
   const addonVisible = ref(false);
   const addonLoading = ref(false);
   const addonSubmitting = ref(false);
@@ -1711,7 +1711,7 @@
   };
   const addonStatusLabel = (value: string) => addonStatusMap[value] || value;
 
-  // ── 结单条件（§3.4）：条件不满足时结单按钮不可点，弹窗内逐项展示未满足原因 ──
+  // ── 结单条件：条件不满足时结单按钮不可点，弹窗内逐项展示未满足原因 ──
   const closeConditionMap = ref<Record<number, CloseConditionStatus>>({});
 
   async function loadCloseConditions() {
@@ -1849,7 +1849,7 @@
     }
   }
 
-  // 加钟收款（§3.3）：确认后的追加金额由客服按客户余额收单。
+  // 加钟收款：确认后的追加金额由客服按客户余额收单。
   const addonPaymentLabel = (record: EsportsOrderAddon) => {
     if (record.status !== 'confirmed') return '—';
     return record.payment_status === 'paid'
@@ -1867,7 +1867,7 @@
     }
   }
 
-  // ── 结单复核（§3.4）──
+  // ── 结单复核──
   const closeReviewVisible = ref(false);
   const closeReviewTarget = ref<EsportsOrder | null>(null);
   const closeReviewForm = reactive({ reason: '' });
@@ -2090,7 +2090,7 @@
     }
   }
 
-  // ── 在线收款（§4.3-02）：渠道枚举与启停态来自 /admin/payment-channels ──
+  // ── 在线收款：渠道枚举与启停态来自 /admin/payment-channels ──
   const paymentVisible = ref(false);
   const paymentLoading = ref(false);
   const paymentResult = ref<OrderPaymentStartView | null>(null);
@@ -2174,7 +2174,7 @@
     }
   }
 
-  // ── 档期确认超时处置（§5.5-06）：退还 / 改期两种处置，放行范围由后端配置决定 ──
+  // ── 档期确认超时处置：退还 / 改期两种处置，放行范围由后端配置决定 ──
   const appointmentVisible = ref(false);
   const appointmentLoading = ref(false);
   const appointmentError = ref('');
@@ -2292,7 +2292,7 @@
     }
   }
 
-  // ── 转公共池（§5.1）：清空负责客服并留痕，订单回到待派单公共池 ──
+  // ── 转公共池：清空负责客服并留痕，订单回到待派单公共池 ──
   const releasePoolVisible = ref(false);
   const releasePoolLoading = ref(false);
   const releasePoolForm = reactive({ orderId: 0, orderNo: '', reason: '' });
@@ -2323,7 +2323,7 @@
     }
   }
 
-  // ── 限时改期提案（§3.3）：已付款改期须客户与已接单成员逐人确认，撤回不改订单 ──
+  // ── 限时改期提案：已付款改期须客户与已接单成员逐人确认，撤回不改订单 ──
   const proposalVisible = ref(false);
   const proposalSubmitting = ref(false);
   const proposalLoading = ref(false);
@@ -2430,7 +2430,7 @@
     }
   }
 
-  // ── 席位与席位角色（§5.5 / §15.1）──
+  // ── 席位与席位角色──
   const seats = ref<EsportsDispatchSeat[]>([]);
   const seatsLoading = ref(false);
 
@@ -2447,7 +2447,7 @@
     }
   }
 
-  // ── 服务段代操作（§3.3）：暂停 / 恢复 / 终止 / 时长更正，全部按事件留痕 ──
+  // ── 服务段代操作：暂停 / 恢复 / 终止 / 时长更正，全部按事件留痕 ──
   type ServiceAction = 'pause' | 'resume' | 'terminate' | 'correction';
   const serviceVisible = ref(false);
   const serviceLoading = ref(false);
@@ -2653,7 +2653,7 @@
     }
   }
 
-  // ── 固排成队（§5.3）：候选由后端按固排关系 / 资格 / 在线 / 分区 / 等级过滤 ──
+  // ── 固排成队：候选由后端按固排关系 / 资格 / 在线 / 分区 / 等级过滤 ──
   const teamVisible = ref(false);
   const teamOrderId = ref(0);
   const teamForm = reactive({ mainPlayerId: 1 });
@@ -2712,7 +2712,7 @@
     teamCandidatesLoaded.value = false;
   }
 
-  // ── 结单凭证（§3.4-03）：close-form 返回的图片附件必须逐张查看后原样回传 ──
+  // ── 结单凭证：close-form 返回的图片附件必须逐张查看后原样回传 ──
   const evidenceAttachmentIds = ref<number[]>([]);
   const viewedEvidenceIds = ref<number[]>([]);
   const evidenceUrls = ref<Record<number, string>>({});
@@ -2754,7 +2754,7 @@
     evidenceUrls.value = urls;
   }
 
-  // ── 取消试算（§3.3）：取消前先展示手续费与退款构成，再确认提交 ──
+  // ── 取消试算：取消前先展示手续费与退款构成，再确认提交 ──
   const cancelQuote = ref<CancelQuote | null>(null);
   const cancelPreviewLoading = ref(false);
   const cancelPreviewError = ref('');
@@ -2843,7 +2843,7 @@
       Message.warning('请填写原因');
       return;
     }
-    // 结单条件（§3.4）：条件不满足时结单按钮已置灰，这里再兜一道，后端仍会事务内原子校验。
+    // 结单条件：条件不满足时结单按钮已置灰，这里再兜一道，后端仍会事务内原子校验。
     if (opsAction.value === 'close') {
       const condition = closeConditionOf(order);
       if (condition && !condition.satisfied) {
@@ -2851,7 +2851,7 @@
         return;
       }
     }
-    // 结单表单（§3.4）：必填项前端先拦一道，后端仍会事务内原子校验。
+    // 结单表单：必填项前端先拦一道，后端仍会事务内原子校验。
     if (opsAction.value === 'close') {
       const missing = closeFormFields.value.filter(
         (item) =>
@@ -2867,7 +2867,7 @@
         return;
       }
     }
-    // 结单凭证（§3.4-03）：图片附件未逐张确认时后端必然 400，前端先拦一道并如实提示还差几张。
+    // 结单凭证：图片附件未逐张确认时后端必然 400，前端先拦一道并如实提示还差几张。
     if (opsAction.value === 'close' && evidenceAttachmentIds.value.length > 0) {
       const missingEvidence = evidenceAttachmentIds.value.filter(
         (attachmentId) => !viewedEvidenceIds.value.includes(attachmentId)
@@ -2881,7 +2881,7 @@
         return;
       }
     }
-    // 取消试算（§3.3）：后端判定不可取消时先展示拦截原因，不提交取消。
+    // 取消试算：后端判定不可取消时先展示拦截原因，不提交取消。
     if (opsAction.value === 'cancel' && cancelQuote.value) {
       if (!cancelQuote.value.cancelable) {
         Message.error(
@@ -2980,7 +2980,7 @@
     }
   }
 
-  // ── 渠道成本（§12.1） ──
+  // ── 渠道成本 ──
   const channelCostVisible = ref(false);
   const channelCostLoading = ref(false);
   const channelCostForm = reactive({ orderId: 0, orderNo: '', yuan: 0 });
@@ -3011,7 +3011,7 @@
     }
   }
 
-  // ── 单笔手动指定分成规则（§12.3 五级优先级最高一级） ──
+  // ── 单笔手动指定分成规则（五级优先级最高一级） ──
   const commissionRuleVisible = ref(false);
   const commissionRuleLoading = ref(false);
   const activeCommissionRules = ref<CommissionRule[]>([]);
@@ -3060,7 +3060,7 @@
     }
   }
 
-  // ── 预约档期确认（§3.2 / §5.5） ──
+  // ── 预约档期确认 ──
   async function confirmAppointment(order: EsportsOrder) {
     try {
       await confirmOrderAppointment(order.id);
@@ -3196,7 +3196,7 @@
     margin: 12px 0;
   }
 
-  /* 结单按钮（§3.4）：条件未满足时置灰，仍保留 title 悬浮提示未满足原因。 */
+  /* 结单按钮：条件未满足时置灰，仍保留 title 悬浮提示未满足原因。 */
   .close-btn:disabled {
     color: rgb(0 0 0 / 25%);
     cursor: not-allowed;
@@ -3220,7 +3220,7 @@
     margin-bottom: 12px;
   }
 
-  /* 结单服务凭证（§3.4-03）：逐张预览 + 逐张确认，缩略图可点击计为已查看。 */
+  /* 结单服务凭证：逐张预览 + 逐张确认，缩略图可点击计为已查看。 */
   .evidence-list {
     display: flex;
     flex-wrap: wrap;

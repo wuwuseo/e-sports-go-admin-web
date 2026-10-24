@@ -676,7 +676,7 @@
     EsportsCloseSubmitRule,
   } from '../../api';
 
-  // 模板适用范围在后端 schema（esports_close_form.scope）里多一个 order_type（§3.4-07），
+  // 模板适用范围在后端 schema（esports_close_form.scope）里多一个 order_type，
   // api.ts 的 CloseFormScope 尚未声明（本轮不改 api.ts），这里在视图内扩展。
   // 提交规则 / 审批流的 scope 枚举仍只有 global / game / sku。
   type CloseFormScopeExt = CloseFormScope | 'order_type';
@@ -1049,7 +1049,7 @@
     }
   }
 
-  // ── 提交规则（§3.4） ──
+  // ── 提交规则 ──
   const submitRules = ref<EsportsCloseSubmitRule[]>([]);
   const submitLoading = ref(false);
   const submitVisible = ref(false);
@@ -1168,7 +1168,7 @@
     }
   }
 
-  // ── 审批流（§3.4） ──
+  // ── 审批流 ──
   const approvalFlows = ref<EsportsCloseApprovalFlow[]>([]);
   const approvalLoading = ref(false);
   const approvalVisible = ref(false);

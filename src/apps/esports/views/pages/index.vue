@@ -147,7 +147,7 @@
                     </a-tooltip>
                   </div>
                 </a-tab-pane>
-                <!-- 组件库按分类分组，用途 / 适用数据源（§16.2-03）收进悬停气泡。 -->
+                <!-- 组件库按分类分组，用途 / 适用数据源收进悬停气泡。 -->
                 <a-tab-pane
                   v-for="group in componentGroups"
                   :key="group.title"
@@ -188,7 +188,7 @@
                 >手机画布（{{ components.length }}）· 拖拽排序</div
               >
               <div class="canvas-split">
-                <!-- 实时预览（§16.4）：复用客户端渲染规则的手机画布，草稿改动即时同步。 -->
+                <!-- 实时预览：复用客户端渲染规则的手机画布，草稿改动即时同步。 -->
                 <div class="live-preview">
                   <div class="live-preview-head">
                     <span class="live-preview-title">实时预览</span>
@@ -703,7 +703,7 @@
           </div>
         </a-tab-pane>
 
-        <!-- 底部导航（§16.3-12）：数量 / 路径 / 顺序由客户端构建期固定，后台只能改文案、图标与显隐。 -->
+        <!-- 底部导航：数量 / 路径 / 顺序由客户端构建期固定，后台只能改文案、图标与显隐。 -->
         <a-tab-pane key="tabbar" title="底部导航">
           <a-space class="toolbar" wrap>
             <a-button :loading="tabbarLoading" @click="loadTabbar(true)"
@@ -770,7 +770,7 @@
         </a-tab-pane>
 
         <a-tab-pane key="versions" title="发布记录">
-          <!-- 版本差异视图（§16.2-07）：任选两版查看组件级差异。 -->
+          <!-- 版本差异视图：任选两版查看组件级差异。 -->
           <a-space class="toolbar" wrap>
             <a-select
               v-model="diffLeftNo"
@@ -1011,7 +1011,7 @@
       <PagePreview :components="components" />
     </a-modal>
 
-    <!-- 设备预览码（§16.4-02）：展示预览码 / 预览路径 / 有效期，客户端扫码兑换草稿配置。 -->
+    <!-- 设备预览码：展示预览码 / 预览路径 / 有效期，客户端扫码兑换草稿配置。 -->
     <a-modal
       v-model:visible="previewCodeVisible"
       title="设备预览码"
@@ -1108,7 +1108,7 @@
   import LayoutSlots from '../../components/page-designer/LayoutSlots.vue';
   import PagePreview from '../../components/page-designer/PagePreview.vue';
 
-  // ── 可视化属性面板 schema（§16.2） ──
+  // ── 可视化属性面板 schema ──
   type PropFieldKind =
     | 'text'
     | 'textarea'
@@ -1135,17 +1135,17 @@
   interface NavItemDraft {
     name: string;
     target: string;
-    // 图标（§16.3-04）：https:// / 站内 /path / 内置图标短标识（如 icon-cs）。
+    // 图标：https:// / 站内 /path / 内置图标短标识（如 icon-cs）。
     icon: string;
   }
 
-  // 轮播项（§16.3-02）：每张图独立配置点击跳转，后端以 items 承载。
+  // 轮播项：每张图独立配置点击跳转，后端以 items 承载。
   interface CarouselItemDraft {
     image: string;
     link: string;
   }
 
-  // 组件库分组与用途 / 数据源说明（§16.2-03）：与后端 pagePropsWhitelist 的键保持一一对应。
+  // 组件库分组与用途 / 数据源说明：与后端 pagePropsWhitelist 的键保持一一对应。
   interface ComponentMeta {
     type: PageComponentType;
     label: string;
@@ -1430,7 +1430,7 @@
   // 组件库气泡限宽：说明文字较长，避免气泡随内容无限拉宽。
   const tipStyle = { maxWidth: '260px', lineHeight: '1.5' };
 
-  // 首页版本 / 渠道（§16.2-02）：默认客户自助端首页，可由 GET /admin/pages 返回的文档切换。
+  // 首页版本 / 渠道：默认客户自助端首页，可由 GET /admin/pages 返回的文档切换。
   const channel = ref(PAGE_CHANNEL_CUSTOMER_HOME);
   const pageDocs = ref<PageDocument[]>([]);
   const channelLabels: Record<string, string> = {
@@ -1446,7 +1446,7 @@
   const previewVisible = ref(false);
   const cropperVisible = ref(false);
 
-  // 实时预览机型（§16.4）：按逻辑分辨率（CSS 像素）排版后整体缩放，390/430 宽的换行与栅格仍然真实。
+  // 实时预览机型：按逻辑分辨率（CSS 像素）排版后整体缩放，390/430 宽的换行与栅格仍然真实。
   interface PreviewDevice {
     key: string;
     label: string;
@@ -1506,7 +1506,7 @@
     return available ? Math.min(1, available / PREVIEW_WIDEST_PHONE) : 1;
   });
 
-  // 发布权限（§16.5）：运营提交发布申请，有发布权限者（异人）审核发布，回滚同权限。
+  // 发布权限：运营提交发布申请，有发布权限者（异人）审核发布，回滚同权限。
   const { hasButtonPermission } = usePermission();
   const canSubmit = computed(() =>
     hasButtonPermission('esports:pages:publish_submit')
@@ -1544,20 +1544,20 @@
   const selectedIndex = computed(() => selectedPathList.value[0] ?? -1);
   const scheduledAt = ref<number>();
   const rollbackVersion = ref<number>();
-  // 底部导航（§16.3-12）：路径与数量由客户端构建期固定，这里只编辑文案 / 图标 / 显隐。
+  // 底部导航：路径与数量由客户端构建期固定，这里只编辑文案 / 图标 / 显隐。
   const tabbarItems = ref<PageTabbarItem[]>([]);
   const tabbarDraftVersion = ref(0);
   const tabbarLoading = ref(false);
   const tabbarSaving = ref(false);
   const tabbarLoaded = ref(false);
-  // 设备预览码（§16.4-02）：一次性生成、30 分钟有效，仅展示不落库。
+  // 设备预览码：一次性生成、30 分钟有效，仅展示不落库。
   const previewCodeVisible = ref(false);
   const previewCodeLoading = ref(false);
   const previewCode = ref<PagePreviewCode | null>(null);
-  // 发布记录的两版差异选择（§16.2-07）：由版本号定位到该版 config.components 逐组件比对。
+  // 发布记录的两版差异选择：由版本号定位到该版 config.components 逐组件比对。
   const diffLeftNo = ref<number>();
   const diffRightNo = ref<number>();
-  // 发布人昵称映射（§16.2-07）：published_by 是管理员 ID，取后台管理员列表回填展示名。
+  // 发布人昵称映射：published_by 是管理员 ID，取后台管理员列表回填展示名。
   const adminNames = ref<Record<number, string>>({});
   const publisherLabel = (adminId: number) =>
     adminId ? adminNames.value[adminId] || `#${adminId}` : '—';
@@ -1811,7 +1811,7 @@
           .filter((v) => typeof v.name === 'string' && v.name.trim() !== '');
         return list.length
           ? list.map((v) => {
-              // 顺序即数组顺序（§16.3-04）：宫格按此顺序渲染；图标留空不写入，避免存空串。
+              // 顺序即数组顺序：宫格按此顺序渲染；图标留空不写入，避免存空串。
               const icon = typeof v.icon === 'string' ? v.icon.trim() : '';
               return {
                 name: v.name.trim(),
@@ -2085,7 +2085,7 @@
     list[index] = { ...list[index], [key]: value };
     setNavItems(list);
   }
-  // 调整宫格顺序（§16.3-04）：数组顺序即客户端渲染顺序。
+  // 调整宫格顺序：数组顺序即客户端渲染顺序。
   function moveNavItem(index: number, delta: number) {
     const target = index + delta;
     const list = navItemList();
@@ -2397,7 +2397,7 @@
     return list.map(normalizePageAsset);
   }
 
-  // 组件内上传 / 选择的图片同步登记到素材库（§16.2-06）：这些入口不经过
+  // 组件内上传 / 选择的图片同步登记到素材库：这些入口不经过
   // 「新增素材」表单，若不在这里登记，素材库就看不到运营实际在用的图片。
   // 同一地址只登记一次；登记失败不阻塞图片使用，只给出提示。
   async function registerPageAsset(
@@ -2753,7 +2753,7 @@
   }
 
   // ── 加载与组件操作 ──
-  // 加载装修文档列表（§16.2-02）：作为「首页版本 / 渠道」下拉的数据源；选中渠道不在列表中时
+  // 加载装修文档列表：作为「首页版本 / 渠道」下拉的数据源；选中渠道不在列表中时
   // 追加当前渠道，避免下拉为空导致无法编辑。
   const loadPageDocs = async () => {
     try {
@@ -2777,7 +2777,7 @@
     }
   };
 
-  // 发布人昵称（§16.2-07）：取后台管理员列表建立 ID → 展示名映射，取不到时回落 #ID。
+  // 发布人昵称：取后台管理员列表建立 ID → 展示名映射，取不到时回落 #ID。
   const loadAdminNames = async () => {
     try {
       const result = await getAdmins({ page: 1, page_size: 200 });
@@ -2829,7 +2829,7 @@
     load();
   };
 
-  // ── 发布记录版本差异（§16.2-07）：按组件位置比对，列出新增 / 删除 / 变更与变更字段 ──
+  // ── 发布记录版本差异：按组件位置比对，列出新增 / 删除 / 变更与变更字段 ──
   const componentsOf = (versionNo?: number): PageComponent[] => {
     if (!versionNo) return [];
     const version = versions.value.find(
@@ -3180,7 +3180,7 @@
     }
   };
 
-  // ── 底部导航（§16.3-12）：读取草稿里的导航项，按文案 / 图标 / 显隐编辑后回写草稿 ──
+  // ── 底部导航：读取草稿里的导航项，按文案 / 图标 / 显隐编辑后回写草稿 ──
   const loadTabbar = async (force = false) => {
     if (tabbarLoading.value) return;
     if (tabbarLoaded.value && !force) return;
@@ -3276,7 +3276,7 @@
     }
   };
 
-  // ── 设备预览码（§16.4-02）：生成指向当前草稿的 30 分钟预览码 ──
+  // ── 设备预览码：生成指向当前草稿的 30 分钟预览码 ──
   const generatePreviewCode = async () => {
     previewCodeLoading.value = true;
     try {

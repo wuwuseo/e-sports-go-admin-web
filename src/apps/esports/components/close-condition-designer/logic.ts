@@ -11,7 +11,7 @@ import type {
   CloseConditionOperator,
 } from '../../api';
 
-// 结单条件树（§3.4 结单条件自定义）的纯逻辑：节点工厂、与后端一致的口径校验、只读摘要。
+// 结单条件树（结单条件自定义）的纯逻辑：节点工厂、与后端一致的口径校验、只读摘要。
 // 形状判定与 internal/apps/esports/close_condition.go 的 normalizeCloseConditionNode 保持一致：
 // 组合节点填 op（and / or / not）+ children，叶子节点填 field + operator + value，两者互斥。
 

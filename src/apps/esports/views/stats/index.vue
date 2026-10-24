@@ -168,7 +168,7 @@
           @click="handleExport"
           >导出 CSV</a-button
         >
-        <!-- §17 / P1-07：响应显式带出本次数据域（full = 超管 / 财务授权全量，owner = 本人局部）。 -->
+        <!-- P1-07：响应显式带出本次数据域（full = 超管 / 财务授权全量，owner = 本人局部）。 -->
         <a-tag
           v-if="dataScopeLabel && activeTab !== 'exports'"
           :color="dataScopeColor"
@@ -786,7 +786,7 @@
         ?.addon_revenue_cents ?? 0
   );
 
-  // 数据域标记（§17 / P1-07）：后端在响应顶层给出 full / owner，便于审计本次是全量还是局部。
+  // 数据域标记（P1-07）：后端在响应顶层给出 full / owner，便于审计本次是全量还是局部。
   const dataScope = computed(
     () =>
       (report.value as (EsportsReport & { data_scope?: string }) | null)
@@ -801,7 +801,7 @@
     dataScope.value === 'full' ? 'green' : 'orange'
   );
 
-  // ── 导出记录（§17）：/report-exports 与 /reports/{type}/exports 两条历史路由 ──
+  // ── 导出记录：/report-exports 与 /reports/{type}/exports 两条历史路由 ──
   const exportHistory = ref<ReportExport[]>([]);
   const exportHistoryLoading = ref(false);
   const exportTypeFilter = ref<ReportType | ''>('');

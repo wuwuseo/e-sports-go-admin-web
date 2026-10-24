@@ -71,7 +71,7 @@
                     }}</a-button
                   >
                 </a-popconfirm>
-                <!-- §8.1-8 删除等级：后端 DELETE /admin/member-levels/:id（app.go:592）
+                <!-- 删除等级：后端 DELETE /admin/member-levels/:id（app.go:592）
                      仅允许删除「已停用且未被客户引用」的等级，其余情况后端返回中文冲突提示。 -->
                 <a-popconfirm
                   v-if="record.status === 'disabled' && canDeleteLevel"
@@ -459,7 +459,7 @@
   const canManage = computed(() =>
     hasButtonPermission('esports:members:manage')
   );
-  // 删除等级（§8.1-8）：权限码取自 app.go 的 PermAPI 声明（esports:members:level_delete，
+  // 删除等级：权限码取自 app.go 的 PermAPI 声明（esports:members:level_delete，
   // 只有 API 授权、无同名按钮），按「按钮码 || 同码 API 授权」并集判断。
   const canDeleteLevel = computed(
     () =>
@@ -630,7 +630,7 @@
     }
   }
 
-  // 删除等级（§8.1-8）：后端只允许删除「已停用且未被客户引用」的等级
+  // 删除等级：后端只允许删除「已停用且未被客户引用」的等级
   // （启用中 → 「该会员等级启用中，不能删除，请先停用」；
   //   仍被客户当前 / 待生效等级引用 → 「该会员等级仍被客户引用，不能删除，请改用停用」），
   // 失败按 errorText 原样透出后端中文提示。
@@ -708,7 +708,7 @@
     }
   }
 
-  // ── 专属预约（会员优先预约，§10.4） ──
+  // ── 专属预约（会员优先预约，） ──
   const bookingTab = ref('pending');
   const bookingLimit = ref(50);
   const bookings = ref<PriorityBooking[]>([]);
@@ -739,7 +739,7 @@
     }
   }
 
-  // ── 陪玩档期可用性（§10.4-04）：会员约前 / 客服派单前查看可约时段 ──
+  // ── 陪玩档期可用性：会员约前 / 客服派单前查看可约时段 ──
   const availability = ref<PlayerAvailabilityView | null>(null);
   const availabilityLoading = ref(false);
   const availabilityPlayerId = ref<number | undefined>(undefined);

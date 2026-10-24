@@ -141,14 +141,13 @@
         <a-form-item label="每日接单上限">
           <a-input-number v-model="editForm.dailyLimit" :min="0" />
           <a-typography-text type="secondary"
-            >0 表示不限；当日接单达上限后不再接新单（§5.5 /
-            §6.4）。</a-typography-text
+            >0 表示不限；当日接单达上限后不再接新单（ ）。</a-typography-text
           >
         </a-form-item>
         <a-form-item label="并发接单上限">
           <a-input-number v-model="editForm.concurrentLimit" :min="0" />
           <a-typography-text type="secondary"
-            >0 表示不限；同时可履约席位数上限（§5.5）。</a-typography-text
+            >0 表示不限；同时可履约席位数上限。</a-typography-text
           >
         </a-form-item>
         <a-form-item label="接单游戏分区">
@@ -158,8 +157,8 @@
             :max-tag-count="10"
           />
           <a-typography-text type="secondary"
-            >留空表示不限；填了则只接这些游戏分区的订单（§5.5 /
-            §6.4）。</a-typography-text
+            >留空表示不限；填了则只接这些游戏分区的订单（
+            ）。</a-typography-text
           >
         </a-form-item>
       </a-form>
@@ -739,7 +738,7 @@
     }
   }
 
-  // ── 期望报价复核（§6.1-12）：待审核才可复核，驳回须填原因。 ──
+  // ── 期望报价复核：待审核才可复核，驳回须填原因。 ──
   const expectedVisible = ref(false);
   const expectedSubmitting = ref(false);
   const expectedTarget = ref<PlayerRow | null>(null);
@@ -777,7 +776,7 @@
     }
   }
 
-  // ── 信用 / 追偿记载（§13.5）：罚则确认会给陪玩记责并暂停接单，故走二次确认。 ──
+  // ── 信用 / 追偿记载：罚则确认会给陪玩记责并暂停接单，故走二次确认。 ──
   const creditVisible = ref(false);
   const creditLoading = ref(false);
   const creditPlayer = ref<PlayerRow | null>(null);
@@ -869,7 +868,7 @@
     }
   }
 
-  // ── 档期可用性（§10.4-04）：from / to 走 RFC3339，后端按 slot_minutes 切格。 ──
+  // ── 档期可用性：from / to 走 RFC3339，后端按 slot_minutes 切格。 ──
   const availabilityVisible = ref(false);
   const availabilityLoading = ref(false);
   const availability = ref<PlayerAvailabilityView | null>(null);

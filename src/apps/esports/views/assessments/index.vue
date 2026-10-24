@@ -671,7 +671,7 @@
     { value: 'spot_check', label: '抽查复核' },
     { value: 'retry', label: '复考' },
   ];
-  // 技能等级选项与文案走系统配置（§5.5 配置驱动）。
+  // 技能等级选项与文案走系统配置（配置驱动）。
   const skillLevels = ref<SkillLevel[]>([]);
   const playerLevels = computed(() =>
     skillLevels.value.map((item) => ({
@@ -1105,7 +1105,7 @@
     }
   }
 
-  // ── 评价申诉（§7.5-05）：/player-review-appeals 列表 + 复核决定 ──
+  // ── 评价申诉：/player-review-appeals 列表 + 复核决定 ──
   // 两条路由（esports:assessments:review_appeals_list / review_appeal_decide）在 app.go 里
   // 只有 PermAPI 权限码，因此沿用考核管理按钮权限 esports:assessments:manage（已在报告注明）。
   const reviewAppealLoading = ref(false);

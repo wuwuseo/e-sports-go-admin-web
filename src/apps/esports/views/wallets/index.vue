@@ -189,7 +189,7 @@
           </template>
         </a-table>
 
-        <a-divider>账本对账异常（§11.6-01）</a-divider>
+        <a-divider>账本对账异常</a-divider>
         <div class="hint">
           最近 {{ anomalyEvents.length }} 轮核验，累计异常
           {{ anomalyTotal }} 条。
@@ -325,7 +325,7 @@
         </template>
       </a-table>
 
-      <a-divider>批次分摊明细（§4.3）</a-divider>
+      <a-divider>批次分摊明细</a-divider>
       <a-table
         :data="allocations"
         :loading="allocationsLoading"
@@ -503,7 +503,7 @@
     hasButtonPermission('esports:wallets:reconcile_anomalies')
   );
 
-  // 展示口径（§11.4）：页签标题与账户类型选项跟随系统配置「钱包展示配置」；
+  // 展示口径：页签标题与账户类型选项跟随系统配置「钱包展示配置」；
   // 配置接口失败（无授权/网络）时回落硬编码文案，不影响页面可用。
   const displayConfig = ref<Record<
     WalletAccountType,
@@ -553,7 +553,7 @@
   const txVisible = ref(false);
   const txLoading = ref(false);
   const transactions = ref<WalletTx[]>([]);
-  // 批次分摊明细（§4.3）：每笔消费动用了哪些充值 / 开卡批次。
+  // 批次分摊明细：每笔消费动用了哪些充值 / 开卡批次。
   const allocations = ref<LedgerAllocation[]>([]);
   const allocationsLoading = ref(false);
   const txTarget = ref<WalletAccount | null>(null);
@@ -568,7 +568,7 @@
   const ownerTypeOf = (type: WalletAccountType): 'customer' | 'player' =>
     type === 'player_catfood' ? 'player' : 'customer';
 
-  // §11.4 钱包展示图标映射：后端下发 icon 字符串，映射到 Arco 图标组件；映射不到只显示文字。
+  // 钱包展示图标映射：后端下发 icon 字符串，映射到 Arco 图标组件；映射不到只显示文字。
   const walletIconMap: Record<string, Component> = {
     wallet: markRaw(IconSafe),
     cat: markRaw(IconGift),
@@ -577,7 +577,7 @@
   const walletIcon = (icon?: string): Component | null =>
     icon ? walletIconMap[icon] || null : walletIconMap.wallet;
 
-  // §11.4 按账户单位倍率换算：cents / unitCents 保留两位，用高精度除法避免浮点误差。
+  // 按账户单位倍率换算：cents / unitCents 保留两位，用高精度除法避免浮点误差。
   const fmtByUnit = (cents: number, unitCents?: number) => {
     const unit = unitCents && unitCents > 0 ? unitCents : 100;
     const sign = cents < 0 ? '-' : '';
@@ -777,7 +777,7 @@
     }
   }
 
-  // ── 退款额度试算（§4.5）：按充值批次还原可退本金 / 作废赠送，纯只读 ──
+  // ── 退款额度试算：按充值批次还原可退本金 / 作废赠送，纯只读 ──
   const refundQuoteVisible = ref(false);
   const refundQuoteLoading = ref(false);
   const refundQuote = ref<RechargeRefundQuote | null>(null);
@@ -804,7 +804,7 @@
     }
   }
 
-  // ── 账本核验（§4.3 分摊明细 / §11.6-01 对账异常） ──
+  // ── 账本核验（分摊明细 / 对账异常） ──
   const ledgerAccountType = ref<WalletAccountType>('customer_balance');
   // 未选择归属人时必须是 undefined：0 是合法 falsy 值，Arco select 会把它
   // 当成「已选中」渲染成显示文本「0」（归属人 ID 从 1 起，0 只作占位）。

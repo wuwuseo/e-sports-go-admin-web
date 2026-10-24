@@ -141,7 +141,7 @@
             </template>
           </a-table>
 
-          <a-divider>对账 / 到账核销（§4.2 / §4.3）</a-divider>
+          <a-divider>对账 / 到账核销</a-divider>
           <a-space class="toolbar" wrap>
             <a-input-number
               v-model="proofOrderId"
@@ -768,7 +768,7 @@
       hasAnyPermission(['esports:orders:backfill']) ||
       hasButtonPermission('esports:orders:add')
   );
-  // 核销 / 驳回（§4.3-04）：与财务核销权限对齐，服务端仍是唯一防线。
+  // 核销 / 驳回：与财务核销权限对齐，服务端仍是唯一防线。
   const canVerifyProof = computed(() =>
     hasButtonPermission('esports:payments:proof_verify')
   );
@@ -870,7 +870,7 @@
     }
   }
 
-  // ── 会员优先预约处理（§10.4）──
+  // ── 会员优先预约处理──
   const bookingLoading = ref(false);
   const bookings = ref<PriorityBooking[]>([]);
 
@@ -904,7 +904,7 @@
     }
   }
 
-  // ── 对账 / 到账核销（§4.2 / §4.3）：工作台内直接查待核验凭证并核销 / 驳回 ──
+  // ── 对账 / 到账核销：工作台内直接查待核验凭证并核销 / 驳回 ──
   const proofLoading = ref(false);
   const proofs = ref<OfflinePaymentProof[]>([]);
   // 订单 ID 筛选（可选）：undefined 表示不过滤；0 作初始值会被 input-number 渲染成「0」。
@@ -1024,7 +1024,7 @@
   const profileTarget = ref<EsportsCustomer | null>(null);
   const profile = ref<CustomerProfileSummary | null>(null);
   const followUps = ref<CustomerFollowUp[]>([]);
-  // 历史订单明细（§8.2-02）：按客户过滤，逐单套用「负责 OR 协作」可见性边界。
+  // 历史订单明细：按客户过滤，逐单套用「负责 OR 协作」可见性边界。
   const profileOrders = ref<EsportsOrder[]>([]);
   const profileOrderLoading = ref(false);
   const followSaving = ref(false);
@@ -1130,7 +1130,7 @@
     }
   }
 
-  // ── 历史订单补录（§3.3 / §4.1 / §12.5）──
+  // ── 历史订单补录──
   // 数据边界（P0-13）：超管可为任意客户补录；非超管只能补录本人负责客户的订单。
   const backfillVisible = ref(false);
   const backfillSubmitting = ref(false);
@@ -1238,7 +1238,7 @@
     }
   }
 
-  // ── 客户归属转移（§8.3-02）──
+  // ── 客户归属转移──
   // 客服清单复用排单看板口径（listCsPresences 返回 admins），无需另建管理员查询接口。
   const presenceAdmins = ref<CsPresenceList | null>(null);
   const ownerTransferVisible = ref(false);

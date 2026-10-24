@@ -716,7 +716,7 @@
     canDo('esports:products:suspension_disposal')
   );
 
-  // 商品门槛下拉的等级选项（§5.5 配置驱动，在「系统配置」页编辑）。
+  // 商品门槛下拉的等级选项（配置驱动，在「系统配置」页编辑）。
   const skillLevels = ref<SkillLevel[]>([]);
 
   const activeTab = ref('products');
@@ -1104,7 +1104,7 @@
     }
   }
 
-  // ── 商品停服（§15.7：申请 → 异人审批 → 逐单处置） ──
+  // ── 商品停服（：申请 → 异人审批 → 逐单处置） ──
   async function openSuspension() {
     Object.assign(suspensionForm, {
       product_id: null,

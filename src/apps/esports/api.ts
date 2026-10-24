@@ -14,7 +14,7 @@ export interface EsportsProductCategory {
 
 export type CategoryInput = Omit<EsportsProductCategory, 'id' | 'version'>;
 
-// 技能等级已改为系统配置驱动（§5.5）：编码不再受固定枚举约束，
+// 技能等级已改为系统配置驱动：编码不再受固定枚举约束，
 // 选项与显示名统一从 /api/v1/esports/skill-levels 拉取（见 skill-levels.ts）。
 export type PlayerLevel = string;
 
@@ -32,13 +32,13 @@ export interface EsportsSku {
   adjustment_approval_bp: number;
   service_units: number;
   service_unit_name: string;
-  // 商品 成本（分，§15.8-03）：可空，未登记为 null；仅授权角色能读到真实值。
+  // 商品 成本（分，）：可空，未登记为 null；仅授权角色能读到真实值。
   cost_cents: number | null;
-  // 单次服务时长（分钟，§5.5）：用于预约时段重叠与容量判定，0 表示未配置。
+  // 单次服务时长（分钟，）：用于预约时段重叠与容量判定，0 表示未配置。
   service_duration_minutes: number;
-  // 所需技能等级（§5.5）：陪玩等级不得低于该值。
+  // 所需技能等级：陪玩等级不得低于该值。
   required_level: PlayerLevel;
-  // 结单要求（§15.3）：引用生效结单规则的 code，留空按游戏 / 全局规则回落。
+  // 结单要求：引用生效结单规则的 code，留空按游戏 / 全局规则回落。
   close_rule_code: string;
   quota_total: number;
   quota_reserved: number;
@@ -61,7 +61,7 @@ export type SkuUpdateInput = Omit<SkuInput, 'code'>;
 
 export type CustomerSource = 'manual' | 'wecom' | 'self' | 'import';
 
-// 风险标记（§13.7）：normal 正常 / watch 疑似滥用复核（自动，不自动处罚）/ restricted 限制自助下单（人工）。
+// 风险标记：normal 正常 / watch 疑似滥用复核（自动，不自动处罚）/ restricted 限制自助下单（人工）。
 export type CustomerRiskStatus = 'normal' | 'watch' | 'restricted';
 export type CustomerFollowStatus =
   | 'new'
@@ -75,19 +75,19 @@ export interface EsportsCustomer {
   display_name: string;
   owner_admin_id: number | null;
   age_status: 'unknown' | 'adult' | 'minor';
-  // §8.3 客户档案扩展：手机号、消费偏好、标签、建档来源、跟进状态与最近联系时间。
+  // 客户档案扩展：手机号、消费偏好、标签、建档来源、跟进状态与最近联系时间。
   phone: string;
-  // 生日（月-日，如 03-15），用于生日礼遇待办（§10.4）；空表示未填。
+  // 生日（月-日，如 03-15），用于生日礼遇待办；空表示未填。
   birthday: string;
   consumption_preference: string;
   tags: string[] | null;
   source: CustomerSource;
   follow_status: CustomerFollowStatus;
   last_contact_at: string | null;
-  // 是否允许客户自助下单（§4.1 / §13.7）。
+  // 是否允许客户自助下单。
   self_order_enabled: boolean;
   member_level_code: string;
-  // 风险标记（§13.7）：normal 正常 / watch 疑似滥用复核（自动，不自动处罚）/ restricted 限制自助下单（人工）。
+  // 风险标记：normal 正常 / watch 疑似滥用复核（自动，不自动处罚）/ restricted 限制自助下单（人工）。
   risk_status: CustomerRiskStatus;
   risk_reason: string;
   risk_marked_at: string | null;
@@ -116,7 +116,7 @@ export interface EsportsOrder {
   order_no: string;
   customer_id: number;
   product_id: number;
-  // 下单时的商品 / 规格名快照（§15.6-03）：读取时优先于 商品 实时标题，
+  // 下单时的商品 / 规格名快照：读取时优先于 商品 实时标题，
   // 历史单可能为空串，调用方回落实时 商品 标题。
   product_code: string;
   product_name: string;
@@ -136,35 +136,35 @@ export interface EsportsOrder {
   manual_adjust_cents: number;
   payable_cents: number;
   promised_service_units: number;
-  // 加钟累计（§3.3 / §12.5）：由「已确认」的加钟单累加，payable_cents 保持原报价快照。
+  // 加钟累计：由「已确认」的加钟单累加，payable_cents 保持原报价快照。
   addon_cents: number;
   addon_units: number;
   required_seats: number;
-  // 所需技能等级快照（§5.5）。
+  // 所需技能等级快照。
   required_level: PlayerLevel;
   quote_version: number;
   version: number;
   fulfillment_status: string;
   payment_status: string;
-  // 付款方式标记（§3.1）。
+  // 付款方式标记。
   payment_channel: string;
-  // 优先派单权「独占优先通知」窗口（§5.4 业务口径）。
+  // 优先派单权「独占优先通知」窗口（业务口径）。
   priority_notice_status: 'none' | 'pending' | 'released' | 'accepted';
   priority_notice_until: string | null;
   priority_game: string;
   priority_release_reason: string;
-  // 客户指定陪玩（§5.4）：有值时订单走指派流程，不进入优先通知窗口。
+  // 客户指定陪玩：有值时订单走指派流程，不进入优先通知窗口。
   preferred_player_id: number | null;
   refund_status: string;
   appointment_status: string;
-  // 预约档期（§3.2 / §5.5）：requested_start_at 为预约开始时间，deadline 为档期确认时限。
+  // 预约档期：requested_start_at 为预约开始时间，deadline 为档期确认时限。
   requested_start_at: string | null;
   appointment_confirmation_deadline: string | null;
-  // 服务时长快照（分钟，§5.5）：0 表示 商品 未配置，容量判定回落保守口径。
+  // 服务时长快照（分钟，）：0 表示 商品 未配置，容量判定回落保守口径。
   service_duration_minutes: number;
-  // 已知渠道成本（§12.1）：结单计提客服提成时从可分基数扣除。
+  // 已知渠道成本：结单计提客服提成时从可分基数扣除。
   channel_cost_cents: number;
-  // 单笔手动指定分成规则（§12.3 五级优先级最高一级）：仅未锁定成员规则前可设。
+  // 单笔手动指定分成规则（五级优先级最高一级）：仅未锁定成员规则前可设。
   manual_commission_rule_id: number | null;
   manual_commission_rule_set_by_admin_id: number | null;
   manual_commission_rule_set_at: string | null;
@@ -179,17 +179,17 @@ export interface OrderInput {
   customer_id: number;
   product_id: number;
   quantity: number;
-  // 客户指定陪玩（§5.4）：可选；留空则由客服指派，不留空则不进入优先通知窗口。
+  // 客户指定陪玩：可选；留空则由客服指派，不留空则不进入优先通知窗口。
   preferred_player_id?: number;
-  // 经授权的人工调整（§4.2）：金额（分，可正可负）非零时须同时给出 4–255 字原因，
+  // 经授权的人工调整：金额（分，可正可负）非零时须同时给出 4–255 字原因，
   // 且绝对值不得超过 商品 免审额度（adjustment_approval_bp），否则须先落单再走改价审批。
   manual_adjust_cents?: number;
   manual_adjust_reason?: string;
-  // 负责客服（§4.2）：留空默认建单人；显式指定时须为启用中的管理员。
+  // 负责客服：留空默认建单人；显式指定时须为启用中的管理员。
   responsible_admin_id?: number;
 }
 
-// 报单页报价试算（§15.6-01 / §4.2）：GET /admin/products?quote_customer_id=&quote_quantity= 的
+// 报单页报价试算：GET /admin/products?quote_customer_id=&quote_quantity= 的
 // quotes 段，不落单即可看到会员折扣、应付、服务量与结单要求。
 export interface SkuQuotePreview {
   product_id: number;
@@ -276,7 +276,7 @@ export interface RescheduleInput {
 
 export type WalletAccountType = 'customer_balance' | 'player_catfood';
 
-// 钱包展示配置（§11.4）：后端按账户类型下发展示名称 / 图标 / 说明 / 单位与换算倍率。
+// 钱包展示配置：后端按账户类型下发展示名称 / 图标 / 说明 / 单位与换算倍率。
 export interface WalletDisplay {
   // 展示名称，如 "账户余额" / "猫粮"。
   display_name: string;
@@ -300,7 +300,7 @@ export interface WalletAccount {
   principal_cents: number;
   bonus_cents: number;
   balance_cents: number;
-  // 展示配置（§11.4）：后端钱包账户视图返回，旧数据可能缺失。
+  // 展示配置：后端钱包账户视图返回，旧数据可能缺失。
   display?: WalletDisplay;
 }
 
@@ -350,7 +350,7 @@ export interface EsportsDispatchSeat {
   updated_at: string;
 }
 
-// 看板顶部的客服在线摘要（§5.8-04）：presence 取 presence 表口径（online / busy / offline），
+// 看板顶部的客服在线摘要：presence 取 presence 表口径（online / busy / offline），
 // 无 presence 档案时后端按「最近一次管理员操作」推导为 online / offline。
 export interface DispatchBoardAdmin {
   admin_id: number;
@@ -371,20 +371,20 @@ export interface EsportsDispatchBoard {
   pending_close: EsportsOrder[];
   abnormal: EsportsOrder[];
   online_players: number;
-  // 各客服及其在线状态（§5.8-04）。
+  // 各客服及其在线状态。
   admins: DispatchBoardAdmin[];
-  // 会员订单优先（§10.4）：待派单池 / 公共池中属于会员优先等级客户的订单 ID（后端已置顶）。
+  // 会员订单优先：待派单池 / 公共池中属于会员优先等级客户的订单 ID（后端已置顶）。
   member_priority_order_ids: number[];
-  // 会员专属通道（§10.1-02 / P1-11）：因「专属通道」权益二级置顶的订单 ID
+  // 会员专属通道（P1-11）：因「专属通道」权益二级置顶的订单 ID
   // （排在会员优先档之后、普通订单之前）；同时命中会员优先的订单只出现在上一字段。
   member_dedicated_channel_order_ids: number[];
-  // 公共池脱敏（§5.1 / §8.2）：非超管在公共池只看到脱敏摘要，客户身份与金额被掩码。
+  // 公共池脱敏：非超管在公共池只看到脱敏摘要，客户身份与金额被掩码。
   masked_public_pool_ids: number[];
 }
 
 const base = '/api/v1/esports/admin';
 
-// 客户风控（§13.7）：风险名单与人工标记 / 解除。
+// 客户风控：风险名单与人工标记 / 解除。
 export const listRiskCustomers = () =>
   axios.get<ApiResponse<EsportsCustomer[]>>(`${base}/risk-customers`);
 
@@ -411,7 +411,7 @@ export const listSkus = (params?: SkuListParams) =>
     params ? { params } : undefined
   );
 
-// 带报价试算的商品列表（§15.6-01 / §4.2）：响应由数组变为 { items, quotes }，
+// 带报价试算的商品列表：响应由数组变为 { items, quotes }，
 // 供报单页在选定客户 / 份数后逐商品展示会员折扣、应付、服务量与结单要求。
 export const listSkusWithQuote = (customerId: number, quantity: number) =>
   axios.get<ApiResponse<SkuQuoteResult>>(`${base}/products`, {
@@ -619,7 +619,7 @@ export const rescheduleOrder = (id: number, input: RescheduleInput) =>
     input
   );
 
-// 确认预约档期（§3.2 / §5.5）：request → confirmed，含资源核验；未确认档期不允许派单。
+// 确认预约档期：request → confirmed，含资源核验；未确认档期不允许派单。
 export const confirmOrderAppointment = (id: number) =>
   axios.post<ApiResponse<EsportsOrder>>(
     `${base}/orders/${id}/appointment/confirm`
@@ -633,7 +633,7 @@ export const setOrderChannelCost = (id: number, channelCostCents: number) =>
 export const payOrderWithBalance = (id: number) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/pay-by-balance`);
 
-// 单笔手动指定分成规则（§12.3）：ruleId=0 表示清除，恢复逐级回落。
+// 单笔手动指定分成规则：ruleId=0 表示清除，恢复逐级回落。
 export const setOrderManualCommissionRule = (id: number, ruleId: number) =>
   axios.put<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/commission-rule`, {
     rule_id: ruleId,
@@ -646,7 +646,7 @@ export const depositOrder = (id: number) =>
 export const restoreOrder = (id: number) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/restore`);
 
-// 批次分摊明细（§4.3 / §11.3）：每笔消费动用了哪些批次。
+// 批次分摊明细：每笔消费动用了哪些批次。
 export interface LedgerAllocation {
   id: number;
   account_type: string;
@@ -659,7 +659,7 @@ export interface LedgerAllocation {
   created_at: string;
 }
 
-// 批次分摊明细（§4.3 / §11.3）：account_type 与 account_id 均为**后端必填**，
+// 批次分摊明细：account_type 与 account_id 均为**后端必填**，
 // 任一为空后端直接返回参数错误（不会返回空数组）。
 export const listLedgerAllocations = (accountType: string, accountId: string) =>
   axios.get<ApiResponse<LedgerAllocation[]>>(`${base}/ledger-allocations`, {
@@ -671,7 +671,7 @@ export const listWallets = (accountType: WalletAccountType, keyword = '') =>
     params: { account_type: accountType, keyword },
   });
 
-// 钱包展示口径（§11.4）：按账户类型返回完整展示配置，管理端页签标题 /
+// 钱包展示口径：按账户类型返回完整展示配置，管理端页签标题 /
 // 账户类型选项跟随「钱包展示配置」（系统配置 app.esports.wallet_display）动态渲染。
 export const getWalletDisplayConfig = () =>
   axios.get<ApiResponse<Record<WalletAccountType, WalletDisplay>>>(
@@ -717,7 +717,7 @@ export const adjustWallet = (
     }
   );
 
-// 看板排序（§5.7-05）：'remind_priority' 按催单优先级降序；其余取值后端明确返回 400。
+// 看板排序：'remind_priority' 按催单优先级降序；其余取值后端明确返回 400。
 export type DispatchBoardSort = 'remind_priority';
 
 export const getDispatchBoard = (sort?: DispatchBoardSort) =>
@@ -753,7 +753,7 @@ export const revokeOrderSeat = (
 export const claimOrder = (orderId: number) =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${orderId}/claim`);
 
-// 固排成队（§5.3）：主陪玩 + 其固排一次成队。
+// 固排成队：主陪玩 + 其固排一次成队。
 export interface TeammateDispatchCandidate {
   player_id: number;
   display_name: string;
@@ -794,7 +794,7 @@ export const remindOrder = (orderId: number, level: number, note: string) =>
     { level, note }
   );
 
-// 期望报价复核状态（§6.1-12）。
+// 期望报价复核状态。
 export type ExpectedPriceStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
 export interface EsportsPlayer {
@@ -808,28 +808,28 @@ export interface EsportsPlayer {
   display_name: string;
   qualification: 'pending' | 'qualified' | 'suspended';
   presence: 'offline' | 'online' | 'protected_abnormal';
-  // 考核等级（§7.3）：由考核结论写入，与接单权限联动。
+  // 考核等级：由考核结论写入，与接单权限联动。
   level: PlayerLevel;
   level_appraised_at: string | null;
-  // 陪玩端保活（§6.4）：最近心跳时刻，超时由后台任务自动转离线。
+  // 陪玩端保活：最近心跳时刻，超时由后台任务自动转离线。
   last_heartbeat_at: string | null;
-  // 接单上限（§5.5 / §6.4）：0 = 不限。
+  // 接单上限：0 = 不限。
   daily_limit: number;
   concurrent_limit: number;
-  // 接单游戏分区（§5.5 / §6.4）：空表示不限。
+  // 接单游戏分区：空表示不限。
   games: string[];
-  // 接单时段与自动上线（§6.4-06）：分钟数从 0 点起算，0/0 表示不限。
+  // 接单时段与自动上线：分钟数从 0 点起算，0/0 表示不限。
   service_slot_start_minute: number;
   service_slot_end_minute: number;
   auto_online: boolean;
   // 可接报价区间（分）：0 表示该侧不限。
   accept_price_min_cents: number;
   accept_price_max_cents: number;
-  // 固排（§5.3）：开关与允许成队的时段。
+  // 固排：开关与允许成队的时段。
   fixed_team_enabled: boolean;
   fixed_team_slot_start_minute: number;
   fixed_team_slot_end_minute: number;
-  // 期望报价与复核留痕（§6.1-12）：status 为 none / pending / approved / rejected，
+  // 期望报价与复核留痕：status 为 none / pending / approved / rejected，
   // 复核意见字段名是 expected_price_review_note（后端没有 review_reason）。
   expected_price_cents: number;
   expected_price_status: ExpectedPriceStatus;
@@ -852,10 +852,10 @@ export interface PlayerUpdateInput {
   display_name: string;
   qualification: PlayerQualification;
   presence: PlayerPresence;
-  // 接单上限（§5.5 / §6.4）：0 = 不限。
+  // 接单上限：0 = 不限。
   daily_limit: number;
   concurrent_limit: number;
-  // 接单游戏分区（§5.5 / §6.4）：空表示不限。
+  // 接单游戏分区：空表示不限。
   games: string[];
 }
 
@@ -948,7 +948,7 @@ export type AfterSalePlanAction =
   | 'compensate'
   | 'makeup_service';
 
-// 统一售后来源（§13.1 / §13.3）：订单 / 礼物单 / 充值流水 / 考核记录。
+// 统一售后来源：订单 / 礼物单 / 充值流水 / 考核记录。
 export type AfterSaleSourceType = 'order' | 'gift' | 'recharge' | 'assessment';
 
 export interface EsportsAfterSale {
@@ -966,23 +966,23 @@ export interface EsportsAfterSale {
   fault_party: AfterSaleFaultParty;
   plan_action: AfterSalePlanAction;
   refund_cents: number;
-  // 补履约方案参数（§13.6）：plan_action=makeup_service 时有值。
+  // 补履约方案参数：plan_action=makeup_service 时有值。
   makeup_kind: 'none' | 'makeup_time' | 'replace_player';
   makeup_player_id: number | null;
   makeup_seat_index: number | null;
   makeup_units: number;
   makeup_company_pay_cents: number;
-  // 阶段时间戳与限时（§13.5）：当前阶段时限小时数与截止时间，超时时前端高亮。
+  // 阶段时间戳与限时：当前阶段时限小时数与截止时间，超时时前端高亮。
   accepted_at: string | null;
   planned_at: string | null;
   approved_at: string | null;
   sla_limit_hours: number;
   sla_deadline: string | null;
   sla_overdue: boolean;
-  // 追偿（§13.4）：赔付由陪玩承担时执行售后另建待审批的追偿明细。
+  // 追偿：赔付由陪玩承担时执行售后另建待审批的追偿明细。
   recovery_player_id: number | null;
   recovery_cents: number;
-  // 待客户确认节点（§13.3）：确认渠道区分自助确认与客服代确认。
+  // 待客户确认节点：确认渠道区分自助确认与客服代确认。
   customer_confirmed_at: string | null;
   customer_confirm_channel: 'none' | 'self_service' | 'admin_proxy';
   customer_confirmed_by_admin_id: number | null;
@@ -1008,14 +1008,14 @@ export interface AfterSaleInput {
   demand: string;
   expected_plan?: string;
   evidence_ref?: string;
-  // 凭证附件（§13.2）：须为建单人本人上传的私有附件，后端校验归属与 MIME 后
+  // 凭证附件：须为建单人本人上传的私有附件，后端校验归属与 MIME 后
   // 把引用序列化为 evidence_ref 的 JSON 数组；越权引用被拒。
   evidence_attachment_ids?: number[];
   contact?: string;
   customer_id?: number;
 }
 
-// 方案动作项（§13.3 / §13.6 多动作方案）：一张售后单可挂多条动作项并逐项执行。
+// 方案动作项（多动作方案）：一张售后单可挂多条动作项并逐项执行。
 export type AfterSaleActionType =
   | 'refund'
   | 'compensate'
@@ -1039,7 +1039,7 @@ export interface AfterSaleActionInput {
   seat_index?: number;
   units?: number;
   company_pay_cents?: number;
-  // 退款类动作定向冲回的争议陪玩（§13.3 成员明细冲回）。
+  // 退款类动作定向冲回的争议陪玩（成员明细冲回）。
   dispute_player_id?: number;
   source_ref?: string;
   note?: string;
@@ -1069,7 +1069,7 @@ export interface EsportsAfterSaleAction {
   updated_at: string;
 }
 
-// 逐项进度（§13.6）：total / succeeded / failed / pending 四档计数。
+// 逐项进度：total / succeeded / failed / pending 四档计数。
 export interface AfterSaleActionProgress {
   total: number;
   succeeded: number;
@@ -1087,24 +1087,24 @@ export interface AfterSalePlanInput {
   plan_action: AfterSalePlanAction;
   refund_cents: number;
   resolution: string;
-  // 多动作方案（§13.3 / §13.6）：非空时改走「多动作方案 + 逐项执行」，
+  // 多动作方案：非空时改走「多动作方案 + 逐项执行」，
   // 忽略上面的单动作字段，聚合摘要由动作项推导（refund_cents = 资金类动作金额之和）。
   actions?: AfterSaleActionInput[];
-  // 补履约方案参数（§13.6）：plan_action=makeup_service 时必填，其余动作留空。
+  // 补履约方案参数：plan_action=makeup_service 时必填，其余动作留空。
   makeup_kind?: 'makeup_time' | 'replace_player';
   makeup_player_id?: number;
   makeup_seat_index?: number;
   makeup_units?: number;
   makeup_company_pay_cents?: number;
-  // 追偿（§13.4）：赔付由陪玩承担时填承接陪玩与追偿金额（不得超过赔付额）。
+  // 追偿：赔付由陪玩承担时填承接陪玩与追偿金额（不得超过赔付额）。
   recovery_player_id?: number;
   recovery_cents?: number;
-  // 争议涉及陪玩（§13.3 部分退款成员明细冲回）：退款类方案可指定该单实际服务成员，
+  // 争议涉及陪玩（部分退款成员明细冲回）：退款类方案可指定该单实际服务成员，
   // 执行退款时优先冲回该成员的服务与加钟分成；0 表示不指定、按整体比例冲回。
   dispute_player_id?: number;
 }
 
-// ── 陪玩追偿明细（§13.4）：售后赔付由陪玩承担时另建的扣回单 ──
+// ── 陪玩追偿明细：售后赔付由陪玩承担时另建的扣回单 ──
 
 export type PlayerRecoveryStatus =
   | 'pending'
@@ -1161,7 +1161,7 @@ export interface CloseOrderInput {
   note: string;
 }
 
-// 结单提交规则（§3.4）与订单结单配置视图共用的类型：因 closeOrder / OrderCloseFormView 引用而提前声明。
+// 结单提交规则与订单结单配置视图共用的类型：因 closeOrder / OrderCloseFormView 引用而提前声明。
 export type CloseSubmitMode = 'single' | 'multi' | 'custom';
 export type CloseSubmitOnMissing = 'block' | 'remind' | 'auto_accept';
 
@@ -1190,7 +1190,7 @@ export interface UnsubmittedMember {
 
 // formValues 为结单表单模板驱动的字段值（key = 字段库 key）；订单无适用模板时可不传。
 // substituteReports 为客服代未上报成员补填的服务段上报；仅生效提交规则允许代提交时有效。
-// viewedEvidenceAttachmentIds 为「已逐张查看」的服务段凭证图片附件 ID（§3.4-03）：
+// viewedEvidenceAttachmentIds 为「已逐张查看」的服务段凭证图片附件 ID：
 // 订单有图片凭证时必须覆盖 close-form 返回的全部 evidence_attachment_ids，否则后端 400；
 // 无图片凭证时无需传。传 undefined 时不写入请求体，保持既有调用方行为不变。
 export const closeOrder = (
@@ -1209,7 +1209,7 @@ export const closeOrder = (
       : {}),
   });
 
-// 结单复核（§3.4）：金额达复核阈值的订单进入待复核，由非负责客服的管理员通过 / 驳回。
+// 结单复核：金额达复核阈值的订单进入待复核，由非负责客服的管理员通过 / 驳回。
 export const approveCloseReview = (id: number, note = '') =>
   axios.post<ApiResponse<EsportsOrder>>(`${base}/orders/${id}/close-approve`, {
     note,
@@ -1263,7 +1263,7 @@ export const withdrawAfterSale = (id: number) =>
     `${base}/after-sales/${id}/withdraw`
   );
 
-// 售后动作项（§13.6）：列出逐项进度；逐项执行供人工对失败项重试。
+// 售后动作项：列出逐项进度；逐项执行供人工对失败项重试。
 export const listAfterSaleActions = (id: number) =>
   axios.get<ApiResponse<AfterSaleActionsView>>(
     `${base}/after-sales/${id}/actions`
@@ -1274,7 +1274,7 @@ export const executeAfterSaleAction = (id: number, seq: number) =>
     `${base}/after-sales/${id}/actions/${seq}/execute`
   );
 
-// ── 售后沟通记录 / 提示补证 / 代客户确认方案（§13.3 / §13.7-03） ──
+// ── 售后沟通记录 / 提示补证 / 代客户确认方案 ──
 
 // 沟通记录（管理端视角含内部备注）：visibility=internal 仅客服可见。
 export type AfterSaleMessageVisibility = 'all' | 'internal';
@@ -1316,7 +1316,7 @@ export const createAfterSaleMessage = (
     input
   );
 
-// 客服回复售后单（§13.3-04，审核报告 §8.1-3）：后端已注册
+// 客服回复售后单（，审核报告 ）：后端已注册
 // POST /admin/after-sales/:id/messages（adminPostAfterSaleMessageHandler），
 // 入参即 afterSaleMessageInput（content 必填 ≤1000 字、visibility 为 all / internal、
 // attachments ≤20 个引用），返回新建的沟通记录。
@@ -1327,14 +1327,14 @@ export const sendAfterSaleMessage = (
   input: AfterSaleMessageInput
 ) => createAfterSaleMessage(id, input);
 
-// 提示客户补证（§13.7-03）：同事务写客户可见沟通记录 + 外盒留痕，返回该条沟通记录。
+// 提示客户补证：同事务写客户可见沟通记录 + 外盒留痕，返回该条沟通记录。
 export const requestAfterSaleEvidence = (id: number, input: { note: string }) =>
   axios.post<ApiResponse<EsportsAfterSaleMessage>>(
     `${base}/after-sales/${id}/evidence-request`,
     input
   );
 
-// 客服代客户确认售后方案（§13.3，客户线下已同意）：pending_customer_confirm → pending_approval，
+// 客服代客户确认售后方案（，客户线下已同意）：pending_customer_confirm → pending_approval，
 // 记录代确认管理员（customer_confirm_channel=admin_proxy）。
 // 注意：后端服务层已就绪（confirmAfterSaleByAdmin），但 app.go 尚未注册
 // POST /admin/after-sales/:id/confirm —— 「后端待注册」，注册后本封装即可用；
@@ -1345,7 +1345,7 @@ export const confirmAfterSale = (id: number) =>
     `${base}/after-sales/${id}/confirm`
   );
 
-// ── 售后复核（§13.6）：终态售后凭新证据申请复核，由非申请人且非原审批人的异人审查 ──
+// ── 售后复核：终态售后凭新证据申请复核，由非申请人且非原审批人的异人审查 ──
 
 export type AfterSaleReviewStatus =
   | 'pending'
@@ -1375,7 +1375,7 @@ export interface EsportsAfterSaleReview {
 export interface AfterSaleReviewInput {
   reason: string;
   evidence_ref?: string;
-  // 复核附带凭证（§13.2）：须为申请人本人上传的私有附件，非空时后端校验归属。
+  // 复核附带凭证：须为申请人本人上传的私有附件，非空时后端校验归属。
   evidence_attachment_ids?: number[];
 }
 
@@ -1408,7 +1408,7 @@ export const withdrawAfterSaleReview = (reviewId: number) =>
     `${base}/after-sale-reviews/${reviewId}/withdraw`
   );
 
-// ── 补履约任务（§13.6）：售后方案「补钟 / 换人」执行后产生，由客服开始服务并验收 ──
+// ── 补履约任务：售后方案「补钟 / 换人」执行后产生，由客服开始服务并验收 ──
 
 export type MakeupKind = 'makeup_time' | 'replace_player';
 export type MakeupStatus = 'pending' | 'servicing' | 'completed' | 'cancelled';
@@ -1453,7 +1453,7 @@ export const completeFulfillmentMakeup = (id: number, note = '') =>
     { note }
   );
 
-// ── 加钟（§3.3 / §6.2 / §12.5）：客服对服务中订单发起，陪玩确认后累加并生成加钟分成 ──
+// ── 加钟：客服对服务中订单发起，陪玩确认后累加并生成加钟分成 ──
 
 export type AddonStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled';
 export type AddonPaymentStatus = 'unpaid' | 'paid';
@@ -1470,7 +1470,7 @@ export interface EsportsOrderAddon {
   rule_no: string;
   rule_version: number;
   commission_cents: number;
-  // 加钟收款（§3.3）：确认后的追加金额由客服收单，首版仅客户余额核销。
+  // 加钟收款：确认后的追加金额由客服收单，首版仅客户余额核销。
   payment_status: AddonPaymentStatus;
   paid_cents: number;
   paid_at: string | null;
@@ -1507,7 +1507,7 @@ export const cancelOrderAddon = (id: number) =>
     `${base}/order-addons/${id}/cancel`
   );
 
-// 加钟收款（§3.3）：对已确认且未收款的加钟单用客户余额核销追加金额。
+// 加钟收款：对已确认且未收款的加钟单用客户余额核销追加金额。
 export const payOrderAddonByBalance = (id: number) =>
   axios.post<ApiResponse<EsportsOrderAddon>>(
     `${base}/order-addons/${id}/pay-by-balance`
@@ -1575,7 +1575,7 @@ export interface CommissionEntry {
   amount_cents: number;
   status: CommissionEntryStatus;
   settlement_id: number | null;
-  // 争议冻结（§12.6）：被争议的明细冻结待结算金额，不参与当期结算。
+  // 争议冻结：被争议的明细冻结待结算金额，不参与当期结算。
   frozen_at: string | null;
   frozen_reason: string;
   frozen_by_admin_id: number | null;
@@ -1614,7 +1614,7 @@ export interface Settlement {
   updated_at: string;
 }
 
-// 结算单详情包体：主表 + 本期可下钻明细（带规则版本，§12.6-06）。
+// 结算单详情包体：主表 + 本期可下钻明细（带规则版本，）。
 // detail_truncated 为真表示本期明细超过返回上限（默认 200 条），避免「静默漏数」。
 //
 // entries 按结算单的 owner_type 分流，两种读模型字段名已对齐（id / kind / order_id /
@@ -1675,7 +1675,7 @@ export interface SettlementInput {
 
 export interface PlayerCommissionSummary {
   pending_settlement_cents: number;
-  // 被争议冻结的待结算金额（§12.6）。
+  // 被争议冻结的待结算金额。
   frozen_cents: number;
   settled_cents: number;
   next_settlement_at: string;
@@ -1684,7 +1684,7 @@ export interface PlayerCommissionSummary {
   settlement_scope: string;
 }
 
-// ── §12.6 结算周期与争议冻结 ──
+// ── 结算周期与争议冻结 ──
 
 export type SettlementCycleScope = 'global' | 'game' | 'level' | 'player';
 export type SettlementCyclePeriod = 'daily' | 'weekly' | 'monthly' | 'custom';
@@ -1763,7 +1763,7 @@ export const getSettlementDetail = (id: number, limit?: number) =>
 // 兼容旧名：同一详情接口，返回类型已改为详情包体。
 export const getSettlement = getSettlementDetail;
 
-// §12.6 结算周期配置：日/周/月/自定义间隔，按 全局 → 游戏 → 等级 → 陪玩 逐级覆盖。
+// 结算周期配置：日/周/月/自定义间隔，按 全局 → 游戏 → 等级 → 陪玩 逐级覆盖。
 export const listSettlementCycles = () =>
   axios.get<ApiResponse<SettlementCycle[]>>(`${base}/settlement-cycles`);
 
@@ -1785,7 +1785,7 @@ export const setSettlementCycleStatus = (id: number, enabled: boolean) =>
     { enabled }
   );
 
-// §12.6 争议冻结：人工冻结 / 解冻订单待结算分成明细。
+// 争议冻结：人工冻结 / 解冻订单待结算分成明细。
 export const freezeOrderCommission = (
   orderId: number,
   input: { player_id?: number; reason?: string } = {}
@@ -1800,7 +1800,7 @@ export const unfreezeOrderCommission = (orderId: number) =>
     `${base}/orders/${orderId}/unfreeze-commission`
   );
 
-// ── §12.2 客服提成 ──
+// ── 客服提成 ──
 export type CsCommissionScope = 'global' | 'admin';
 export type CsCommissionBaseMode =
   | 'order_amount'
@@ -1866,12 +1866,12 @@ export interface CsCommissionEntry {
   base_cents: number;
   matched_tier_bp: number;
   amount_cents: number;
-  // 渠道成本与工作室剩余快照（§12.1），仅 service 明细非零。
+  // 渠道成本与工作室剩余快照，仅 service 明细非零。
   channel_cost_cents: number;
   studio_remainder_cents: number;
   status: CommissionEntryStatus;
   settlement_id: number | null;
-  // 争议冻结（§12.6 / P0-8）：冻结与 status 正交（仍为 pending_settlement），
+  // 争议冻结（P0-8）：冻结与 status 正交（仍为 pending_settlement），
   // 冻结中的明细不得进入结算单、不得置 settled，解冻后恢复可结算。
   frozen_at?: string | null;
   frozen_reason?: string;
@@ -1930,7 +1930,7 @@ export const getCsCommissionSummary = (adminId?: number) =>
     params: { admin_id: adminId },
   });
 
-// 客服提成明细的争议冻结 / 解冻（审核报告 §8.2-14，P0-8）。
+// 客服提成明细的争议冻结 / 解冻（审核报告 ，P0-8）。
 // 后端本批已注册路由与权限码（handlers 与 service 同在 cs_commission.go）：
 //   POST /admin/cs-commission-entries/:id/freeze    权限码 esports:settlements:cs_entry_freeze
 //   POST /admin/cs-commission-entries/:id/unfreeze  权限码 esports:settlements:cs_entry_unfreeze
@@ -1995,13 +1995,13 @@ export interface CsSettlementReopenInput {
 export const reopenCsSettlement = (input: CsSettlementReopenInput) =>
   axios.post<ApiResponse<Settlement>>(`${base}/cs-settlements/reopen`, input);
 
-// 登记发放：locked → paid，并留外部打款凭证（§12.2）。
+// 登记发放：locked → paid，并留外部打款凭证。
 export const paySettlement = (id: number, payoutRef: string) =>
   axios.post<ApiResponse<Settlement>>(`${base}/settlements/${id}/pay`, {
     payout_ref: payoutRef,
   });
 
-// ── §6.3 / §12.6 基础提现 ──
+// ── 基础提现 ──
 export type WithdrawalChannel = 'bank_card' | 'wechat' | 'alipay';
 export type WithdrawalStatus =
   | 'pending_review'
@@ -2034,7 +2034,7 @@ export interface EsportsWithdrawal {
   updated_at: string;
 }
 
-// 打款执行状态机（§11.2 补全）：approved → pay_requested → paid / pay_failed。
+// 打款执行状态机（补全）：approved → pay_requested → paid / pay_failed。
 // 提现单自身状态保持 approved，直到打款成功才置为 paid；失败可重新提交打款。
 export type WithdrawalPayoutStatus = 'pay_requested' | 'paid' | 'pay_failed';
 
@@ -2095,7 +2095,7 @@ export const payWithdrawal = (id: number, payoutRef: string, taxRef = '') =>
     tax_ref: taxRef,
   });
 
-// 提交打款执行（§11.2）：仅已审核通过的提现单可提交，落为 pay_requested。
+// 提交打款执行：仅已审核通过的提现单可提交，落为 pay_requested。
 export const requestWithdrawalPayout = (
   id: number,
   input: WithdrawalPayoutRequestInput
@@ -2113,7 +2113,7 @@ export const listWithdrawalPayouts = (withdrawalId: number, limit = 50) =>
     { params: { limit }, silentError: true }
   );
 
-// 确认打款成功（§11.2）：回填完税凭证，提现单同步置为 paid。
+// 确认打款成功：回填完税凭证，提现单同步置为 paid。
 export const markWithdrawalPayoutPaid = (payoutId: number, taxRef = '') =>
   axios.post<ApiResponse<EsportsWithdrawalPayout>>(
     `${base}/withdrawal-payouts/${payoutId}/paid`,
@@ -2121,7 +2121,7 @@ export const markWithdrawalPayoutPaid = (payoutId: number, taxRef = '') =>
     { silentError: true }
   );
 
-// 标记打款失败（§11.2）：提现单保持 approved，可重新提交打款。
+// 标记打款失败：提现单保持 approved，可重新提交打款。
 export const markWithdrawalPayoutFailed = (payoutId: number, reason: string) =>
   axios.post<ApiResponse<EsportsWithdrawalPayout>>(
     `${base}/withdrawal-payouts/${payoutId}/failed`,
@@ -2129,7 +2129,7 @@ export const markWithdrawalPayoutFailed = (payoutId: number, reason: string) =>
     { silentError: true }
   );
 
-// ── §5.4 优先派单权 + §5.5 派单候选排序 ──
+// ── 优先派单权 + 派单候选排序 ──
 export type DispatchPriorityPeriod =
   | 'daily'
   | 'weekly'
@@ -2192,7 +2192,7 @@ export interface DispatchCandidate {
   active_seats: number;
 }
 
-// ── §5.4 业务口径：独占优先通知窗口 ──
+// ── 业务口径：独占优先通知窗口 ──
 export type PriorityNoticeStatus = 'none' | 'pending' | 'released' | 'accepted';
 export type PriorityNoticeItemStatus =
   | 'notified'
@@ -2234,7 +2234,7 @@ export const releaseOrderPriority = (orderId: number, reason = '') =>
     { reason }
   );
 
-// 没有优先名单（或窗口已闭合）的普通待派单订单，由客服发布到抢单大厅（§5.2 / §5.6）。
+// 没有优先名单（或窗口已闭合）的普通待派单订单，由客服发布到抢单大厅。
 // 首版仅单陪玩订单可发布，多人订单服务端返回参数错误。
 export const publishOrderToGrabHall = (orderId: number, reason = '') =>
   axios.post<ApiResponse<EsportsOrder>>(
@@ -2266,7 +2266,7 @@ export const revokeDispatchPriority = (id: number, reason: string) =>
     { reason }
   );
 
-// 派单候选（§5.5 首版）：按窗口可见性过滤后的候选，再按评分与在途席位均衡排序。
+// 派单候选（首版）：按窗口可见性过滤后的候选，再按评分与在途席位均衡排序。
 export const getDispatchCandidates = (
   orderId: number,
   preferredPlayerId?: number
@@ -2276,7 +2276,7 @@ export const getDispatchCandidates = (
     { params: { preferred_player_id: preferredPlayerId } }
   );
 
-// ── §5.7 陪玩转单 ──
+// ── 陪玩转单 ──
 export type SeatTransferStatus =
   | 'pending'
   | 'approved'
@@ -2318,12 +2318,12 @@ export const decideSeatTransfer = (id: number, approve: boolean, note = '') =>
     { approve, note }
   );
 
-// ── 充值活动（§4.5 充值活动与赠送） ──
+// ── 充值活动（充值活动与赠送） ──
 
 export type CampaignActivityType = 'full_gift' | 'ladder' | 'limited';
-// audience=player 时按 audience_player_ids 命中陪玩，奖励可入陪玩猫粮（§11.2-01）。
+// audience=player 时按 audience_player_ids 命中陪玩，奖励可入陪玩猫粮。
 export type CampaignAudience = 'all' | 'new_customer' | 'specified' | 'player';
-// 奖励目标账户（§11.2-01）：客户余额 / 陪玩猫粮；留空按客户余额（兼容存量活动）。
+// 奖励目标账户：客户余额 / 陪玩猫粮；留空按客户余额（兼容存量活动）。
 export type CampaignTargetAccountType = 'customer_balance' | 'player_catfood';
 export type CampaignStackRule = 'stack' | 'exclusive';
 export type CampaignStatus = 'draft' | 'active' | 'paused' | 'ended';
@@ -2342,7 +2342,7 @@ export interface RechargeCampaign {
   audience: CampaignAudience;
   // audience=specified 时按客户 ID 命中。
   audience_customer_ids: number[];
-  // audience=player 时按陪玩 ID 命中（§11.2-01）。
+  // audience=player 时按陪玩 ID 命中。
   audience_player_ids: number[];
   // 奖励入账账户：customer_balance 入客户余额 / player_catfood 入陪玩猫粮。
   target_account_type: CampaignTargetAccountType;
@@ -2416,7 +2416,7 @@ export const rechargeWalletByCampaign = (
     }
   );
 
-// ── 技能等级（陪玩等级，§5.5 / §7.3）管理 ──
+// ── 技能等级（陪玩等级，）管理 ──
 // 配置为专用表驱动（「技能等级」页整体保存，列表序即高低序）；各表单选项与
 // H5 文案仍走公开读 /api/v1/esports/skill-levels（skill-levels.ts 封装）。
 
@@ -2436,7 +2436,7 @@ export const saveAdminSkillLevels = (items: { code: string; name: string }[]) =>
     items,
   });
 
-// ── 会员等级（§10） ──
+// ── 会员等级 ──
 
 export type MemberLevelStatus = 'enabled' | 'disabled';
 
@@ -2494,7 +2494,7 @@ export interface MemberLevelOverride {
   created_at: string;
 }
 
-// 客户当前生效的会员权益快照（§10.1-02 / §10.4）。
+// 客户当前生效的会员权益快照。
 // active=false 表示未定级 / 等级停用 / 规则缺失，此时不得宣称「已生效」。
 export interface MemberPrivilege {
   customer_id: number;
@@ -2556,7 +2556,7 @@ export const setMemberLevelStatus = (
     status,
   });
 
-// 删除会员等级（审核报告 §8.1-8）：仅「已停用且未被客户引用」的等级可删，
+// 删除会员等级（审核报告 ）：仅「已停用且未被客户引用」的等级可删，
 // 否则后端返回中文冲突（启用中 → 先停用；被引用 → 改用停用）。
 // 后端路由本批新增：DELETE /admin/member-levels/:id（deleteMemberLevelHandler），
 // 权限码 esports:members:level_delete；成功返回 { id }。
@@ -2594,7 +2594,7 @@ export const setCustomerMemberLevel = (
     { level_code: levelCode, reason, ...options }
   );
 
-// ── 礼物（§9） ──
+// ── 礼物 ──
 
 export type GiftStatus = 'draft' | 'on_sale' | 'off_sale';
 export type GiftCommissionMode = 'percent' | 'fixed';
@@ -2674,12 +2674,12 @@ export interface GiftIntent {
   unit_price_cents: number;
   amount_cents: number;
   payment_source: string;
-  // 礼物档位与风控快照（§9.1-02）：下单时锁定的档位与高价值 / 年龄门槛标记。
+  // 礼物档位与风控快照：下单时锁定的档位与高价值 / 年龄门槛标记。
   gift_tier_id: number;
   gift_tier_code: string;
   high_value: boolean;
   require_age: boolean;
-  // 礼物收款（§9.2-01）：发起收款后的渠道、状态、支付意图号与付款窗口。
+  // 礼物收款：发起收款后的渠道、状态、支付意图号与付款窗口。
   payment_channel: string;
   payment_status: string;
   payment_intent_no: string | null;
@@ -2771,7 +2771,7 @@ export const getGiftLeaderboard = (
     params: { board, period },
   });
 
-// ── §9.5 礼物争议：客户申请 → 客服审核 → 执行退款（支持部分退款） ──
+// ── 礼物争议：客户申请 → 客服审核 → 执行退款（支持部分退款） ──
 
 export type GiftDisputeKind =
   | 'not_received'
@@ -2845,7 +2845,7 @@ export const reviewGiftDispute = (
 export const executeGiftDispute = (id: number) =>
   axios.post<ApiResponse<GiftDispute>>(`${base}/gift-disputes/${id}/execute`);
 
-// ── §4.3 收款账户、收款方式启停与外部到账核销 ──
+// ── 收款账户、收款方式启停与外部到账核销 ──
 
 export type PaymentChannel =
   | 'wechat_work'
@@ -2954,7 +2954,7 @@ export const disablePaymentAccount = (id: number) =>
 export const listPaymentChannels = () =>
   axios.get<ApiResponse<PaymentChannelView[]>>(`${base}/payment-channels`);
 
-// 上线自检（§18）：逐项回报需要外部配置才能用的能力，只读且不含密钥值。
+// 上线自检：逐项回报需要外部配置才能用的能力，只读且不含密钥值。
 export type ReadinessStatus = 'ready' | 'degraded' | 'missing';
 
 export interface ReadinessCheck {
@@ -2986,9 +2986,9 @@ export const setPaymentChannelStatus = (
     { enabled }
   );
 
-// 待核验收款单列表（§4.2）：默认返回数组；
+// 待核验收款单列表：默认返回数组；
 // 传 reconcile=true 且指定 order_id 时返回 { items, reconcile }，一并给出该订单的收款自动对账结果
-// （§4.3-04，财务只看差异笔）。未指定 order_id 却传 reconcile 会被后端 400。
+// （，财务只看差异笔）。未指定 order_id 却传 reconcile 会被后端 400。
 export interface PaymentReconcileMismatch {
   proof_no: string;
   transaction_no: string;
@@ -3058,7 +3058,7 @@ export const rejectOfflinePaymentProof = (id: number, resolution: string) =>
     { resolution }
   );
 
-// ── 考官端（§7）：考核权重、考核任务、申诉复核、客户评价与综合评分 ──
+// ── 考官端：考核权重、考核任务、申诉复核、客户评价与综合评分 ──
 
 export type AssessmentType = 'entry' | 'upgrade' | 'spot_check' | 'retry';
 export type AssessmentDimension =
@@ -3259,7 +3259,7 @@ export const setPlayerReviewStatus = (id: number, status: ReviewStatus) =>
 export const getPlayerRating = (playerId: number) =>
   axios.get<ApiResponse<PlayerRating>>(`${base}/players/${playerId}/rating`);
 
-// ── §17 经营统计报表 ──
+// ── 经营统计报表 ──
 export type ReportType =
   | 'owner_overview'
   | 'cs_performance'
@@ -3337,7 +3337,7 @@ export interface CsPerformanceRow {
   revenue_cents: number;
   refund_cents: number;
   net_cents: number;
-  // 客服提成净额（§12.2，含负数冲回）。
+  // 客服提成净额（，含负数冲回）。
   commission_cents: number;
 }
 
@@ -3366,7 +3366,7 @@ export interface DispatchEfficiencyReport {
     expired_count: number;
     open_count: number;
     avg_accept_seconds: number;
-    // §5.9 等待时长：按订单时间线埋点派生的四类平均等待时长（秒）。
+    // 等待时长：按订单时间线埋点派生的四类平均等待时长（秒）。
     avg_pool_to_invite_seconds: number;
     avg_invite_to_accept_seconds: number;
     avg_accept_to_start_seconds: number;
@@ -3432,7 +3432,7 @@ export type EsportsReport =
 export const getEsportsReport = (type: ReportType, params: ReportQuery = {}) =>
   axios.get<ApiResponse<EsportsReport>>(`${base}/reports/${type}`, { params });
 
-// 导出报表 CSV（§17）：与查看接口同一组筛选参数，后端按同一数据边界与审计口径导出。
+// 导出报表 CSV：与查看接口同一组筛选参数，后端按同一数据边界与审计口径导出。
 export const exportEsportsReport = (
   type: ReportType,
   params: ReportQuery = {}
@@ -3442,7 +3442,7 @@ export const exportEsportsReport = (
     responseType: 'blob',
   });
 
-// ── §16 uni-app 客户自助端首页装修 ──
+// ── uni-app 客户自助端首页装修 ──
 export const PAGE_CHANNEL_CUSTOMER_HOME = 'uni_customer_home';
 
 export type PageComponentType =
@@ -3552,7 +3552,7 @@ export const rollbackEsportsPage = (channel: string, versionNo: number) =>
     version_no: versionNo,
   });
 
-// 审核发布（§16.4 / §16.5）：approve=true 通过 / false 驳回（驳回须填原因）。
+// 审核发布：approve=true 通过 / false 驳回（驳回须填原因）。
 export const reviewEsportsPagePublish = (
   channel: string,
   versionId: number,
@@ -3575,7 +3575,7 @@ export const getEsportsPageAssets = () =>
     params: { limit: 200 },
   });
 
-// 新增素材（§16.2-06 / §16.5-04）：mime 与 size_bytes 后端强制必填（体积须 > 0 且在上限内），
+// 新增素材：mime 与 size_bytes 后端强制必填（体积须 > 0 且在上限内），
 // 因此这里声明为必填；width / height 可留 0 表示未探测。
 export const createEsportsPageAsset = (input: {
   name: string;
@@ -3589,7 +3589,7 @@ export const createEsportsPageAsset = (input: {
 export const deleteEsportsPageAsset = (id: number) =>
   axios.delete<ApiResponse<{ id: number }>>(`${base}/page-assets/${id}`);
 
-// ── §8 客服端（PC 工作台 / 移动客服端 / 企微侧边栏共用） ──
+// ── 客服端（PC 工作台 / 移动客服端 / 企微侧边栏共用） ──
 export interface CustomerProfileSummary {
   customer: EsportsCustomer;
   principal_cents: number;
@@ -3605,7 +3605,7 @@ export interface CustomerProfileSummary {
   member_level_name: string;
   // 客服专属权益标记（会员权益消费点之一）。
   dedicated_cs: boolean;
-  // 客户当前生效的会员权益快照（§10.1-02 / §10.4）：客服卡片据此展示权益。
+  // 客户当前生效的会员权益快照：客服卡片据此展示权益。
   member_privilege: MemberPrivilege;
   owner_admin_name: string;
   source: CustomerSource;
@@ -3745,12 +3745,12 @@ export const setEsportsScriptStatus = (
 export const getEsportsCsWorkbench = (params: ReportQuery = {}) =>
   axios.get<ApiResponse<CsWorkbench>>(`${base}/cs/workbench`, { params });
 
-// ── 结单规则（§3.4 首版）：可配置结单条件与金额复核阈值 ──
+// ── 结单规则（首版）：可配置结单条件与金额复核阈值 ──
 
 export type CloseRuleScope = 'global' | 'game' | 'sku';
 export type CloseRuleStatus = 'draft' | 'active' | 'history';
 
-// 结单条件树（§3.4 结单条件自定义）：组合节点填 op（and / or / not）与 children，
+// 结单条件树（结单条件自定义）：组合节点填 op（and / or / not）与 children，
 // 叶子节点填 field + operator + value；字段与运算符取值见结单条件状态接口返回的元信息。
 export type CloseConditionOperator = '>=' | '>' | '<=' | '<' | '==' | '!=';
 
@@ -3790,7 +3790,7 @@ export interface CloseConditionStatus {
   operators: CloseConditionOperator[];
 }
 
-// 结单条件字段与运算符枚举（§3.4 结单条件自定义）：与后端
+// 结单条件字段与运算符枚举（结单条件自定义）：与后端
 // internal/apps/esports/close_condition.go 的 closeConditionFieldSpecs / closeConditionOperators
 // 逐字对齐；后端新增字段或运算符时须同步此处，否则设计器会漏配或提交被拒。
 // 深度 / 节点上限同样对齐 normalizeCloseConditionTree 的 closeCondMaxDepth / closeCondMaxNodes。
@@ -3816,7 +3816,7 @@ export const CLOSE_CONDITION_OPERATORS: CloseConditionOperator[] = [
 export const CLOSE_CONDITION_MAX_DEPTH = 5;
 export const CLOSE_CONDITION_MAX_NODES = 50;
 
-// 条件树组合节点支持的逻辑运算（§3.4）：与后端 closeCondOpAnd / closeCondOpOr / closeCondOpNot 对齐。
+// 条件树组合节点支持的逻辑运算：与后端 closeCondOpAnd / closeCondOpOr / closeCondOpNot 对齐。
 export type CloseConditionGroupOp = 'and' | 'or' | 'not';
 
 export interface EsportsCloseRule {
@@ -3854,7 +3854,7 @@ export interface CloseRuleInput {
   note?: string;
 }
 
-// 结单条件逐项状态（§3.4）：条件不满足时结单按钮置灰，口径与结单拦截一致。
+// 结单条件逐项状态：条件不满足时结单按钮置灰，口径与结单拦截一致。
 export const getOrderCloseConditions = (orderId: number) =>
   axios.get<ApiResponse<CloseConditionStatus>>(
     `${base}/orders/${orderId}/close-conditions`
@@ -3886,7 +3886,7 @@ export const rollbackCloseRule = (id: number) =>
     `${base}/close-rules/${id}/rollback`
   );
 
-// ── 结单表单设计器（§3.4）：字段库与模板 ──
+// ── 结单表单设计器：字段库与模板 ──
 
 export type CloseFormFieldType =
   | 'text'
@@ -4038,7 +4038,7 @@ export interface OrderCloseFormView {
   latest_snapshot: EsportsCloseFormSnapshot | null;
   submit_rule: OrderCloseSubmitSummary | null;
   unsubmitted: UnsubmittedMember[];
-  // 结单前必须逐张查看的服务段凭证图片附件 ID（§3.4-03，升序去重；无图片凭证为空数组）。
+  // 结单前必须逐张查看的服务段凭证图片附件 ID（，升序去重；无图片凭证为空数组）。
   // 结单弹窗据此渲染确认清单，确认后原样回传 closeOrder 的 viewedEvidenceAttachmentIds。
   evidence_attachment_ids: number[];
 }
@@ -4048,7 +4048,7 @@ export const getOrderCloseForm = (orderId: number) =>
     `${base}/orders/${orderId}/close-form`
   );
 
-// ── 结单提交规则（§3.4）：单人 / 多人 / 自定义（代提交、提交比例、未提交处理） ──
+// ── 结单提交规则：单人 / 多人 / 自定义（代提交、提交比例、未提交处理） ──
 
 export interface EsportsCloseSubmitRule {
   id: number;
@@ -4111,7 +4111,7 @@ export const rollbackCloseSubmitRule = (id: number) =>
     `${base}/close-submit-rules/${id}/rollback`
   );
 
-// ── 结单审批流（§3.4）：节点串行编排、审批角色与超时策略 ──
+// ── 结单审批流：节点串行编排、审批角色与超时策略 ──
 
 export type CloseApprovalRole = 'admin' | 'super_admin';
 export type CloseApprovalStepStatus = 'pending' | 'approved' | 'rejected';
@@ -4221,8 +4221,8 @@ export const getOrderCloseApproval = (orderId: number) =>
 // 路径、方法、路径参数与请求体字段一律以 go-admin/internal/apps/esports/app.go
 // 的路由表与同目录 *_handlers.go 实际解析的 JSON 字段为准。
 
-// ── 商品父实体 / 规格组 / 逐席角色（§15.1 / §15.5） ──
-// ── 商品 停服（§15.7）：申请 → 异人审批 → 受影响订单逐单处置 ──
+// ── 商品父实体 / 规格组 / 逐席角色 ──
+// ── 商品 停服：申请 → 异人审批 → 受影响订单逐单处置 ──
 export type SkuSuspensionStatus =
   | 'pending'
   | 'approved'
@@ -4374,7 +4374,7 @@ export interface CancelQuote {
   blocked_reason: string;
 }
 
-// 取消试算（§3.3 公示取消政策）：给出免费窗口、手续费与应退金额。
+// 取消试算（公示取消政策）：给出免费窗口、手续费与应退金额。
 export const previewCancelOrder = (orderId: number) =>
   axios.get<ApiResponse<CancelQuote>>(
     `${base}/orders/${orderId}/cancel-preview`
@@ -4440,7 +4440,7 @@ export interface RescheduleProposalInput {
   reason: string;
 }
 
-// 限时改期提案（§3.3）：已付款订单改期须客户与已接单成员逐人确认。
+// 限时改期提案：已付款订单改期须客户与已接单成员逐人确认。
 export const listOrderRescheduleProposals = (orderId: number) =>
   axios.get<ApiResponse<RescheduleProposalView[]>>(
     `${base}/orders/${orderId}/reschedule-proposals`
@@ -4460,7 +4460,7 @@ export const withdrawRescheduleProposal = (id: number) =>
     `${base}/reschedule-proposals/${id}/withdraw`
   );
 
-// 收款发起（§4.3-02）：返回渠道收银台地址，未开通渠道后端返回 503。
+// 收款发起：返回渠道收银台地址，未开通渠道后端返回 503。
 export interface OrderPaymentStartView {
   intent_no: string;
   channel: string;
@@ -4475,7 +4475,7 @@ export const startOrderPayment = (orderId: number, channel: string) =>
     { channel }
   );
 
-// 过期档期处置（§5.5-06）：refund 全额退款 / reschedule 改期，两者受配置白名单约束。
+// 过期档期处置：refund 全额退款 / reschedule 改期，两者受配置白名单约束。
 export interface AppointmentDisposalInput {
   action: 'refund' | 'reschedule';
   reason: string;
@@ -4513,14 +4513,14 @@ export const getAppointmentDisposalOptions = (id: number) =>
     `${base}/orders/${id}/appointment/disposal-options`
   );
 
-// 释放到公共池（§5.1）：客服把待派单订单交回公共池。
+// 释放到公共池：客服把待派单订单交回公共池。
 export const releaseOrderToPool = (orderId: number, reason: string) =>
   axios.post<ApiResponse<EsportsOrder>>(
     `${base}/orders/${orderId}/release-pool`,
     { reason }
   );
 
-// ── 服务段代操作（§3.3）：客服代陪玩暂停 / 恢复、留痕更正与提前终止 ──
+// ── 服务段代操作：客服代陪玩暂停 / 恢复、留痕更正与提前终止 ──
 export interface PlayerServiceTiming {
   order_id: number;
   order_no: string;
@@ -4547,7 +4547,7 @@ export interface ServiceTimingCorrectionInput {
   reason: string;
 }
 
-// 更正结果（§3.3）：留痕更正前后有效 / 暂停秒数与登记后停工量。
+// 更正结果：留痕更正前后有效 / 暂停秒数与登记后停工量。
 export interface ServiceTimingCorrection {
   order_id: number;
   player_id: number;
@@ -4570,7 +4570,7 @@ export interface ServiceTerminationInput {
   reason: string;
 }
 
-// 终止结果（§3.3-06）：登记已履约量 / 未履约量与责任方。
+// 终止结果：登记已履约量 / 未履约量与责任方。
 export interface ServiceTermination {
   order_id: number;
   player_id: number;
@@ -4650,7 +4650,7 @@ export const terminateOrderPlayerService = (
     input
   );
 
-// ── 售后自动建单规则（§13.2-05） ──
+// ── 售后自动建单规则 ──
 export type AfterSaleRuleSourceType =
   | 'order'
   | 'gift'
@@ -4776,7 +4776,7 @@ export const listAfterSaleRuleHits = (
     params: { ...params, pending: params.pending ? '1' : undefined },
   });
 
-// ── 按充值批次退款执行（§4.5） ──
+// ── 按充值批次退款执行 ──
 export type RechargeRefundExecutionStatus = 'pending' | 'executed';
 
 export interface EsportsRechargeRefundExecution {
@@ -4848,7 +4848,7 @@ export const listRechargeRefundExecutions = (
     { params }
   );
 
-// ── 渠道撤销 / 拒付（§3.2） ──
+// ── 渠道撤销 / 拒付 ──
 export type PaymentReversalKind = 'revoked' | 'chargeback';
 export type PaymentReversalStatus = 'pending' | 'handled' | 'rejected';
 export type PaymentReversalAction =
@@ -4879,7 +4879,7 @@ export interface EsportsPaymentReversal {
   updated_at: string;
 }
 
-// 登记渠道撤销 / 拒付（§3.2）：字段与后端 paymentReversalInput 一一对应。
+// 登记渠道撤销 / 拒付：字段与后端 paymentReversalInput 一一对应。
 // 后端校验：receipt_id ≥ 1、amount_cents ≥ 1、reason 4–255 字；
 // kind 留空按 revoked；evidence_ref 可为空但不超过 255 字。
 export interface PaymentReversalInput {
@@ -4926,7 +4926,7 @@ export const decidePaymentReversal = (
     input
   );
 
-// ── 充值意图财务核验（§4.5） ──
+// ── 充值意图财务核验 ──
 export interface RechargeIntentVerifyInput {
   approve: boolean;
   received_cents: number;
@@ -4957,7 +4957,7 @@ export const verifyRechargeIntent = (
     input
   );
 
-// ── 外部渠道退款登记（§13 补全） ──
+// ── 外部渠道退款登记（补全） ──
 export type ExternalRefundStatus = 'registered' | 'executed';
 
 export interface EsportsExternalRefund {
@@ -5006,7 +5006,7 @@ export const executeExternalRefund = (id: number) =>
     `${base}/external-refunds/${id}/execute`
   );
 
-// ── 按充值批次的退款试算（§4.5）：余额账户退款试算口径 ──
+// ── 按充值批次的退款试算：余额账户退款试算口径 ──
 export interface RechargeRefundBatch {
   batch_source_type: string;
   batch_source_id: string;
@@ -5089,7 +5089,7 @@ export const getWalletRefundQuote = (ownerId: number) =>
     `${base}/wallets/${ownerId}/refund-quote`
   );
 
-// ── 账本核验异常（§11.6-01） ──
+// ── 账本核验异常 ──
 export interface LedgerReconcileAnomaly {
   event_key: string;
   occurred_at: string;
@@ -5112,7 +5112,7 @@ export const listLedgerReconcileAnomalies = (limit?: number) =>
     { params: { limit } }
   );
 
-// ── 礼物档位与礼物收款（§9.1-02 / §9.2-01） ──
+// ── 礼物档位与礼物收款 ──
 export interface EsportsGiftTier {
   id: number;
   gift_id: number;
@@ -5286,7 +5286,7 @@ export const reviewPlayerCreditEvent = (
     input
   );
 
-// 运营复核陪玩期望报价（§6.1-12）：返回陪玩自助档案视图。
+// 运营复核陪玩期望报价：返回陪玩自助档案视图。
 export interface PlayerSelfProfile {
   id: number;
   display_name: string;
@@ -5324,7 +5324,7 @@ export const reviewPlayerExpectedPrice = (
     input
   );
 
-// ── 客服在线状态（§1.1-08） ──
+// ── 客服在线状态 ──
 export type CsPresence = 'online' | 'busy' | 'offline';
 
 export interface CsPresenceRecord {
@@ -5357,7 +5357,7 @@ export const listCsPresences = () =>
 export const setCsPresence = (input: CsPresenceInput) =>
   axios.post<ApiResponse<CsPresenceRecord>>(`${base}/cs/presence`, input);
 
-// 客户归属转移（§8.3-02）：追加交接留痕，历史跟进不变。
+// 客户归属转移：追加交接留痕，历史跟进不变。
 export const transferCustomerOwner = (
   customerId: number,
   targetAdminId: number,
@@ -5368,7 +5368,7 @@ export const transferCustomerOwner = (
     { target_admin_id: targetAdminId, reason }
   );
 
-// ── 评价申诉（§7.5-05） ──
+// ── 评价申诉 ──
 export interface EsportsPlayerReviewAppeal {
   id: number;
   review_id: number;
@@ -5403,7 +5403,7 @@ export const reviewPlayerReviewAppeal = (
     input
   );
 
-// ── 会员优先预约意向（§10.4） ──
+// ── 会员优先预约意向 ──
 export interface PriorityBooking {
   id: number;
   customer_id: number;
@@ -5439,7 +5439,7 @@ export interface PriorityBookingIntent {
   updated_at: string;
 }
 
-// 处理会员优先预约（§10.4）：只能置为 processed（已处理）或 cancelled（已取消）。
+// 处理会员优先预约：只能置为 processed（已处理）或 cancelled（已取消）。
 export const processPriorityBooking = (
   id: number,
   input: { status: 'processed' | 'cancelled' }
@@ -5449,7 +5449,7 @@ export const processPriorityBooking = (
     input
   );
 
-// ── 页面装修：预览码 / 底部导航 / 素材引用反查（§16.2-06 / §16.3-12 / §16.4-02） ──
+// ── 页面装修：预览码 / 底部导航 / 素材引用反查 ──
 export interface PageTabbarItem {
   path: string;
   text: string;
@@ -5509,7 +5509,7 @@ export const savePageTabbar = (
 export const getPageAssetUsages = (id: number) =>
   axios.get<ApiResponse<PageAssetUsages>>(`${base}/page-assets/${id}/usages`);
 
-// ── 报表导出历史（§17） ──
+// ── 报表导出历史 ──
 export interface ReportExport {
   id: number;
   report_type: string;
