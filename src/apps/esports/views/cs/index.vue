@@ -907,7 +907,8 @@
   // ── 对账 / 到账核销（§4.2 / §4.3）：工作台内直接查待核验凭证并核销 / 驳回 ──
   const proofLoading = ref(false);
   const proofs = ref<OfflinePaymentProof[]>([]);
-  const proofOrderId = ref(0);
+  // 订单 ID 筛选（可选）：undefined 表示不过滤；0 作初始值会被 input-number 渲染成「0」。
+  const proofOrderId = ref<number>();
   const proofStatus = ref<OfflinePaymentProofStatus>('pending_verification');
   const proofRejectVisible = ref(false);
   const proofRejectTarget = ref<OfflinePaymentProof | null>(null);
@@ -937,7 +938,8 @@
         (
           await listOfflinePaymentProofs({
             status: proofStatus.value,
-            order_id: proofOrderId.value > 0 ? proofOrderId.value : undefined,
+            order_id:
+              (proofOrderId.value ?? 0) > 0 ? proofOrderId.value : undefined,
           })
         ).data.data || [];
       if (!proofs.value.length) {

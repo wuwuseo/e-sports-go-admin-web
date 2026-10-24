@@ -453,14 +453,17 @@
     review_note: '',
   });
   const customerForm = reactive({ display_name: '' });
+  // 客户 / 商品未选择时必须用 undefined：绑 a-select 的数字 ID 若为 0，
+  // Arco 会当作已选中值把下拉框渲染成「0」（ID 从 1 起，0 只是未选占位）。
   const orderForm = reactive<OrderInput>({
-    customer_id: 0,
-    product_id: 0,
+    customer_id: undefined as unknown as number,
+    product_id: undefined as unknown as number,
     quantity: 1,
   });
   const orderRequestKey = ref(crypto.randomUUID());
   // 指定陪玩（§5.4）：0 表示不指定，由客服指派。
-  const preferredPlayerId = ref<number>(0);
+  // 指定陪玩（§5.4）：留空（undefined）表示不指定；0 是合法 ID 占位，不能用它当「未填」。
+  const preferredPlayerId = ref<number>();
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
   // 透出后端返回的中文错误信息（如客户归属校验），取不到时回退默认文案。
   const errorText = (err: unknown, fallback: string) => {
@@ -534,10 +537,10 @@
   }
 
   function openOrder() {
-    orderForm.customer_id = 0;
-    orderForm.product_id = 0;
+    orderForm.customer_id = undefined as unknown as number;
+    orderForm.product_id = undefined as unknown as number;
     orderForm.quantity = 1;
-    preferredPlayerId.value = 0;
+    preferredPlayerId.value = undefined;
     manualAdjustYuan.value = 0;
     manualAdjustReason.value = '';
     quotes.value = {};
@@ -780,7 +783,7 @@
     }
     try {
       const payload: OrderInput = { ...orderForm };
-      if (preferredPlayerId.value > 0) {
+      if ((preferredPlayerId.value ?? 0) > 0) {
         payload.preferred_player_id = preferredPlayerId.value;
       }
       if (adjustCents !== 0) {
@@ -791,7 +794,7 @@
       const created = (await createOrder(payload, orderRequestKey.value)).data
         .data;
       orderRequestKey.value = crypto.randomUUID();
-      preferredPlayerId.value = 0;
+      preferredPlayerId.value = undefined;
       orderVisible.value = false;
       // 成交价以后端 payable_cents 为准：与页面试算不一致时如实提示，不静默按试算值展示。
       if (created && expected > 0 && created.payable_cents !== expected) {

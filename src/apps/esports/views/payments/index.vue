@@ -1268,7 +1268,8 @@
   const reversals = ref<EsportsPaymentReversal[]>([]);
   const reversalsLoading = ref(false);
   const reversalFilterStatus = ref<PaymentReversalStatus>();
-  const reversalFilterOrderId = ref(0);
+  // 订单 ID 筛选（可选）：undefined 表示不过滤；0 作初始值会被 input-number 渲染成「0」。
+  const reversalFilterOrderId = ref<number>();
 
   async function loadReversals() {
     reversalsLoading.value = true;

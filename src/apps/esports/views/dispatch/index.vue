@@ -1107,7 +1107,8 @@
   // ── 派单候选（§5.5 首版） ──
   const candidates = ref<DispatchCandidate[]>([]);
   const candidatesLoading = ref(false);
-  const preferredPlayerId = ref<number>(0);
+  // 指定陪玩：留空（undefined）表示不指定；0 是合法 ID 占位，不能用它当「未填」。
+  const preferredPlayerId = ref<number>();
 
   async function loadCandidates() {
     const order = activeOrder.value;
@@ -1653,7 +1654,7 @@
     assignForm.seatIndex = 1;
     assignForm.playerId = 1;
     candidates.value = [];
-    preferredPlayerId.value = 0;
+    preferredPlayerId.value = undefined;
     availability.value = null;
     assignVisible.value = true;
   }
