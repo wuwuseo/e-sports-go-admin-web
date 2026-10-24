@@ -216,11 +216,15 @@
       @ok="saveProduct"
     >
       <a-form :model="productForm">
-        <a-form-item label="商品编码" tooltip="编码创建后不可修改。" required>
+        <a-form-item
+          label="商品编码"
+          tooltip="按系统配置的前缀 + 全局流水自动生成，创建后不可修改。"
+        >
           <a-input
             v-model="productForm.code"
             :max-length="80"
-            :disabled="Boolean(productForm.id)"
+            disabled
+            :placeholder="productForm.id ? '' : '保存后自动生成（前缀-流水）'"
           />
         </a-form-item>
         <a-form-item label="商品名称" required>
@@ -338,6 +342,50 @@
         </a-form-item>
         <a-form-item label="服务说明">
           <a-textarea v-model="productForm.description" :max-length="500" />
+        </a-form-item>
+        <a-form-item
+          label="内容图片"
+          tooltip="商品详情展示的多张图片；可上传或从附件库选择，按添加顺序展示。"
+        >
+          <div class="product-content-field">
+            <div v-if="productForm.content.length" class="product-content-list">
+              <div
+                v-for="(src, index) in productForm.content"
+                :key="`${src}-${index}`"
+                class="product-content-item"
+              >
+                <img
+                  :src="src"
+                  alt="商品内容图片"
+                  class="product-content-thumb"
+                />
+                <a-button
+                  size="mini"
+                  status="danger"
+                  @click="removeProductContentImage(index)"
+                >
+                  移除
+                </a-button>
+              </div>
+            </div>
+            <div class="product-content-actions">
+              <AttachmentSelector
+                accept="image/*"
+                multiple
+                default-directory="public/esports-product"
+                @select="addProductContentImages"
+              >
+                <template #trigger="{ open }">
+                  <a-button @mousedown.prevent @click="open">
+                    添加图片
+                  </a-button>
+                </template>
+              </AttachmentSelector>
+              <span class="product-content-hint">
+                当前 {{ productForm.content.length }} 张（最多 50 张）
+              </span>
+            </div>
+          </div>
         </a-form-item>
         <a-form-item label="状态" required>
           <a-select v-model="productForm.status">
@@ -595,6 +643,9 @@
   import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import AttachmentSelector from '@/components/attachment-selector/index.vue';
+  import { getAttachmentAccessInfo } from '@/services/attachment-access.service';
+  import type { AttachmentResponse } from '@/types/api';
   import yuanToCents from '@/utils/money';
   import {
     cancelSkuSuspension,
@@ -629,6 +680,8 @@
   type ProductForm = Omit<SkuInput, 'cost_cents'> & {
     id: number;
     cost_yuan: number | null;
+    // 内容图片：表单内始终是数组（接口未设置时为 null，回填归一成空数组）。
+    content: string[];
   };
 
   const { hasButtonPermission, hasAnyPermission } = usePermission();
@@ -702,6 +755,7 @@
     service_type: 'play',
     category_id: null,
     description: '',
+    content: [],
     unit_price_cents: 1,
     min_unit_price_cents: 1,
     adjustment_approval_bp: 2000,
@@ -862,11 +916,58 @@
     originalProduct.value = record || null;
     const costYuan =
       typeof record?.cost_cents === 'number' ? record.cost_cents / 100 : null;
+    const recordContent = record?.content;
     Object.assign(productForm, emptyProductForm(), record || {}, {
       cost_yuan: costYuan,
+      // 接口未设置内容图片时是 null，表单内归一成空数组。
+      content: Array.isArray(recordContent) ? [...recordContent] : [],
     });
     costBaseline.value = costYuan;
     productVisible.value = true;
+  }
+  // 内容图片（与 CMS 纯图片同规则）：只接受公开附件，保存站内 /uploads/ 路径或绝对地址，
+  // 客户端按原顺序直接渲染。
+  async function resolveProductContentUrl(item: AttachmentResponse) {
+    const access = await getAttachmentAccessInfo(item.id);
+    if (!access.public) return '';
+    const parsed = new URL(access.url, window.location.origin);
+    return parsed.pathname.startsWith('/uploads/')
+      ? parsed.pathname
+      : access.url;
+  }
+  async function addProductContentImages(
+    selection: AttachmentResponse | AttachmentResponse[]
+  ) {
+    const items = (Array.isArray(selection) ? selection : [selection]).filter(
+      (item) => item?.mime_type?.startsWith('image/')
+    );
+    const resolved = await Promise.all(
+      items.map(async (item) => {
+        try {
+          const src = await resolveProductContentUrl(item);
+          if (!src) {
+            Message.error(`「${item.original_name}」不是公开图片，已跳过`);
+            return '';
+          }
+          return src;
+        } catch {
+          Message.error(`无法获取「${item.original_name}」的访问地址`);
+          return '';
+        }
+      })
+    );
+    const added = resolved.filter(Boolean);
+    if (added.length === 0) return;
+    const room = 50 - productForm.content.length;
+    if (added.length > room) {
+      Message.warning('内容图片最多 50 张，超出部分已忽略');
+      productForm.content.push(...added.slice(0, Math.max(room, 0)));
+      return;
+    }
+    productForm.content.push(...added);
+  }
+  function removeProductContentImage(index: number) {
+    productForm.content.splice(index, 1);
   }
   const costCents = (yuan: number | null) =>
     yuan === null ? null : yuanToCents(yuan);
@@ -876,6 +977,7 @@
       service_type: productForm.service_type,
       category_id: productForm.category_id,
       description: productForm.description.trim(),
+      content: [...productForm.content],
       unit_price_cents: productForm.unit_price_cents,
       min_unit_price_cents: productForm.min_unit_price_cents,
       adjustment_approval_bp: productForm.adjustment_approval_bp,
@@ -894,8 +996,8 @@
     return payload;
   }
   async function saveProduct() {
-    if (!productForm.code.trim() || !productForm.title.trim()) {
-      Message.error('请填写商品编码与名称');
+    if (!productForm.title.trim()) {
+      Message.error('请填写商品名称');
       return;
     }
     if (!productForm.service_unit_name.trim()) {
@@ -1157,5 +1259,46 @@
 
   .detail-toolbar {
     margin-top: 12px;
+  }
+
+  .product-content-field {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .product-content-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .product-content-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .product-content-thumb {
+    width: 132px;
+    height: 96px;
+    object-fit: cover;
+    background-color: var(--color-fill-2);
+    border: 1px solid var(--color-border-2);
+    border-radius: 4px;
+  }
+
+  .product-content-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .product-content-hint {
+    color: var(--color-text-3);
+    font-size: 12px;
   }
 </style>

@@ -23,6 +23,8 @@ export interface EsportsSku {
   service_type: 'play' | 'teaching' | 'entertainment';
   category_id: number | null;
   description: string;
+  // 商品内容图片（多张）：站内 /uploads/ 公开路径或 http/https 绝对地址；未设置为 null。
+  content: string[] | null;
   unit_price_cents: number;
   min_unit_price_cents: number;
   adjustment_approval_bp: number;
