@@ -15,7 +15,7 @@
       请先在系统配置登记工作室主体名称（逗号分隔）后再提交或审核收款账户。
     </a-alert>
 
-    <a-card class="general-card" title="上线自检（§18）">
+    <a-card class="general-card" title="上线自检">
       <div class="hint">
         逐项检查上线所需配置。「未配置」表示该能力目前只是代码闭环、实际不可用；
         标「降级」的项不影响交易主链路，但对应能力会走人工或缺失。
@@ -66,7 +66,7 @@
       </a-table>
     </a-card>
 
-    <a-card class="general-card" title="收款方式启停（§4.3）">
+    <a-card class="general-card" title="收款方式启停">
       <div class="hint">
         仅工作室主体名下、经财务审核启用的收款账户可用于核销；客服提交账户资料但不具备启用权限。
         停用某收款方式后不再接受新的到账凭证，进行中的待核验收款仍由财务处理。
@@ -107,7 +107,7 @@
       </a-table>
     </a-card>
 
-    <a-card class="general-card" title="收款账户（§4.3 财务审核）">
+    <a-card class="general-card" title="收款账户">
       <a-space class="toolbar">
         <a-select
           v-model="accountFilterChannel"
@@ -196,16 +196,16 @@
         :style="{ marginTop: '-12px' }"
         @change="onSettleTabChange"
       >
-        <a-tab-pane key="proofs" title="待核验收款（§4.2）" />
+        <a-tab-pane key="proofs" title="待核验收款" />
         <a-tab-pane
           v-if="canListReversal"
           key="reversals"
-          title="撤销 / 拒付（§3.2）"
+          title="撤销 / 拒付"
         />
         <a-tab-pane
           v-if="canListRefundExecutions"
           key="refundExecutions"
-          title="退款执行批次（§4.5）"
+          title="退款执行批次"
         />
       </a-tabs>
 

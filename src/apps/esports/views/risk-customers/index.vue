@@ -1,6 +1,6 @@
 <template>
   <div class="container page-container">
-    <a-card class="general-card" title="风险客户（§13.7）">
+    <a-card class="general-card" title="风险客户">
       <a-space class="toolbar">
         <a-button :loading="loading" @click="load">刷新</a-button>
       </a-space>
@@ -51,7 +51,7 @@
 
     <a-modal
       v-model:visible="markVisible"
-      title="标记客户风险（§13.7）"
+      title="标记客户风险"
       @ok="submitMark"
       @cancel="markVisible = false"
     >

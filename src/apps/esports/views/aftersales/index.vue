@@ -505,7 +505,7 @@
           </template>
 
           <template v-if="canViewMessages">
-            <a-divider>沟通记录 / 补证（§13.3-04）</a-divider>
+            <a-divider>沟通记录 / 补证</a-divider>
             <a-space class="toolbar" wrap>
               <a-button
                 size="small"
@@ -920,7 +920,7 @@
                   :precision="2"
                 />
                 <a-typography-text type="secondary">
-                  售后执行会生成待审批的陪玩追偿单（§13.4），审批通过后从陪玩猫粮扣回；
+                  售后执行会生成待审批的陪玩追偿单，审批通过后从陪玩猫粮扣回；
                   与「退款冲回分成」相互独立，且不得超过赔付金额。
                 </a-typography-text>
               </a-form-item>
@@ -951,7 +951,7 @@
           </a-form>
         </a-modal>
 
-        <a-card class="general-card card-block" title="补履约任务（§13.6）">
+        <a-card class="general-card card-block" title="补履约任务">
           <a-space class="toolbar">
             <a-select
               v-model="makeupStatusFilter"
@@ -1049,7 +1049,7 @@
         <a-card
           v-if="canListRules"
           class="general-card"
-          title="售后自动建单规则（§13.2-05）"
+          title="售后自动建单规则"
         >
           <a-space class="toolbar" wrap>
             <a-select

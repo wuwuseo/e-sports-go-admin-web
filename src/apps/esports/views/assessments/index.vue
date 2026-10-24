@@ -270,7 +270,7 @@
       </a-table>
     </a-card>
 
-    <a-card class="general-card" title="评价申诉（§7.5-05）">
+    <a-card class="general-card" title="评价申诉">
       <a-space class="toolbar" wrap>
         <a-select
           v-model="reviewAppealStatusFilter"

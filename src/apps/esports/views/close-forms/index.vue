@@ -1,6 +1,6 @@
 <template>
   <div class="container page-container">
-    <a-card class="general-card" title="结单表单（§3.4）">
+    <a-card class="general-card" title="结单表单">
       <a-tabs v-model:active-key="activeTab">
         <!-- 字段库 -->
         <a-tab-pane key="fields" title="字段库">
@@ -370,11 +370,7 @@
 
     <a-modal
       v-model:visible="templateVisible"
-      :title="
-        templateEditing
-          ? '编辑结单表单模板（§3.4）'
-          : '新建结单表单模板（§3.4）'
-      "
+      :title="templateEditing ? '编辑结单表单模板' : '新建结单表单模板'"
       @ok="submitTemplate"
       @cancel="templateVisible = false"
     >
@@ -465,9 +461,7 @@
 
     <a-modal
       v-model:visible="submitVisible"
-      :title="
-        submitEditing ? '编辑结单提交规则（§3.4）' : '新建结单提交规则（§3.4）'
-      "
+      :title="submitEditing ? '编辑结单提交规则' : '新建结单提交规则'"
       @ok="submitSubmitRule"
       @cancel="submitVisible = false"
     >
@@ -542,9 +536,7 @@
 
     <a-modal
       v-model:visible="approvalVisible"
-      :title="
-        approvalEditing ? '编辑结单审批流（§3.4）' : '新建结单审批流（§3.4）'
-      "
+      :title="approvalEditing ? '编辑结单审批流' : '新建结单审批流'"
       width="640px"
       @ok="submitApprovalFlow"
       @cancel="approvalVisible = false"

@@ -10,7 +10,7 @@
           key="player_catfood"
           :title="displayTitle('player_catfood', '陪玩猫粮')"
         />
-        <a-tab-pane key="ledger_check" title="账本核验（§11.6-01）" />
+        <a-tab-pane key="ledger_check" title="账本核验" />
       </a-tabs>
 
       <template v-if="activeTab !== 'ledger_check'">
@@ -152,7 +152,7 @@
           >
         </a-space>
 
-        <a-divider>批次分摊明细（§4.3 / §11.3）</a-divider>
+        <a-divider>批次分摊明细</a-divider>
         <a-table
           :data="ledgerAllocations"
           :loading="ledgerAllocationsLoading"

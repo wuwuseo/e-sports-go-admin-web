@@ -36,7 +36,7 @@
             >
           </a-space>
 
-          <a-divider>会员优先预约（§10.4）</a-divider>
+          <a-divider>会员优先预约</a-divider>
           <a-space class="toolbar" wrap>
             <a-button :loading="bookingLoading" @click="loadBookings"
               >刷新预约</a-button

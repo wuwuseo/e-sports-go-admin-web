@@ -166,7 +166,7 @@
           </a-table>
         </a-card>
 
-        <a-card class="general-card card-block" title="客服坐班状态（§1.1-08）">
+        <a-card class="general-card card-block" title="客服坐班状态">
           <a-space class="toolbar" wrap>
             <a-select
               v-model="presenceForm.presence"
@@ -234,7 +234,7 @@
       </a-tab-pane>
 
       <a-tab-pane key="priority" title="优先派单名单">
-        <a-card class="general-card card-block" title="优先派单权（§5.4）">
+        <a-card class="general-card card-block" title="优先派单权">
           <a-space class="toolbar" wrap>
             <a-select
               v-model="priorityFilters.game"
@@ -331,7 +331,7 @@
       </a-tab-pane>
 
       <a-tab-pane key="transfers" title="转单申请">
-        <a-card class="general-card card-block" title="陪玩转单申请（§5.7）">
+        <a-card class="general-card card-block" title="陪玩转单申请">
           <a-space class="toolbar" wrap>
             <a-select
               v-model="transferFilters.status"
@@ -580,7 +580,7 @@
         <a-form-item label="陪玩档案 ID" required>
           <a-input-number v-model="assignForm.playerId" :min="1" />
         </a-form-item>
-        <a-form-item label="陪玩档期（§10.4-04）">
+        <a-form-item label="陪玩档期">
           <a-space direction="vertical" fill>
             <a-space>
               <a-button :loading="availabilityLoading" @click="loadAvailability"
@@ -619,7 +619,7 @@
         <a-typography-text type="secondary" class="grant-tip">
           连接异常（protected_abnormal）的陪玩不进候选，人工指派同样会被后端拒绝并给出中文原因。
         </a-typography-text>
-        <a-form-item label="候选推荐（§5.5）">
+        <a-form-item label="候选推荐">
           <a-space direction="vertical" fill>
             <a-space>
               <a-input-number

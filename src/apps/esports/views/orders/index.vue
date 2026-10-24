@@ -600,9 +600,7 @@
           "
         >
           <a-divider>
-            结单条件（§3.4）{{
-              closeConditionOf(opsTarget)!.rule_code || '内置默认'
-            }}
+            结单条件{{ closeConditionOf(opsTarget)!.rule_code || '内置默认' }}
             <template v-if="closeConditionOf(opsTarget)!.tree_configured"
               >· 自定义条件树</template
             >
@@ -630,7 +628,7 @@
           </div>
         </template>
         <template v-if="opsAction === 'close' && closeFormFields.length > 0">
-          <a-divider>结单表单（§3.4）：{{ closeFormTemplateName }}</a-divider>
+          <a-divider>结单表单：{{ closeFormTemplateName }}</a-divider>
           <a-form-item
             v-for="item in closeFormFields"
             :key="item.key"
@@ -701,7 +699,7 @@
             substituteRows.length > 0
           "
         >
-          <a-divider>代提交未上报陪玩（§3.4）</a-divider>
+          <a-divider>代提交未上报陪玩</a-divider>
           <a-typography-text type="secondary">
             提交规则要求 {{ closeFormSubmitRule.required }} 名成员上报；第
             {{ substituteRows.map((row) => row.seatIndex).join('、') }}
@@ -731,7 +729,7 @@
           v-if="opsAction === 'close' && evidenceAttachmentIds.length > 0"
         >
           <a-divider>
-            查看服务凭证（§3.4-03）：共
+            查看服务凭证：共
             {{ evidenceAttachmentIds.length }} 张，已确认
             {{ viewedEvidenceIds.length }} 张
           </a-divider>
@@ -802,7 +800,7 @@
 
     <a-modal
       v-model:visible="channelCostVisible"
-      title="登记渠道成本（§12.1）"
+      title="登记渠道成本"
       :ok-loading="channelCostLoading"
       @ok="submitChannelCost"
       @cancel="channelCostVisible = false"
@@ -823,7 +821,7 @@
 
     <a-modal
       v-model:visible="commissionRuleVisible"
-      title="单笔手动指定分成规则（§12.3）"
+      title="单笔手动指定分成规则"
       :ok-loading="commissionRuleLoading"
       @ok="submitCommissionRule"
       @cancel="commissionRuleVisible = false"
@@ -856,7 +854,7 @@
 
     <a-modal
       v-model:visible="addonVisible"
-      title="订单加钟（§3.3 / §12.5）"
+      title="订单加钟"
       :footer="false"
       width="680px"
     >
@@ -1044,7 +1042,7 @@
     <!-- 在线收款（§4.3-02）：渠道配置态来自 /admin/payment-channels，未开通渠道由后端 503 明确失败。 -->
     <a-modal
       v-model:visible="paymentVisible"
-      title="在线收款（§4.3）"
+      title="在线收款"
       :ok-loading="paymentLoading"
       ok-text="发起收款"
       @ok="submitPayment"
@@ -1113,7 +1111,7 @@
     <!-- 档期确认超时处置（§5.5-06）：只提供后端契约里的退还 / 改期两种处置。 -->
     <a-modal
       v-model:visible="appointmentVisible"
-      title="档期确认超时处置（§5.5-06）"
+      title="档期确认超时处置"
       :ok-loading="appointmentLoading"
       ok-text="确认处置"
       @ok="submitAppointmentDisposal"
@@ -1186,7 +1184,7 @@
     <!-- 释放到公共池（§5.1）：清空负责客服并留痕，订单回到待派单公共池。 -->
     <a-modal
       v-model:visible="releasePoolVisible"
-      title="转公共池（§5.1）"
+      title="转公共池"
       :ok-loading="releasePoolLoading"
       ok-text="确认转池"
       @ok="submitReleasePool"
@@ -1208,7 +1206,7 @@
     <!-- 限时改期提案（§3.3）：已付款订单改期须客户与已接单成员逐人确认，提案本身不改订单。 -->
     <a-modal
       v-model:visible="proposalVisible"
-      title="发起改期提案（§3.3）"
+      title="发起改期提案"
       :ok-loading="proposalSubmitting"
       ok-text="提交提案"
       @ok="submitProposal"
@@ -1335,7 +1333,7 @@
     <!-- 固排成队（§5.3）：主陪玩 + 其固排一次占满空席位，候选由后端过滤资格/在线/分区。 -->
     <a-modal
       v-model:visible="teamVisible"
-      title="固排成队（§5.3）"
+      title="固排成队"
       :ok-button-props="{ disabled: teamSelected.length === 0 }"
       @ok="submitTeamDispatch"
       @cancel="closeTeamDispatch"
@@ -2486,9 +2484,9 @@
   const serviceTitle = computed(
     () =>
       ({
-        pause: '代暂停服务段（§3.3）',
-        resume: '代恢复服务段（§3.3）',
-        terminate: '终止服务段（§3.3）',
+        pause: '代暂停服务段',
+        resume: '代恢复服务段',
+        terminate: '终止服务段',
         correction: '服务时长更正（留痕）',
       }[serviceAction.value])
   );

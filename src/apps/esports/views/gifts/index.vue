@@ -348,10 +348,7 @@
       </a-table>
     </a-card>
 
-    <a-card
-      class="general-card"
-      title="礼物争议（§9.5 申请 → 审核 → 执行部分退款）"
-    >
+    <a-card class="general-card" title="礼物争议">
       <a-space class="toolbar">
         <a-select
           v-model="disputeFilterStatus"

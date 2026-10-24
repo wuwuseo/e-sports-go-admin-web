@@ -218,7 +218,7 @@
     </a-modal>
     <a-modal
       v-model:visible="expectedVisible"
-      title="复核陪玩期望报价（§6.1-12）"
+      title="复核陪玩期望报价"
       :ok-loading="expectedSubmitting"
       ok-text="确认提交"
       @ok="submitExpectedReview"
@@ -255,7 +255,7 @@
     </a-modal>
     <a-modal
       v-model:visible="creditVisible"
-      title="陪玩信用 / 追偿记载（§13.5）"
+      title="陪玩信用 / 追偿记载"
       :footer="false"
       width="900px"
       @cancel="creditVisible = false"
@@ -355,7 +355,7 @@
     </a-modal>
     <a-modal
       v-model:visible="availabilityVisible"
-      title="陪玩档期可用性（§10.4-04）"
+      title="陪玩档期可用性"
       :footer="false"
       width="900px"
       @cancel="availabilityVisible = false"

@@ -2,7 +2,7 @@
   <div class="container page-container">
     <a-card class="general-card" title="页面装修">
       <a-space class="toolbar" wrap>
-        <!-- 首页版本 / 渠道选择（§16.2-02）：切换后编辑与发布目标随之改变。 -->
+        <!-- 首页版本 / 渠道选择：切换后编辑与发布目标随之改变。 -->
         <a-select
           v-model="channel"
           :style="{ width: '200px' }"
@@ -34,14 +34,14 @@
           >保存草稿</a-button
         >
         <a-button @click="previewVisible = true">预览</a-button>
-        <!-- 设备预览码（§16.4-02）：生成指向当前草稿的短期预览码，供客户端真机扫码查看。 -->
+        <!-- 设备预览码：生成指向当前草稿的短期预览码，供客户端真机扫码查看。 -->
         <a-button
           v-if="canPreviewCode"
           :loading="previewCodeLoading"
           @click="generatePreviewCode"
           >生成预览码</a-button
         >
-        <!-- 发布申请 → 异人审核（§16.4 / §16.5）：运营提交申请，有发布权限者审核，回滚同权限。 -->
+        <!-- 发布申请 → 异人审核：运营提交申请，有发布权限者审核，回滚同权限。 -->
         <a-button v-if="canSubmit" :loading="publishing" @click="publishNow"
           >提交发布</a-button
         >
@@ -668,7 +668,7 @@
                           >{{ opt.label }}</a-option
                         >
                       </a-select>
-                      <!-- 顺序即数组顺序，客户端按该顺序渲染宫格（§16.3-04）。 -->
+                      <!-- 顺序即数组顺序，客户端按该顺序渲染宫格。 -->
                       <a-button
                         size="mini"
                         :disabled="i === 0"

@@ -472,7 +472,7 @@
                       @click="doLockSettlement(record)"
                       >锁定</a-button
                     >
-                    <!-- 客服提成结算不写钱包，锁定后由财务打款并登记外部凭证（§12.2）。 -->
+                    <!-- 客服提成结算不写钱包，锁定后由财务打款并登记外部凭证。 -->
                     <a-button
                       v-if="
                         record.status === 'locked' && record.owner_type === 'cs'
@@ -684,7 +684,7 @@
                   {{ closeRuleStatusLabel(record.status) }}</template
                 >
               </a-table-column>
-              <a-table-column title="条件树（§3.4）" :width="220">
+              <a-table-column title="条件树" :width="220">
                 <template #cell="{ record }">
                   <span
                     v-if="ruleHasConditionTree(record)"
@@ -866,9 +866,7 @@
 
     <a-modal
       v-model:visible="closeRuleVisible"
-      :title="
-        closeRuleForm.id > 0 ? '编辑结单规则（§3.4）' : '新建结单规则（§3.4）'
-      "
+      :title="closeRuleForm.id > 0 ? '编辑结单规则' : '新建结单规则'"
       :width="760"
       @ok="submitCloseRule"
       @cancel="closeRuleVisible = false"
@@ -924,7 +922,7 @@
             订单应付达该阈值时须由非负责客服的管理员复核结单；0 表示不额外复核。
           </a-typography-text>
         </a-form-item>
-        <a-form-item label="结单条件树（§3.4 通用 AND / OR）">
+        <a-form-item label="结单条件树">
           <CloseConditionDesigner
             v-model="closeRuleForm.conditionTree"
             :structured-source="closeRuleStructuredSource"
@@ -938,7 +936,7 @@
 
     <a-modal
       v-model:visible="cycleVisible"
-      :title="cycleForm.id ? '编辑结算周期（§12.6）' : '新建结算周期（§12.6）'"
+      :title="cycleForm.id ? '编辑结算周期' : '新建结算周期'"
       @ok="submitCycle"
       @cancel="cycleVisible = false"
     >
