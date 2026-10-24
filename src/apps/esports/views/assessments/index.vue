@@ -629,6 +629,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
   import {
     assignAssessment,
     createAssessment,
@@ -670,12 +671,14 @@
     { value: 'spot_check', label: '抽查复核' },
     { value: 'retry', label: '复考' },
   ];
-  const playerLevels: { value: PlayerLevel; label: string }[] = [
-    { value: 'novice', label: '新手' },
-    { value: 'skilled', label: '熟练' },
-    { value: 'senior', label: '资深' },
-    { value: 'mentor', label: '导师' },
-  ];
+  // 技能等级选项与文案走系统配置（§5.5 配置驱动）。
+  const skillLevels = ref<SkillLevel[]>([]);
+  const playerLevels = computed(() =>
+    skillLevels.value.map((item) => ({
+      value: item.code as PlayerLevel,
+      label: item.name,
+    }))
+  );
   const dimensions: AssessmentDimension[] = [
     'game_skill',
     'teaching',
@@ -716,12 +719,9 @@
     approved: '申诉成立',
     rejected: '申诉驳回',
   };
-  const levelMap: Record<string, string> = {
-    novice: '新手',
-    skilled: '熟练',
-    senior: '资深',
-    mentor: '导师',
-  };
+  const levelMap = computed<Record<string, string>>(() =>
+    Object.fromEntries(skillLevels.value.map((item) => [item.code, item.name]))
+  );
   const reviewStatusMap: Record<ReviewStatus, string> = {
     normal: '正常',
     disputed: '争议',
@@ -740,7 +740,7 @@
   const statusColor = (value: AssessmentStatus) =>
     statusColorMap[value] || 'gray';
   const appealLabel = (value: string) => appealMap[value] || value;
-  const levelLabel = (value: string) => levelMap[value] || value || '—';
+  const levelLabel = (value: string) => levelMap.value[value] || value || '—';
   const reviewStatusLabel = (value: ReviewStatus) =>
     reviewStatusMap[value] || value;
   const reviewStatusColor = (value: ReviewStatus) =>
@@ -1181,6 +1181,7 @@
   }
 
   onMounted(async () => {
+    skillLevels.value = await fetchSkillLevels();
     await loadRules();
     await loadAssessments();
     await loadReviews();

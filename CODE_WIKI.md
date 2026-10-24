@@ -636,13 +636,13 @@ src/apps/<code>/
 
 ### 13.2 esports（电竞陪玩业务）
 
-入口：`src/apps/esports/api.ts`（352 个导出类型/接口、313 个 `export const|function` 导出，2026-10-20 实测）、`views/` 下 **18** 个页面（原 19 个，「储值卡」页已随该功能移除）、`components/close-condition-designer`（结单条件设计器）、`components/page-designer`（页面装修设计器与预览）。
+入口：`src/apps/esports/api.ts`（344 个导出类型/接口、306 个 `export const|function` 导出、291 处 `axios` 调用，2026-10-24 实测）、`views/` 下 **18** 个页面（原 19 个，「储值卡」页已随该功能移除）、`components/close-condition-designer`（结单条件设计器）、`components/page-designer`（页面装修设计器与预览）。
 
 | 页面目录 | 业务范围 |
 | --- | --- |
-| `products` | 商品分类与 SKU（等级要求、服务时长、库存配额、结单规则） |
+| `products` | 商品管理（单一商品模型：每件一个价格/服务量/结单规则/库存、固定一人服务；content 内容图片多选）与分类 |
 | `orders` | 订单中心：改价与报价预览、调价审批、改约、取消/恢复、渠道成本、协作者、结单审批 |
-| `reports` | 报单录单：选/建客户、选 SKU、下单、年龄校验与复核 |
+| `reports` | 报单录单：选/建客户、选商品、下单、年龄校验与复核 |
 | `wallets` | 钱包账户与流水、充值（含活动充值）、人工调账、分账明细 |
 | `dispatch` | 排单：派单板与席位、抢单大厅、转单/撤座/组队派单、优先级授权、席位转移、催单 |
 | `players` | 陪玩账号：CRUD、在线状态、等级与资质 |

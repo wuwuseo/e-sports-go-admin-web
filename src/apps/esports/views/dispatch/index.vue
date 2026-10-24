@@ -879,6 +879,11 @@
   import yuanToCents from '@/utils/money';
   import useUserStore from '@/store/modules/user';
   import {
+    fetchSkillLevels,
+    skillLevelName,
+    type SkillLevel,
+  } from '../../skill-levels';
+  import {
     approveCloseReview,
     assignOrderSeat,
     claimOrder,
@@ -1604,10 +1609,10 @@
     teamCandidatesLoaded.value = false;
   }
 
+  // 技能等级文案走系统配置（§5.5 配置驱动），拉取失败按编码原样回显。
+  const skillLevels = ref<SkillLevel[]>([]);
   const levelLabel = (level: string) =>
-    ({ novice: '新手', skilled: '熟练', senior: '资深', mentor: '导师' }[
-      level
-    ] || level);
+    skillLevelName(skillLevels.value, level) || level;
   const presenceLabel = (presence: string) => {
     switch (presence) {
       case 'online':
@@ -1850,6 +1855,7 @@
   // 状态变更需秒级反映（§5.8-03）：固定 5 秒轮询，不再用 15 秒；页面不可见时跳过请求。
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   onMounted(async () => {
+    skillLevels.value = await fetchSkillLevels();
     await load();
     await loadPriority();
     await loadTransfers();

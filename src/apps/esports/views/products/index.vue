@@ -310,10 +310,13 @@
         </a-form-item>
         <a-form-item label="所需技能等级">
           <a-select v-model="productForm.required_level">
-            <a-option value="novice">新手</a-option>
-            <a-option value="skilled">熟练</a-option>
-            <a-option value="senior">高级</a-option>
-            <a-option value="mentor">导师</a-option>
+            <a-option
+              v-for="level in skillLevels"
+              :key="level.code"
+              :value="level.code"
+            >
+              {{ level.name }}（{{ level.code }}）
+            </a-option>
           </a-select>
         </a-form-item>
         <a-form-item
@@ -647,6 +650,7 @@
   import { getAttachmentAccessInfo } from '@/services/attachment-access.service';
   import type { AttachmentResponse } from '@/types/api';
   import yuanToCents from '@/utils/money';
+  import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
   import {
     cancelSkuSuspension,
     createCategory,
@@ -711,6 +715,9 @@
   const canDisposeSuspension = computed(() =>
     canDo('esports:products:suspension_disposal')
   );
+
+  // 商品门槛下拉的等级选项（§5.5 配置驱动，在「系统配置」页编辑）。
+  const skillLevels = ref<SkillLevel[]>([]);
 
   const activeTab = ref('products');
   const loading = ref(false);
@@ -922,6 +929,10 @@
       // 接口未设置内容图片时是 null，表单内归一成空数组。
       content: Array.isArray(recordContent) ? [...recordContent] : [],
     });
+    if (!record) {
+      // 新建商品默认最低档（配置驱动，不一定还是 novice）。
+      productForm.required_level = skillLevels.value[0]?.code || 'novice';
+    }
     costBaseline.value = costYuan;
     productVisible.value = true;
   }
@@ -1245,7 +1256,13 @@
     }
   }
 
-  onMounted(loadActive);
+  onMounted(() => {
+    loadActive();
+    // 表单下拉需要等级选项：进入页面即拉取，不等到打开表单。
+    fetchSkillLevels().then((items) => {
+      skillLevels.value = items;
+    });
+  });
 </script>
 
 <style scoped>

@@ -960,10 +960,13 @@
             v-if="cycleForm.scope === 'level'"
             v-model="cycleForm.scopeKey"
           >
-            <a-option value="novice">新手</a-option>
-            <a-option value="skilled">熟练</a-option>
-            <a-option value="senior">资深</a-option>
-            <a-option value="mentor">导师</a-option>
+            <a-option
+              v-for="level in skillLevels"
+              :key="level.code"
+              :value="level.code"
+            >
+              {{ level.name }}（{{ level.code }}）
+            </a-option>
           </a-select>
           <a-input
             v-else
@@ -1318,10 +1321,13 @@
             v-if="ruleForm.scope === 'level'"
             v-model="ruleForm.scopeKey"
           >
-            <a-option value="novice">新手</a-option>
-            <a-option value="skilled">熟练</a-option>
-            <a-option value="senior">资深</a-option>
-            <a-option value="mentor">导师</a-option>
+            <a-option
+              v-for="level in skillLevels"
+              :key="level.code"
+              :value="level.code"
+            >
+              {{ level.name }}（{{ level.code }}）
+            </a-option>
           </a-select>
           <a-input v-else v-model="ruleForm.scopeKey" :max-length="64" />
         </a-form-item>
@@ -1784,6 +1790,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
   import {
     activateCloseRule,
     activateCommissionRule,
@@ -2284,12 +2291,11 @@
     level: '按陪玩等级',
     player: '按陪玩',
   };
-  const playerLevelMap: Record<string, string> = {
-    novice: '新手',
-    skilled: '熟练',
-    senior: '资深',
-    mentor: '导师',
-  };
+  // 技能等级文案走系统配置（§5.5 配置驱动）。
+  const skillLevels = ref<SkillLevel[]>([]);
+  const playerLevelMap = computed<Record<string, string>>(() =>
+    Object.fromEntries(skillLevels.value.map((item) => [item.code, item.name]))
+  );
   const unitBasisMap: Record<string, string> = {
     sku_quantity: '商品数量',
     promised_units: '承诺服务量',
@@ -2299,7 +2305,7 @@
     scope === 'global'
       ? scopeMap.global
       : `${scopeMap[scope] || scope}（${
-          scope === 'level' ? playerLevelMap[key] || key : key || '-'
+          scope === 'level' ? playerLevelMap.value[key] || key : key || '-'
         }）`;
   const calcLabel = (record: CommissionRule) => {
     if (record.calc_mode === 'percent')
@@ -3454,6 +3460,9 @@
   };
 
   onMounted(() => {
+    fetchSkillLevels().then((items) => {
+      skillLevels.value = items;
+    });
     loadRules();
     loadCloseRules();
   });
