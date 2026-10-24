@@ -956,6 +956,8 @@ export interface EsportsAfterSale {
   after_sale_no: string;
   source_type: AfterSaleSourceType;
   source_id: number;
+  // 订单来源售后单附带：订单号。
+  order_no?: string;
   kind: AfterSaleKind;
   channel: AfterSaleChannel;
   demand: string;
@@ -1732,7 +1734,7 @@ export const rollbackCommissionRule = (id: number) =>
 
 export const listCommissionEntries = (params: {
   player_id?: number;
-  order_id?: number;
+  order_no?: string;
   status?: string;
 }) =>
   axios.get<ApiResponse<CommissionEntry[]>>(`${base}/commission-entries`, {
@@ -1917,7 +1919,7 @@ export const rollbackCsCommissionRule = (id: number) =>
 export const listCsCommissionEntries = (
   params: {
     admin_id?: number;
-    order_id?: number;
+    order_no?: string;
     status?: string;
   } = {}
 ) =>
@@ -2707,7 +2709,7 @@ export const createGiftIntent = (input: {
   gift_id: number;
   player_id: number;
   quantity: number;
-  order_id?: number | null;
+  order_no?: string | null;
   payment_source?: 'customer_balance_principal';
   client_key: string;
 }) => axios.post<ApiResponse<GiftIntent>>(`${base}/gift-intents`, input);
@@ -2899,6 +2901,8 @@ export type OfflinePaymentProofStatus =
 export interface OfflinePaymentProof {
   id: number;
   proof_no: string;
+  // 列表视图附带：订单号（管理端统一展示口径）。
+  order_no?: string;
   order_id: number;
   intent_id: number;
   account_id: number;
@@ -2918,7 +2922,7 @@ export interface OfflinePaymentProof {
 }
 
 export interface OfflinePaymentProofInput {
-  order_id: number;
+  order_no: string;
   account_id: number;
   transaction_no: string;
   amount_cents: number;
@@ -3017,9 +3021,10 @@ export interface OfflinePaymentProofListWithReconcile {
 
 export interface OfflinePaymentProofListParams {
   status?: OfflinePaymentProofStatus;
-  order_id?: number;
+  // 管理端统一按订单号筛选 / 定位订单。
+  order_no?: string;
   limit?: number;
-  // 传 true 时必须同时给 order_id。
+  // 传 true 时必须同时给 order_no。
   reconcile?: boolean;
 }
 
@@ -3027,7 +3032,7 @@ export function listOfflinePaymentProofs(
   params?: OfflinePaymentProofListParams
 ): Promise<AxiosResponse<ApiResponse<OfflinePaymentProof[]>>>;
 export function listOfflinePaymentProofs(
-  params: OfflinePaymentProofListParams & { reconcile: true; order_id: number }
+  params: OfflinePaymentProofListParams & { reconcile: true; order_no: string }
 ): Promise<AxiosResponse<ApiResponse<OfflinePaymentProofListWithReconcile>>>;
 export function listOfflinePaymentProofs(
   params: OfflinePaymentProofListParams = {}
@@ -3163,7 +3168,7 @@ export interface PlayerReview {
 }
 
 export interface PlayerReviewInput {
-  order_id: number;
+  order_no: string;
   customer_id: number;
   player_id: number;
   rating: number;
@@ -3242,7 +3247,7 @@ export const reviewAssessmentAppeal = (
 
 export const listPlayerReviews = (params: {
   player_id?: number;
-  order_id?: number;
+  order_no?: string;
   status?: ReviewStatus;
 }) =>
   axios.get<ApiResponse<PlayerReview[]>>(`${base}/player-reviews`, { params });
@@ -4900,7 +4905,7 @@ export interface PaymentReversalDecisionInput {
 
 export const listPaymentReversals = (
   params: {
-    order_id?: number;
+    order_no?: string;
     status?: PaymentReversalStatus;
     limit?: number;
   } = {}
@@ -4966,6 +4971,8 @@ export interface EsportsExternalRefund {
   channel: string;
   transaction_no: string;
   amount_cents: number;
+  // 列表视图附带：订单号。
+  order_no?: string;
   order_id: number;
   aftersale_id: number | null;
   status: ExternalRefundStatus;
@@ -4982,13 +4989,13 @@ export interface ExternalRefundInput {
   channel: string;
   transaction_no: string;
   amount_cents: number;
-  order_id: number;
+  order_no: string;
   aftersale_id?: number | null;
   reason: string;
 }
 
 export const listExternalRefunds = (
-  params: { order_id?: number; status?: ExternalRefundStatus } = {}
+  params: { order_no?: string; status?: ExternalRefundStatus } = {}
 ) =>
   axios.get<ApiResponse<EsportsExternalRefund[]>>(`${base}/external-refunds`, {
     params,

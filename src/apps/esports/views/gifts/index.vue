@@ -267,7 +267,7 @@
             }}</template>
           </a-table-column>
           <a-table-column title="关联订单">
-            <template #cell="{ record }">{{ record.order_id ?? '-' }}</template>
+            <template #cell="{ record }">{{ record.order_no || '-' }}</template>
           </a-table-column>
           <a-table-column title="复核">
             <template #cell="{ record }">
@@ -833,8 +833,12 @@
         <a-form-item label="数量" required>
           <a-input-number v-model="sendForm.quantity" :min="1" :max="999" />
         </a-form-item>
-        <a-form-item label="关联订单 ID（仅追溯，可不填）">
-          <a-input-number v-model="sendForm.orderId" :min="0" />
+        <a-form-item label="关联订单号（仅追溯，可不填）">
+          <a-input
+            v-model="sendForm.orderNo"
+            placeholder="如 SO-20261025-000001"
+            allow-clear
+          />
         </a-form-item>
         <a-form-item label="付款来源" required>
           <a-radio-group v-model="sendForm.paymentSource">
@@ -1402,7 +1406,7 @@
     giftId: undefined as number | undefined,
     playerId: 0,
     quantity: 1,
-    orderId: 0,
+    orderNo: '',
     paymentSource: 'customer_balance_principal' as const,
   });
 
@@ -1448,7 +1452,7 @@
       gift_id: sendForm.giftId,
       player_id: sendForm.playerId,
       quantity: sendForm.quantity,
-      order_id: sendForm.orderId ? sendForm.orderId : null,
+      order_no: sendForm.orderNo.trim() || null,
       payment_source: sendForm.paymentSource,
     };
     sendSubmitting.value = true;

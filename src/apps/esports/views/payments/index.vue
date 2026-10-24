@@ -240,7 +240,11 @@
         >
           <template #columns>
             <a-table-column data-index="proof_no" title="凭证号" :width="200" />
-            <a-table-column data-index="order_id" title="订单" :width="90" />
+            <a-table-column title="订单" :width="170">
+              <template #cell="{ record }">{{
+                record.order_no || '—'
+              }}</template>
+            </a-table-column>
             <a-table-column title="收款方式" :width="150">
               <template #cell="{ record }">{{
                 channelText(record.channel)
@@ -284,11 +288,11 @@
             <a-option value="handled">已处置</a-option>
             <a-option value="rejected">已认定误报</a-option>
           </a-select>
-          <a-input-number
-            v-model="reversalFilterOrderId"
-            placeholder="按订单 ID 筛选"
-            :min="0"
-            :style="{ width: '170px' }"
+          <a-input
+            v-model="reversalFilterOrderNo"
+            placeholder="按订单号筛选"
+            allow-clear
+            :style="{ width: '190px' }"
           />
           <a-button :loading="reversalsLoading" @click="loadReversals"
             >查询</a-button
@@ -316,7 +320,11 @@
               title="撤销号"
               :width="200"
             />
-            <a-table-column data-index="order_id" title="订单" :width="80" />
+            <a-table-column title="订单" :width="170">
+              <template #cell="{ record }">{{
+                record.order_no || '—'
+              }}</template>
+            </a-table-column>
             <a-table-column
               data-index="receipt_id"
               title="收款回执"
@@ -538,7 +546,11 @@
     >
       <a-form :model="proofCreateForm">
         <a-form-item label="订单 ID" required>
-          <a-input-number v-model="proofCreateForm.orderId" :min="1" />
+          <a-input
+            v-model="proofCreateForm.orderNo"
+            placeholder="如 SO-20261025-000001"
+            allow-clear
+          />
         </a-form-item>
         <a-form-item label="收款账户" required>
           <a-select
@@ -605,7 +617,7 @@
             }}</a-tag>
           </a-descriptions-item>
           <a-descriptions-item label="订单">{{
-            proofDetail.order_id
+            proofDetail.order_no || '—'
           }}</a-descriptions-item>
           <a-descriptions-item label="收款方式">{{
             channelText(proofDetail.channel)
@@ -1166,7 +1178,7 @@
 
   const proofCreateVisible = ref(false);
   const proofCreateForm = reactive({
-    orderId: 0,
+    orderNo: '',
     accountId: undefined as number | undefined,
     transactionNo: '',
     amountYuan: 0,
@@ -1175,7 +1187,7 @@
   });
 
   function openProofCreate() {
-    proofCreateForm.orderId = 0;
+    proofCreateForm.orderNo = '';
     proofCreateForm.accountId = undefined;
     proofCreateForm.transactionNo = '';
     proofCreateForm.amountYuan = 0;
@@ -1185,8 +1197,8 @@
   }
 
   async function submitProofCreate() {
-    if (!proofCreateForm.orderId || !proofCreateForm.accountId) {
-      Message.warning('请填写订单 ID 并选择收款账户');
+    if (!proofCreateForm.orderNo.trim() || !proofCreateForm.accountId) {
+      Message.warning('请填写订单号并选择收款账户');
       return;
     }
     if (proofCreateForm.amountYuan <= 0) {
@@ -1199,7 +1211,7 @@
     }
     try {
       await submitOfflinePaymentProof({
-        order_id: proofCreateForm.orderId,
+        order_no: proofCreateForm.orderNo.trim(),
         account_id: proofCreateForm.accountId,
         transaction_no: proofCreateForm.transactionNo.trim(),
         amount_cents: yuanToCents(proofCreateForm.amountYuan),
@@ -1269,7 +1281,8 @@
   const reversalsLoading = ref(false);
   const reversalFilterStatus = ref<PaymentReversalStatus>();
   // 订单 ID 筛选（可选）：undefined 表示不过滤；0 作初始值会被 input-number 渲染成「0」。
-  const reversalFilterOrderId = ref<number>();
+  // 管理端统一按订单号筛选 / 定位订单。
+  const reversalFilterOrderNo = ref('');
 
   async function loadReversals() {
     reversalsLoading.value = true;
@@ -1277,7 +1290,7 @@
       reversals.value =
         (
           await listPaymentReversals({
-            order_id: reversalFilterOrderId.value || undefined,
+            order_no: reversalFilterOrderNo.value.trim() || undefined,
             status: reversalFilterStatus.value,
           })
         ).data.data || [];

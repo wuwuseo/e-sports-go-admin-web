@@ -85,11 +85,11 @@
               :min="0"
               :style="{ width: '140px' }"
             />
-            <a-input-number
-              v-model="entryFilters.orderId"
-              placeholder="订单 ID"
-              :min="0"
-              :style="{ width: '140px' }"
+            <a-input
+              v-model="entryFilters.orderNo"
+              placeholder="订单号"
+              allow-clear
+              :style="{ width: '180px' }"
             />
             <a-select
               v-model="entryFilters.status"
@@ -115,8 +115,10 @@
             :pagination="{ pageSize: 20 }"
           >
             <template #columns>
-              <a-table-column data-index="order_id" title="订单" :width="90">
-                <template #cell="{ record }">#{{ record.order_id }}</template>
+              <a-table-column title="订单" :width="170">
+                <template #cell="{ record }">{{
+                  record.order_no || '—'
+                }}</template>
               </a-table-column>
               <a-table-column data-index="player_id" title="陪玩" :width="90" />
               <a-table-column title="类型">
@@ -274,11 +276,11 @@
               :min="0"
               :style="{ width: '150px' }"
             />
-            <a-input-number
-              v-model="csEntryFilters.orderId"
-              placeholder="订单 ID"
-              :min="0"
-              :style="{ width: '150px' }"
+            <a-input
+              v-model="csEntryFilters.orderNo"
+              placeholder="订单号"
+              allow-clear
+              :style="{ width: '180px' }"
             />
             <a-select
               v-model="csEntryFilters.status"
@@ -1109,9 +1111,9 @@
             :pagination="{ pageSize: 10 }"
           >
             <template #columns>
-              <a-table-column title="订单" :width="90">
+              <a-table-column title="订单" :width="170">
                 <template #cell="{ record }">{{
-                  record.order_id ? `#${record.order_id}` : '—'
+                  record.order_no || '—'
                 }}</template>
               </a-table-column>
               <a-table-column data-index="player_id" title="陪玩" :width="80" />
@@ -1220,7 +1222,7 @@
       @cancel="unfreezeVisible = false"
     >
       <a-typography-text>
-        将解冻订单 #{{ unfreezeOrderId }}
+        将解冻订单 {{ unfreezeOrderNo || `#${unfreezeOrderId}` }}
         下全部被冻结的待结算分成明细，恢复参与当期结算。
       </a-typography-text>
       <a-typography-text type="secondary" class="modal-tip">
@@ -1929,6 +1931,7 @@
   // 冻结 / 解冻按订单维度调用，两种明细（列表 / 详情）都满足该最小形状。
   interface FreezableEntry {
     order_id: number | null;
+    order_no?: string;
     player_id: number;
     status: CommissionEntryStatus;
     settlement_id?: number | null;
@@ -2411,7 +2414,7 @@
   const entriesLoading = ref(false);
   const entryFilters = reactive<{
     playerId?: number;
-    orderId?: number;
+    orderNo?: string;
     status?: string;
   }>({});
   const entryStatusOptions = [
@@ -2438,7 +2441,7 @@
         (
           await listCommissionEntries({
             player_id: entryFilters.playerId || undefined,
-            order_id: entryFilters.orderId || undefined,
+            order_no: entryFilters.orderNo?.trim() || undefined,
             status: entryFilters.status || undefined,
           })
         ).data.data || [];
@@ -2594,6 +2597,7 @@
 
   const unfreezeVisible = ref(false);
   const unfreezeOrderId = ref(0);
+  const unfreezeOrderNo = ref('');
 
   function openUnfreeze(record: FreezableEntry) {
     if (!record.order_id) {
@@ -2601,6 +2605,7 @@
       return;
     }
     unfreezeOrderId.value = record.order_id;
+    unfreezeOrderNo.value = record.order_no || '';
     unfreezeVisible.value = true;
   }
 
@@ -2922,7 +2927,7 @@
   const csSummaryLoading = ref(false);
   const csEntryFilters = reactive<{
     adminId?: number;
-    orderId?: number;
+    orderNo?: string;
     status?: string;
   }>({});
 
@@ -2933,7 +2938,7 @@
         (
           await listCsCommissionEntries({
             admin_id: csEntryFilters.adminId || undefined,
-            order_id: csEntryFilters.orderId || undefined,
+            order_no: csEntryFilters.orderNo?.trim() || undefined,
             status: csEntryFilters.status || undefined,
           })
         ).data.data || [];

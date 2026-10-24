@@ -143,11 +143,11 @@
 
           <a-divider>对账 / 到账核销</a-divider>
           <a-space class="toolbar" wrap>
-            <a-input-number
-              v-model="proofOrderId"
-              :min="0"
-              placeholder="订单 ID（可选）"
-              :style="{ width: '160px' }"
+            <a-input
+              v-model="proofOrderNo"
+              placeholder="订单号（可选）"
+              allow-clear
+              :style="{ width: '200px' }"
             />
             <a-select v-model="proofStatus" :style="{ width: '160px' }">
               <a-option value="pending_verification">待核验</a-option>
@@ -173,7 +173,9 @@
             <template #columns>
               <a-table-column data-index="proof_no" title="凭证号" />
               <a-table-column title="关联订单">
-                <template #cell="{ record }">#{{ record.order_id }}</template>
+                <template #cell="{ record }">{{
+                  record.order_no || '—'
+                }}</template>
               </a-table-column>
               <a-table-column data-index="channel" title="渠道" />
               <a-table-column title="凭证金额">
@@ -907,8 +909,8 @@
   // ── 对账 / 到账核销：工作台内直接查待核验凭证并核销 / 驳回 ──
   const proofLoading = ref(false);
   const proofs = ref<OfflinePaymentProof[]>([]);
-  // 订单 ID 筛选（可选）：undefined 表示不过滤；0 作初始值会被 input-number 渲染成「0」。
-  const proofOrderId = ref<number>();
+  // 订单号筛选（可选）：管理端统一按订单号定位订单，留空不过滤。
+  const proofOrderNo = ref('');
   const proofStatus = ref<OfflinePaymentProofStatus>('pending_verification');
   const proofRejectVisible = ref(false);
   const proofRejectTarget = ref<OfflinePaymentProof | null>(null);
@@ -938,8 +940,7 @@
         (
           await listOfflinePaymentProofs({
             status: proofStatus.value,
-            order_id:
-              (proofOrderId.value ?? 0) > 0 ? proofOrderId.value : undefined,
+            order_no: proofOrderNo.value.trim() || undefined,
           })
         ).data.data || [];
       if (!proofs.value.length) {

@@ -184,11 +184,11 @@
           placeholder="陪玩 ID"
           :style="{ width: '140px' }"
         />
-        <a-input-number
-          v-model="reviewFilterOrderId"
-          :min="1"
-          placeholder="订单 ID"
-          :style="{ width: '140px' }"
+        <a-input
+          v-model="reviewFilterOrderNo"
+          placeholder="订单号"
+          allow-clear
+          :style="{ width: '180px' }"
         />
         <a-select
           v-model="reviewFilterStatus"
@@ -215,8 +215,8 @@
         :pagination="{ pageSize: 10 }"
       >
         <template #columns>
-          <a-table-column title="订单" :width="90">
-            <template #cell="{ record }">{{ record.order_id }}</template>
+          <a-table-column title="订单" :width="170">
+            <template #cell="{ record }">{{ record.order_no || '—' }}</template>
           </a-table-column>
           <a-table-column title="客户 / 陪玩" :width="140">
             <template #cell="{ record }"
@@ -311,8 +311,8 @@
               }}</template
             >
           </a-table-column>
-          <a-table-column title="订单" :width="90">
-            <template #cell="{ record }">{{ record.order_id }}</template>
+          <a-table-column title="订单" :width="170">
+            <template #cell="{ record }">{{ record.order_no || '—' }}</template>
           </a-table-column>
           <a-table-column data-index="reason" title="申诉理由" />
           <a-table-column title="状态" :width="110">
@@ -526,8 +526,12 @@
       @cancel="recordVisible = false"
     >
       <a-form :model="recordForm">
-        <a-form-item label="订单 ID" required>
-          <a-input-number v-model="recordForm.order_id" :min="1" />
+        <a-form-item label="订单号" required>
+          <a-input
+            v-model="recordForm.order_no"
+            placeholder="如 SO-20261025-000001"
+            allow-clear
+          />
         </a-form-item>
         <a-form-item label="客户 ID" required>
           <a-input-number v-model="recordForm.customer_id" :min="1" />
@@ -1013,7 +1017,8 @@
   const reviewLoading = ref(false);
   const reviews = ref<PlayerReview[]>([]);
   const reviewFilterPlayerId = ref<number>();
-  const reviewFilterOrderId = ref<number>();
+  // 管理端统一按订单号筛选 / 定位订单。
+  const reviewFilterOrderNo = ref('');
   const reviewFilterStatus = ref<ReviewStatus>();
 
   async function loadReviews() {
@@ -1023,7 +1028,7 @@
         (
           await listPlayerReviews({
             player_id: reviewFilterPlayerId.value,
-            order_id: reviewFilterOrderId.value,
+            order_no: reviewFilterOrderNo.value.trim() || undefined,
             status: reviewFilterStatus.value,
           })
         ).data.data || [];
@@ -1049,7 +1054,7 @@
 
   const recordVisible = ref(false);
   const recordForm = reactive({
-    order_id: 0,
+    order_no: '',
     customer_id: 0,
     player_id: 0,
     rating: 5,
@@ -1058,7 +1063,7 @@
 
   function openRecord() {
     Object.assign(recordForm, {
-      order_id: 0,
+      order_no: '',
       customer_id: 0,
       player_id: 0,
       rating: 5,
@@ -1070,7 +1075,7 @@
   async function submitRecord() {
     try {
       await recordPlayerReview({
-        order_id: recordForm.order_id,
+        order_no: recordForm.order_no.trim(),
         customer_id: recordForm.customer_id,
         player_id: recordForm.player_id,
         rating: recordForm.rating,

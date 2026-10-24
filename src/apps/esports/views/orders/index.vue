@@ -204,7 +204,6 @@
       >
         <template #columns>
           <a-table-column data-index="id" title="审批单" />
-          <a-table-column data-index="order_id" title="订单 ID" />
           <a-table-column title="份数 / 人工调整">
             <template #cell="{ record }"
               >{{ record.quantity }} /

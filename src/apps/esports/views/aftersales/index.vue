@@ -984,7 +984,9 @@
             <template #columns>
               <a-table-column data-index="makeup_no" title="任务号" />
               <a-table-column title="关联订单">
-                <template #cell="{ record }">#{{ record.order_id }}</template>
+                <template #cell="{ record }">{{
+                  record.order_no || '—'
+                }}</template>
               </a-table-column>
               <a-table-column title="类型">
                 <template #cell="{ record }">{{
@@ -1273,8 +1275,12 @@
       @cancel="externalRefundRegisterVisible = false"
     >
       <a-form :model="externalRefundForm">
-        <a-form-item label="关联订单 ID" required>
-          <a-input-number v-model="externalRefundForm.orderId" :min="1" />
+        <a-form-item label="关联订单号" required>
+          <a-input
+            v-model="externalRefundForm.orderNo"
+            placeholder="如 SO-20261025-000001"
+            allow-clear
+          />
           <a-typography-text type="secondary">
             外部退款必须落到订单；本次登记会关联售后单
             {{
@@ -2011,7 +2017,7 @@
       case 'assessment':
         return '考核记录 ID';
       default:
-        return '订单 ID';
+        return '订单号';
     }
   });
   const kindAllowBySource: Record<AfterSaleSourceType, string[]> = {
@@ -2448,7 +2454,7 @@
     externalRefundLoading.value = true;
     try {
       const params =
-        record.source_type === 'order' ? { order_id: record.source_id } : {};
+        record.source_type === 'order' ? { order_no: record.order_no } : {};
       const rows = (await listExternalRefunds(params)).data.data || [];
       externalRefunds.value = rows.filter(
         (row) => row.aftersale_id === record.id
@@ -2462,7 +2468,7 @@
 
   const externalRefundRegisterVisible = ref(false);
   const externalRefundForm = reactive({
-    orderId: 0,
+    orderNo: '',
     channel: 'wechat_work',
     transactionNo: '',
     amountYuan: 0,
@@ -2470,8 +2476,8 @@
   });
 
   function openExternalRefundRegister() {
-    externalRefundForm.orderId =
-      detail.value?.source_type === 'order' ? detail.value.source_id : 0;
+    externalRefundForm.orderNo =
+      detail.value?.source_type === 'order' ? detail.value.order_no || '' : '';
     externalRefundForm.channel = 'wechat_work';
     externalRefundForm.transactionNo = '';
     externalRefundForm.amountYuan = 0;
@@ -2483,7 +2489,7 @@
     const record = detail.value;
     if (!record) return;
     if (
-      externalRefundForm.orderId < 1 ||
+      !externalRefundForm.orderNo.trim() ||
       !externalRefundForm.transactionNo.trim() ||
       externalRefundForm.amountYuan <= 0 ||
       !externalRefundForm.reason.trim()
@@ -2496,7 +2502,7 @@
         channel: externalRefundForm.channel,
         transaction_no: externalRefundForm.transactionNo.trim(),
         amount_cents: yuanToCents(externalRefundForm.amountYuan),
-        order_id: externalRefundForm.orderId,
+        order_no: externalRefundForm.orderNo.trim(),
         aftersale_id: record.id,
         reason: externalRefundForm.reason.trim(),
       });
