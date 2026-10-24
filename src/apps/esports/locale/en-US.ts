@@ -10,6 +10,7 @@ export default {
   'menu.app.esports.settlement.menu': 'Settlements',
   'menu.app.esports.campaign.menu': 'Recharge Campaigns',
   'menu.app.esports.member.menu': 'Membership Levels',
+  'menu.app.esports.skill_level.menu': 'Skill Levels',
   'menu.app.esports.gift.menu': 'Gifts',
   'menu.app.esports.assessment.menu': 'Assessments',
   'menu.app.esports.stats.menu': 'Reports',

@@ -14,7 +14,9 @@ export interface EsportsProductCategory {
 
 export type CategoryInput = Omit<EsportsProductCategory, 'id' | 'version'>;
 
-export type PlayerLevel = 'novice' | 'skilled' | 'senior' | 'mentor';
+// 技能等级已改为系统配置驱动（§5.5）：编码不再受固定枚举约束，
+// 选项与显示名统一从 /api/v1/esports/skill-levels 拉取（见 skill-levels.ts）。
+export type PlayerLevel = string;
 
 export interface EsportsSku {
   id: number;
@@ -2406,6 +2408,26 @@ export const rechargeWalletByCampaign = (
       headers: { 'Idempotency-Key': idempotencyKey },
     }
   );
+
+// ── 技能等级（陪玩等级，§5.5 / §7.3）管理 ──
+// 配置为专用表驱动（「技能等级」页整体保存，列表序即高低序）；各表单选项与
+// H5 文案仍走公开读 /api/v1/esports/skill-levels（skill-levels.ts 封装）。
+
+export interface AdminSkillLevel {
+  code: string;
+  name: string;
+  rank: number;
+}
+
+export const getAdminSkillLevels = () =>
+  axios.get<ApiResponse<{ items: AdminSkillLevel[]; defaulted: boolean }>>(
+    `${base}/skill-levels`
+  );
+
+export const saveAdminSkillLevels = (items: { code: string; name: string }[]) =>
+  axios.put<ApiResponse<{ items: AdminSkillLevel[] }>>(`${base}/skill-levels`, {
+    items,
+  });
 
 // ── 会员等级（§10） ──
 

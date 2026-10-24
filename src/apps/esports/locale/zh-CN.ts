@@ -10,6 +10,7 @@ export default {
   'menu.app.esports.settlement.menu': '结算',
   'menu.app.esports.campaign.menu': '充值活动',
   'menu.app.esports.member.menu': '会员等级',
+  'menu.app.esports.skill_level.menu': '技能等级',
   'menu.app.esports.gift.menu': '礼物',
   'menu.app.esports.assessment.menu': '考核',
   'menu.app.esports.stats.menu': '报表',
