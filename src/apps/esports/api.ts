@@ -671,6 +671,13 @@ export const listWallets = (accountType: WalletAccountType, keyword = '') =>
     params: { account_type: accountType, keyword },
   });
 
+// 钱包展示口径（§11.4）：按账户类型返回完整展示配置，管理端页签标题 /
+// 账户类型选项跟随「钱包展示配置」（系统配置 app.esports.wallet_display）动态渲染。
+export const getWalletDisplayConfig = () =>
+  axios.get<ApiResponse<Record<WalletAccountType, WalletDisplay>>>(
+    `${base}/wallets/display`
+  );
+
 export const listWalletTransactions = (
   accountType: WalletAccountType,
   ownerId: number

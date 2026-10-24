@@ -2,8 +2,14 @@
   <div class="container page-container">
     <a-card class="general-card" title="钱包">
       <a-tabs v-model:active-key="activeTab" @change="onTabChange">
-        <a-tab-pane key="customer_balance" title="客户余额" />
-        <a-tab-pane key="player_catfood" title="陪玩猫粮" />
+        <a-tab-pane
+          key="customer_balance"
+          :title="displayTitle('customer_balance', '客户余额')"
+        />
+        <a-tab-pane
+          key="player_catfood"
+          :title="displayTitle('player_catfood', '陪玩猫粮')"
+        />
         <a-tab-pane key="ledger_check" title="账本核验（§11.6-01）" />
       </a-tabs>
 
@@ -105,8 +111,14 @@
             placeholder="账户类型"
             @change="onLedgerTypeChange"
           >
-            <a-option value="customer_balance">客户余额</a-option>
-            <a-option value="player_catfood">陪玩猫粮</a-option>
+            <a-option
+              :label="displayTitle('customer_balance', '客户余额')"
+              value="customer_balance"
+            />
+            <a-option
+              :label="displayTitle('player_catfood', '陪玩猫粮')"
+              value="player_catfood"
+            />
           </a-select>
           <a-select
             v-model="ledgerAccountId"
@@ -458,6 +470,7 @@
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     adjustWallet,
+    getWalletDisplayConfig,
     getWalletRefundQuote,
     listLedgerAllocations,
     listLedgerReconcileAnomalies,
@@ -489,6 +502,15 @@
   const canReconcileAnomalies = computed(() =>
     hasButtonPermission('esports:wallets:reconcile_anomalies')
   );
+
+  // 展示口径（§11.4）：页签标题与账户类型选项跟随系统配置「钱包展示配置」；
+  // 配置接口失败（无授权/网络）时回落硬编码文案，不影响页面可用。
+  const displayConfig = ref<Record<
+    WalletAccountType,
+    { display_name?: string }
+  > | null>(null);
+  const displayTitle = (accountType: WalletAccountType, fallback: string) =>
+    displayConfig.value?.[accountType]?.display_name || fallback;
 
   // 资金类动作统一二次确认，并显式提示以管理员身份执行（操作留痕）。
   const confirmFundsAction = (content: string, title = '资金类动作确认') =>
@@ -929,7 +951,16 @@
     )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
-  onMounted(load);
+  onMounted(() => {
+    load();
+    getWalletDisplayConfig()
+      .then(({ data }) => {
+        displayConfig.value = data.data || null;
+      })
+      .catch(() => {
+        displayConfig.value = null;
+      });
+  });
 
   onBeforeUnmount(() => {
     if (ledgerOwnerTimer) clearTimeout(ledgerOwnerTimer);
