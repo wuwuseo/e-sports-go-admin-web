@@ -806,7 +806,9 @@
 
   // ── 账本核验（§4.3 分摊明细 / §11.6-01 对账异常） ──
   const ledgerAccountType = ref<WalletAccountType>('customer_balance');
-  const ledgerAccountId = ref(0);
+  // 未选择归属人时必须是 undefined：0 是合法 falsy 值，Arco select 会把它
+  // 当成「已选中」渲染成显示文本「0」（归属人 ID 从 1 起，0 只作占位）。
+  const ledgerAccountId = ref<number>();
   // 账本查询的归属人下拉取「钱包账户」口径：该接口权限（wallets:list）财务角色已有，
   // 不额外要求客户 / 陪玩列表权限；关键词按账户展示名远程匹配。
   interface LedgerOwnerOption {
@@ -860,7 +862,7 @@
   }
 
   function onLedgerTypeChange() {
-    ledgerAccountId.value = 0;
+    ledgerAccountId.value = undefined;
     ledgerOwnerSelected.value = null;
     ledgerOwners.value = [];
     loadLedgerOwners('');
