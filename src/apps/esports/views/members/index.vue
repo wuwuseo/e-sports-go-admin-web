@@ -314,7 +314,11 @@
                     {{ fmtMinute(record.end) }}</template
                   >
                 </a-table-column>
-                <a-table-column data-index="status" title="状态" :width="110" />
+                <a-table-column title="状态" :width="110">
+                  <template #cell="{ record }">{{
+                    bookingStatusText(record.status)
+                  }}</template>
+                </a-table-column>
                 <a-table-column title="可预约" :width="90">
                   <template #cell="{ record }">
                     <a-tag :color="record.bookable ? 'green' : 'gray'">{{

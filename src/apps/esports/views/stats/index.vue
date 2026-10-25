@@ -476,7 +476,11 @@
                 aftersaleKindLabel(record.kind)
               }}</template>
             </a-table-column>
-            <a-table-column data-index="status" title="状态" />
+            <a-table-column title="状态">
+              <template #cell="{ record }">{{
+                aftersaleStatusText(record.status)
+              }}</template>
+            </a-table-column>
             <a-table-column title="责任方">
               <template #cell="{ record }">{{
                 faultPartyLabel(record.fault_party)
@@ -564,7 +568,11 @@
           :style="{ marginTop: '12px' }"
         >
           <template #columns>
-            <a-table-column data-index="channel" title="支付方式" />
+            <a-table-column title="支付方式">
+              <template #cell="{ record }">{{
+                payChannelText(record.channel)
+              }}</template>
+            </a-table-column>
             <a-table-column title="到账金额">
               <template #cell="{ record }">{{
                 money(record.amount_cents)
@@ -601,6 +609,27 @@
     ReportQuery,
     ReportType,
   } from '../../api';
+
+  const payChannelMap: Record<string, string> = {
+    wechat_work: '企业微信收款',
+    merchant_qr: '工作室商户码',
+    corporate_transfer: '对公转账',
+  };
+  const payChannelText = (value?: string) =>
+    (value && payChannelMap[value]) || value || '—';
+  const aftersaleStatusMap: Record<string, string> = {
+    pending_accept: '待受理',
+    processing: '处理中',
+    pending_customer_confirm: '待客户确认',
+    pending_approval: '待审批',
+    pending_execution: '待执行',
+    execution_failed: '执行失败',
+    completed: '已完成',
+    rejected: '已驳回',
+    withdrawn: '已撤回',
+  };
+  const aftersaleStatusText = (value?: string) =>
+    (value && aftersaleStatusMap[value]) || value || '—';
 
   const { hasButtonPermission } = usePermission();
   const canViewFinance = computed(() =>

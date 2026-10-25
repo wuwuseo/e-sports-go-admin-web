@@ -398,7 +398,11 @@
             >
               <template #columns>
                 <a-table-column data-index="refund_no" title="退款单号" />
-                <a-table-column data-index="channel" title="渠道" />
+                <a-table-column title="渠道">
+                  <template #cell="{ record }">{{
+                    payChannelText(record.channel)
+                  }}</template>
+                </a-table-column>
                 <a-table-column data-index="transaction_no" title="流水号" />
                 <a-table-column title="金额">
                   <template #cell="{ record }">{{
@@ -1608,6 +1612,14 @@
     EsportsSku,
     MakeupKind,
   } from '../../api';
+
+  const payChannelMap: Record<string, string> = {
+    wechat_work: '企业微信收款',
+    merchant_qr: '工作室商户码',
+    corporate_transfer: '对公转账',
+  };
+  const payChannelText = (value?: string) =>
+    (value && payChannelMap[value]) || value || '—';
 
   const { hasButtonPermission, hasAnyPermission } = usePermission();
   const canOperate = computed(() =>

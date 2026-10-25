@@ -297,7 +297,11 @@
         :pagination="{ pageSize: 20 }"
       >
         <template #columns>
-          <a-table-column data-index="entry_type" title="类型" />
+          <a-table-column title="类型">
+            <template #cell="{ record }">{{
+              entryTypeText(record.entry_type)
+            }}</template>
+          </a-table-column>
           <a-table-column title="本金变动">
             <template #cell="{ record }">{{
               signedByUnit(record.principal_delta_cents)
@@ -487,6 +491,17 @@
     WalletAccountType,
     WalletTx,
   } from '../../api';
+
+  const entryTypeMap: Record<string, string> = {
+    recharge: '充值',
+    consume: '消费核销',
+    refund_return: '退款冲回',
+    adjust: '调整',
+    expire: '赠送过期',
+    withdraw: '提现',
+  };
+  const entryTypeText = (value?: string) =>
+    (value && entryTypeMap[value]) || value || '—';
 
   const { hasButtonPermission } = usePermission();
   // 权限码全部取自 app.go 的 PermAPI / PermButton 声明。

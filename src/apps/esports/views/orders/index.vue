@@ -216,7 +216,11 @@
             }}</template></a-table-column
           >
           <a-table-column data-index="reason" title="原因" />
-          <a-table-column data-index="status" title="状态" />
+          <a-table-column title="状态">
+            <template #cell="{ record }">{{
+              priceAdjustStatusText(record.status)
+            }}</template>
+          </a-table-column>
           <a-table-column title="操作">
             <template #cell="{ record }">
               <a-button
@@ -1449,6 +1453,15 @@
     RescheduleProposalView,
     TeammateDispatchCandidate,
   } from '../../api';
+
+  const priceAdjustStatusMap: Record<string, string> = {
+    pending: '待审批',
+    approved: '已通过',
+    rejected: '已驳回',
+    consumed: '已使用',
+  };
+  const priceAdjustStatusText = (value?: string) =>
+    (value && priceAdjustStatusMap[value]) || value || '—';
 
   type OpsAction = 'reprice' | 'reschedule' | 'cancel' | 'close';
 

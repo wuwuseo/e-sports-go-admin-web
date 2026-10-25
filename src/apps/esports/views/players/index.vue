@@ -31,8 +31,16 @@
             </template>
           </a-table-column>
           <a-table-column data-index="display_name" title="昵称" />
-          <a-table-column data-index="qualification" title="资格" />
-          <a-table-column data-index="presence" title="在线状态" />
+          <a-table-column title="资格">
+            <template #cell="{ record }">{{
+              qualificationLabel(record.qualification)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="在线状态">
+            <template #cell="{ record }">{{
+              presenceLabel(record.presence)
+            }}</template>
+          </a-table-column>
           <a-table-column title="期望报价">
             <template #cell="{ record }">
               <a-space>
@@ -284,7 +292,11 @@
       >
         <template #columns>
           <a-table-column data-index="event_no" title="记载编号" :width="200" />
-          <a-table-column data-index="kind" title="类型" :width="110" />
+          <a-table-column title="类型" :width="110">
+            <template #cell="{ record }">{{
+              creditKindText(record.kind)
+            }}</template>
+          </a-table-column>
           <a-table-column title="金额" :width="110">
             <template #cell="{ record }">{{
               money(record.amount_cents || 0)
@@ -458,6 +470,15 @@
     PlayerUserCandidate,
   } from '../../api';
 
+  // 信用记载类型中文映射（未知值原样回显）。
+  const creditKindMap: Record<string, string> = {
+    fault_admitted: '责任认定',
+    recovery_executed: '追偿执行',
+    manual: '手动调整',
+  };
+  const creditKindText = (value?: string) =>
+    (value && creditKindMap[value]) || value || '—';
+
   // 陪玩列表直接返回陪玩档案实体，含期望报价三项（api.ts 的 EsportsPlayer 尚未声明）。
   type PlayerRow = EsportsPlayer & {
     expected_price_cents?: number;
@@ -498,6 +519,21 @@
     return parts.join(' · ');
   };
 
+  // 资格 / 在线状态中文映射（与编辑表单选项一致；未知值原样回显）。
+  const qualificationLabels: Record<string, string> = {
+    pending: '待定',
+    qualified: '合格',
+    suspended: '停用',
+  };
+  const qualificationLabel = (value?: string) =>
+    (value && qualificationLabels[value]) || value || '—';
+  const presenceLabels: Record<string, string> = {
+    offline: '离线',
+    online: '在线',
+    protected_abnormal: '保护 / 异常',
+  };
+  const presenceLabel = (value?: string) =>
+    (value && presenceLabels[value]) || value || '—';
   const expectedPriceLabels: Record<string, string> = {
     none: '未提交',
     pending: '待审核',

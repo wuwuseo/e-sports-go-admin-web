@@ -438,7 +438,11 @@
             }}</template>
           </a-table-column>
           <a-table-column data-index="source" title="来源" />
-          <a-table-column data-index="status" title="状态" />
+          <a-table-column title="状态">
+            <template #cell="{ record }">{{
+              seatStatusText(record.status)
+            }}</template>
+          </a-table-column>
           <a-table-column title="邀请过期">
             <template #cell="{ record }">{{
               record.expires_at || '—'
@@ -606,7 +610,11 @@
                     {{ fmtMinute(record.end) }}</template
                   >
                 </a-table-column>
-                <a-table-column data-index="status" title="状态" />
+                <a-table-column title="状态">
+                  <template #cell="{ record }">{{
+                    transferStatusText(record.status)
+                  }}</template>
+                </a-table-column>
                 <a-table-column title="可预约">
                   <template #cell="{ record }">{{
                     record.bookable ? '可约' : record.reason || '不可约'
@@ -937,6 +945,26 @@
     EsportsDispatchSeat,
     EsportsOrder,
   } from '../../api';
+  // 席位 / 转单状态中文映射（未知值原样回显）。
+  const seatStatusMap: Record<string, string> = {
+    open: '待指派',
+    invited: '已邀请',
+    accepted: '已接单',
+    rejected: '已拒绝',
+    expired: '已过期',
+    revoked: '已撤回',
+    released: '已释放',
+  };
+  const seatStatusText = (value?: string) =>
+    (value && seatStatusMap[value]) || value || '—';
+  const transferStatusMap: Record<string, string> = {
+    pending: '待确认',
+    approved: '已通过',
+    rejected: '已驳回',
+    cancelled: '已取消',
+  };
+  const transferStatusText = (value?: string) =>
+    (value && transferStatusMap[value]) || value || '—';
 
   // 看板订单附带后端返回的负责客服字段。
   type DispatchOrder = EsportsOrder & { responsible_admin_id?: number | null };
