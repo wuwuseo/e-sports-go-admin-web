@@ -31,6 +31,11 @@
             </template>
           </a-table-column>
           <a-table-column data-index="display_name" title="昵称" />
+          <a-table-column title="陪玩等级">
+            <template #cell="{ record }">{{
+              skillLevelName(skillLevels, record.level) || '—'
+            }}</template>
+          </a-table-column>
           <a-table-column title="资格">
             <template #cell="{ record }">{{
               qualificationLabel(record.qualification)
@@ -448,6 +453,11 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import {
+    fetchSkillLevels,
+    skillLevelName,
+    type SkillLevel,
+  } from '../../skill-levels';
+  import {
     createPlayer,
     getPlayerAvailability,
     getPlayerIdentity,
@@ -488,6 +498,8 @@
   };
 
   const { hasButtonPermission } = usePermission();
+  // 陪玩等级（技能等级，§5.5）：编码 → 中文显示名，公开读一次缓存。
+  const skillLevels = ref<SkillLevel[]>([]);
   // 期望报价复核 / 信用记载 / 档期查询三条路由在 app.go 里只有 PermAPI 权限码
   // （esports:players:expected_price_review、esports:players:credit_list、esports:players:credit_review、
   // esports:members:player_availability），hasButtonPermission 只命中 PermButton，
@@ -956,7 +968,12 @@
     loadAvailability();
   }
 
-  onMounted(load);
+  onMounted(() => {
+    load();
+    fetchSkillLevels().then((items) => {
+      skillLevels.value = items;
+    });
+  });
 
   onBeforeUnmount(() => {
     if (userCandidateTimer) clearTimeout(userCandidateTimer);
