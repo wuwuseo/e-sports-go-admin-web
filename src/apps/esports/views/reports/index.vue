@@ -637,8 +637,8 @@
   // ── 批量报单（复用 POST /admin/orders，逐行独立幂等键，失败行不阻塞成功行） ──
   interface BatchRow {
     key: string;
-    customer_id: number;
-    product_id: number;
+    customer_id?: number;
+    product_id?: number;
     quantity: number;
   }
   interface BatchResult {
@@ -659,8 +659,6 @@
   const batchRows = ref<BatchRow[]>([]);
   const newBatchRow = (): BatchRow => ({
     key: crypto.randomUUID(),
-    customer_id: 0,
-    product_id: 0,
     quantity: 1,
   });
 
@@ -757,7 +755,12 @@
       return;
     }
     const invalid = rows.some(
-      (row) => row.customer_id < 1 || row.product_id < 1 || row.quantity < 1
+      (row) =>
+        !row.customer_id ||
+        row.customer_id < 1 ||
+        !row.product_id ||
+        row.product_id < 1 ||
+        row.quantity < 1
     );
     if (invalid) {
       Message.warning('存在未填写完整或份数无效的行，请检查后重试');
@@ -772,8 +775,8 @@
       rows.map((row) =>
         createOrder(
           {
-            customer_id: row.customer_id,
-            product_id: row.product_id,
+            customer_id: row.customer_id as number,
+            product_id: row.product_id as number,
             quantity: row.quantity,
           },
           crypto.randomUUID()
@@ -787,8 +790,8 @@
         batchResults.value.push({
           key: row.key,
           row: i + 1,
-          customerId: row.customer_id,
-          skuId: row.product_id,
+          customerId: row.customer_id as number,
+          skuId: row.product_id as number,
           ok: true,
           message: '报单成功',
         });
@@ -797,8 +800,8 @@
         batchResults.value.push({
           key: row.key,
           row: i + 1,
-          customerId: row.customer_id,
-          skuId: row.product_id,
+          customerId: row.customer_id as number,
+          skuId: row.product_id as number,
           ok: false,
           message: errorText(
             res.reason,
