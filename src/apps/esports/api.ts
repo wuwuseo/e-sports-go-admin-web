@@ -2934,7 +2934,8 @@ export interface OfflinePaymentProofInput {
 
 export interface CsStaff {
   id: number;
-  username: string;
+  // 客服名：姓名（缺省回落昵称、再回落登录账号）。
+  name: string;
 }
 
 export const listCsStaff = (keyword = '', limit = 50) =>

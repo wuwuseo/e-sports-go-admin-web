@@ -12,7 +12,7 @@
     @update:model-value="onUpdate"
   >
     <a-option v-for="item in options" :key="item.id" :value="item.id">
-      {{ item.username }}
+      {{ item.name }}
     </a-option>
   </a-select>
 </template>
@@ -26,7 +26,7 @@
   // 无权限 / 接口失败时下拉为空并提示，不降级手填。
   interface AdminOption {
     id: number;
-    username: string;
+    name: string;
   }
 
   const props = withDefaults(
