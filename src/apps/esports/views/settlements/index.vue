@@ -270,11 +270,10 @@
         <!-- 客服提成明细 -->
         <a-tab-pane key="cs_entries" title="客服提成明细">
           <a-space class="toolbar">
-            <a-input-number
+            <AdminSelect
               v-model="csEntryFilters.adminId"
-              placeholder="客服 ID"
-              :min="0"
-              :style="{ width: '150px' }"
+              placeholder="选择客服"
+              :style="{ width: '170px' }"
             />
             <a-input
               v-model="csEntryFilters.orderNo"
@@ -1790,6 +1789,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import AdminSelect from '../../components/AdminSelect.vue';
   import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
   import {
     activateCloseRule,

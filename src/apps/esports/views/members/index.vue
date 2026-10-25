@@ -90,11 +90,11 @@
 
     <a-card class="general-card" title="客户会员">
       <a-space class="toolbar">
-        <a-input-number
+        <OwnerSelect
           v-model="customerId"
-          :min="1"
-          placeholder="客户 ID"
-          :style="{ width: '160px' }"
+          owner-type="customer"
+          placeholder="搜索并选择客户"
+          :style="{ width: '180px' }"
         />
         <a-button type="primary" :loading="memberLoading" @click="queryMember"
           >查询</a-button
@@ -256,11 +256,11 @@
         </a-tab-pane>
         <a-tab-pane key="availability" title="陪玩档期">
           <a-space class="toolbar" wrap>
-            <a-input-number
+            <OwnerSelect
               v-model="availabilityPlayerId"
-              :min="1"
-              placeholder="陪玩 ID"
-              :style="{ width: '140px' }"
+              owner-type="player"
+              placeholder="搜索并选择陪玩"
+              :style="{ width: '180px' }"
             />
             <a-date-picker
               v-model="availabilityFrom"
@@ -435,6 +435,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents, { scaleToInt } from '@/utils/money';
+  import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     createMemberLevel,
     deleteMemberLevel,
@@ -657,7 +658,7 @@
   async function queryMember() {
     const id = customerId.value;
     if (!id) {
-      Message.warning('请填写客户 ID');
+      Message.warning('请选择客户');
       return;
     }
     memberLoading.value = true;
@@ -755,7 +756,7 @@
   async function queryAvailability() {
     const playerId = availabilityPlayerId.value;
     if (!playerId) {
-      Message.warning('请填写陪玩 ID');
+      Message.warning('请选择陪玩');
       return;
     }
     availabilityLoading.value = true;

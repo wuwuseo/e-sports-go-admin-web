@@ -19,14 +19,13 @@
           placeholder="结束日期"
           :style="{ width: '150px' }"
         />
-        <a-input-number
+        <AdminSelect
           v-if="activeTab !== 'finance'"
           v-model="responsibleAdminId"
           :placeholder="
-            activeTab === 'aftersale_quality' ? '处理客服 ID' : '负责客服 ID'
+            activeTab === 'aftersale_quality' ? '选择处理客服' : '选择负责客服'
           "
-          :min="0"
-          :style="{ width: '150px' }"
+          :style="{ width: '170px' }"
         />
         <a-input
           v-if="activeTab !== 'finance'"
@@ -583,6 +582,7 @@
   import { computed, onMounted, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import AdminSelect from '../../components/AdminSelect.vue';
   import {
     exportEsportsReport,
     getEsportsReport,

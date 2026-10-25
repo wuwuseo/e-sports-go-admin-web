@@ -722,8 +722,12 @@
             <a-form-item label="联系方式">
               <a-input v-model="createForm.contact" :max-length="120" />
             </a-form-item>
-            <a-form-item label="客户 ID（可选）">
-              <a-input-number v-model="createForm.customerId" :min="0" />
+            <a-form-item label="客户（可选）">
+              <OwnerSelect
+                v-model="createForm.customerId"
+                owner-type="customer"
+                placeholder="搜索并选择客户"
+              />
             </a-form-item>
           </a-form>
         </a-modal>
@@ -777,8 +781,12 @@
                     >
                   </a-select>
                 </a-form-item>
-                <a-form-item label="承接陪玩 ID" required>
-                  <a-input-number v-model="planForm.makeupPlayerId" :min="1" />
+                <a-form-item label="承接陪玩" required>
+                  <OwnerSelect
+                    v-model="planForm.makeupPlayerId"
+                    owner-type="player"
+                    placeholder="搜索并选择承接陪玩"
+                  />
                 </a-form-item>
                 <a-form-item label="席位序号" required>
                   <a-input-number v-model="planForm.makeupSeatIndex" :min="1" />
@@ -805,8 +813,12 @@
                     :precision="2"
                   />
                 </a-form-item>
-                <a-form-item label="争议陪玩 ID（0 = 不指定）">
-                  <a-input-number v-model="planForm.disputePlayerId" :min="0" />
+                <a-form-item label="争议陪玩（不选 = 不指定）">
+                  <OwnerSelect
+                    v-model="planForm.disputePlayerId"
+                    owner-type="player"
+                    placeholder="搜索并选择争议陪玩"
+                  />
                   <a-typography-text type="secondary">
                     可选：指定该单实际服务成员后，退款将优先冲回该成员的服务与加钟分成，
                     剩余额度再按比例分摊其他成员；留空或填 0 则按整体比例冲回。
@@ -926,10 +938,14 @@
               </a-form-item>
               <a-form-item
                 v-if="planForm.recoveryYuan > 0"
-                label="追偿陪玩 ID"
+                label="追偿陪玩"
                 required
               >
-                <a-input-number v-model="planForm.recoveryPlayerId" :min="1" />
+                <OwnerSelect
+                  v-model="planForm.recoveryPlayerId"
+                  owner-type="player"
+                  placeholder="搜索并选择追偿陪玩"
+                />
               </a-form-item>
             </template>
             <a-form-item label="处理说明">
@@ -1524,6 +1540,7 @@
   import yuanToCents from '@/utils/money';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import type { AttachmentResponse } from '@/types/api';
+  import OwnerSelect from '../../components/OwnerSelect.vue';
   import SkuSelect from '../../components/SkuSelect.vue';
   import {
     acceptAfterSale,

@@ -210,17 +210,17 @@
 
     <a-card class="general-card" title="送礼单据">
       <a-space class="toolbar" wrap>
-        <a-input-number
+        <OwnerSelect
           v-model="filterCustomerId"
-          :min="1"
-          placeholder="客户 ID"
-          :style="{ width: '140px' }"
+          owner-type="customer"
+          placeholder="搜索并选择客户"
+          :style="{ width: '180px' }"
         />
-        <a-input-number
+        <OwnerSelect
           v-model="filterPlayerId"
-          :min="1"
-          placeholder="陪玩 ID"
-          :style="{ width: '140px' }"
+          owner-type="player"
+          placeholder="搜索并选择陪玩"
+          :style="{ width: '180px' }"
         />
         <a-select
           v-model="filterReviewStatus"
@@ -814,8 +814,12 @@
       @cancel="sendVisible = false"
     >
       <a-form :model="sendForm">
-        <a-form-item label="客户 ID" required>
-          <a-input-number v-model="sendForm.customerId" :min="1" />
+        <a-form-item label="客户" required>
+          <OwnerSelect
+            v-model="sendForm.customerId"
+            owner-type="customer"
+            placeholder="搜索并选择客户"
+          />
         </a-form-item>
         <a-form-item label="礼物" required>
           <a-select v-model="sendForm.giftId" placeholder="选择上架礼物">
@@ -827,8 +831,12 @@
             >
           </a-select>
         </a-form-item>
-        <a-form-item label="收礼陪玩 ID" required>
-          <a-input-number v-model="sendForm.playerId" :min="1" />
+        <a-form-item label="收礼陪玩" required>
+          <OwnerSelect
+            v-model="sendForm.playerId"
+            owner-type="player"
+            placeholder="搜索并选择收礼陪玩"
+          />
         </a-form-item>
         <a-form-item label="数量" required>
           <a-input-number v-model="sendForm.quantity" :min="1" :max="999" />
@@ -872,6 +880,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     createGift,
     createGiftDisputeByAdmin,

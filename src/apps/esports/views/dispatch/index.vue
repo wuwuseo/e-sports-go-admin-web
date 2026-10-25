@@ -622,10 +622,11 @@
         <a-form-item label="候选推荐">
           <a-space direction="vertical" fill>
             <a-space>
-              <a-input-number
+              <OwnerSelect
                 v-model="preferredPlayerId"
-                placeholder="指定陪玩 ID（可空）"
-                :min="0"
+                owner-type="player"
+                placeholder="指定陪玩（可空）"
+                :style="{ width: '180px' }"
               />
               <a-button :loading="candidatesLoading" @click="loadCandidates"
                 >按规则排序</a-button
@@ -702,8 +703,11 @@
       @ok="submitTransfer"
     >
       <a-form :model="transferForm">
-        <a-form-item label="目标客服 ID" required>
-          <a-input-number v-model="transferForm.toAdminId" :min="1" />
+        <a-form-item label="目标客服" required>
+          <AdminSelect
+            v-model="transferForm.toAdminId"
+            placeholder="搜索并选择目标客服"
+          />
         </a-form-item>
         <a-form-item label="转单原因（必填）" required>
           <a-textarea v-model="transferForm.reason" :max-length="255" />
@@ -878,6 +882,8 @@
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import useUserStore from '@/store/modules/user';
+  import AdminSelect from '../../components/AdminSelect.vue';
+  import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     fetchSkillLevels,
     skillLevelName,

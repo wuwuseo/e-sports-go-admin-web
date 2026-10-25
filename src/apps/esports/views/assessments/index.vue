@@ -62,11 +62,11 @@
 
     <a-card class="general-card" title="考核任务">
       <a-space class="toolbar" wrap>
-        <a-input-number
+        <OwnerSelect
           v-model="assessFilterPlayerId"
-          :min="1"
-          placeholder="陪玩 ID"
-          :style="{ width: '140px' }"
+          owner-type="player"
+          placeholder="搜索并选择陪玩"
+          :style="{ width: '180px' }"
         />
         <a-select
           v-model="assessFilterStatus"
@@ -178,11 +178,11 @@
 
     <a-card class="general-card" title="客户评价">
       <a-space class="toolbar" wrap>
-        <a-input-number
+        <OwnerSelect
           v-model="reviewFilterPlayerId"
-          :min="1"
-          placeholder="陪玩 ID"
-          :style="{ width: '140px' }"
+          owner-type="player"
+          placeholder="搜索并选择陪玩"
+          :style="{ width: '180px' }"
         />
         <a-input
           v-model="reviewFilterOrderNo"
@@ -345,11 +345,11 @@
 
     <a-card class="general-card" title="陪玩综合评分">
       <a-space class="toolbar">
-        <a-input-number
+        <OwnerSelect
           v-model="ratingPlayerId"
-          :min="1"
-          placeholder="陪玩 ID"
-          :style="{ width: '140px' }"
+          owner-type="player"
+          placeholder="搜索并选择陪玩"
+          :style="{ width: '180px' }"
         />
         <a-button :loading="ratingLoading" @click="loadRating">查询</a-button>
       </a-space>
@@ -379,8 +379,12 @@
       @cancel="createVisible = false"
     >
       <a-form :model="createForm">
-        <a-form-item label="陪玩 ID" required>
-          <a-input-number v-model="createForm.player_id" :min="1" />
+        <a-form-item label="陪玩" required>
+          <OwnerSelect
+            v-model="createForm.player_id"
+            owner-type="player"
+            placeholder="搜索并选择陪玩"
+          />
         </a-form-item>
         <a-form-item label="考核类型" required>
           <a-select v-model="createForm.assessment_type">
@@ -418,8 +422,11 @@
       @cancel="assignVisible = false"
     >
       <a-form :model="assignForm">
-        <a-form-item label="考官（管理员 ID）" required>
-          <a-input-number v-model="assignForm.examiner_admin_id" :min="1" />
+        <a-form-item label="考官" required>
+          <AdminSelect
+            v-model="assignForm.examiner_admin_id"
+            placeholder="搜索并选择考官"
+          />
         </a-form-item>
         <a-form-item label="约定考核时间">
           <a-date-picker
@@ -533,11 +540,19 @@
             allow-clear
           />
         </a-form-item>
-        <a-form-item label="客户 ID" required>
-          <a-input-number v-model="recordForm.customer_id" :min="1" />
+        <a-form-item label="客户" required>
+          <OwnerSelect
+            v-model="recordForm.customer_id"
+            owner-type="customer"
+            placeholder="搜索并选择客户"
+          />
         </a-form-item>
-        <a-form-item label="陪玩 ID" required>
-          <a-input-number v-model="recordForm.player_id" :min="1" />
+        <a-form-item label="陪玩" required>
+          <OwnerSelect
+            v-model="recordForm.player_id"
+            owner-type="player"
+            placeholder="搜索并选择陪玩"
+          />
         </a-form-item>
         <a-form-item label="评分（1~5）" required>
           <a-input-number v-model="recordForm.rating" :min="1" :max="5" />
@@ -633,6 +648,8 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import OwnerSelect from '../../components/OwnerSelect.vue';
+  import AdminSelect from '../../components/AdminSelect.vue';
   import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
   import {
     assignAssessment,
@@ -1096,7 +1113,7 @@
 
   async function loadRating() {
     if (!ratingPlayerId.value) {
-      Message.error('请输入陪玩 ID');
+      Message.error('请选择陪玩');
       return;
     }
     ratingLoading.value = true;
