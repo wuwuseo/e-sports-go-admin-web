@@ -2930,6 +2930,18 @@ export interface OfflinePaymentProofInput {
   note?: string;
 }
 
+// ── 客服列表（选择器数据源）：独立接口，客服即后台 active 管理员 ──
+
+export interface CsStaff {
+  id: number;
+  username: string;
+}
+
+export const listCsStaff = (keyword = '', limit = 50) =>
+  axios.get<ApiResponse<CsStaff[]>>(`${base}/cs-staff`, {
+    params: { keyword: keyword || undefined, limit },
+  });
+
 export const listPaymentAccounts = (params: {
   channel?: PaymentChannel;
   status?: PaymentAccountStatus;
