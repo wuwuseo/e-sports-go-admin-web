@@ -15,6 +15,7 @@ export default {
   'menu.app.esports.assessment.menu': '考核',
   'menu.app.esports.stats.menu': '报表',
   'menu.app.esports.page.menu': '页面装修',
+  'menu.app.esports.readiness.menu': '上线自检',
   'menu.app.esports.payment.menu': '收款管理',
   'menu.app.esports.cs.menu': '客服工作台',
   'menu.app.esports.close_form.menu': '结单表单',

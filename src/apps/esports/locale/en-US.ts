@@ -15,6 +15,7 @@ export default {
   'menu.app.esports.assessment.menu': 'Assessments',
   'menu.app.esports.stats.menu': 'Reports',
   'menu.app.esports.page.menu': 'Page Builder',
+  'menu.app.esports.readiness.menu': 'Launch Readiness',
   'menu.app.esports.payment.menu': 'Payments',
   'menu.app.esports.cs.menu': 'CS Workbench',
   'menu.app.esports.close_form.menu': 'Close Form Builder',
