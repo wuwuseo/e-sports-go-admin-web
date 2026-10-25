@@ -181,6 +181,9 @@ export interface OrderInput {
   quantity: number;
   // 客户指定陪玩：可选；留空则由客服指派，不留空则不进入优先通知窗口。
   preferred_player_id?: number;
+  // 多陪玩（多人单）：第一个为主陪玩，其余自动指派到剩余席位；上限 = 商品席位数。
+  // 与 preferred_player_id 同时传时以本数组为准。
+  preferred_player_ids?: number[];
   // 经授权的人工调整：金额（分，可正可负）非零时须同时给出 4–255 字原因，
   // 且绝对值不得超过 商品 免审额度（adjustment_approval_bp），否则须先落单再走改价审批。
   manual_adjust_cents?: number;
@@ -5556,3 +5559,15 @@ export const listReportExports = (type?: ReportType) =>
 // 某报表类型的导出历史。
 export const listReportTypeExports = (type: ReportType) =>
   axios.get<ApiResponse<ReportExport[]>>(`${base}/reports/${type}/exports`);
+
+// 主陪玩的已确认固排（报单时一键带入指定陪玩）：管理端只读。
+export interface PlayerTeammateOption {
+  player_id: number;
+  display_name: string;
+  game: string;
+}
+
+export const listPlayerTeammatesForAdmin = (playerId: number) =>
+  axios.get<ApiResponse<PlayerTeammateOption[]>>(
+    `${base}/players/${playerId}/teammates`
+  );

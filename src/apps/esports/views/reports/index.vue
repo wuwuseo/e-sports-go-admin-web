@@ -155,12 +155,46 @@
             @change="loadQuotes"
           />
         </a-form-item>
-        <a-form-item label="指定陪玩（可选）">
-          <a-input-number v-model="preferredPlayerId" :min="0" />
-          <a-typography-text type="secondary">
-            填陪玩档案
-            ID；指定后订单直接由客服指派该陪玩、不进入优先通知窗口，陪玩须资质合格。
-          </a-typography-text>
+        <a-form-item label="指定陪玩（可选，可多选）">
+          <a-space direction="vertical" fill>
+            <PlayerMultiSelect
+              v-model="preferredPlayerIds"
+              :max="seatLimit"
+              placeholder="搜索并选择陪玩（第一个为主陪玩）"
+            />
+            <a-typography-text type="secondary">
+              指定后订单直接由客服指派，不进入优先通知窗口；陪玩须资质合格。<template
+                v-if="seatLimit > 0"
+                >最多可选 {{ seatLimit }} 个（商品席位数）。</template
+              >
+            </a-typography-text>
+          </a-space>
+        </a-form-item>
+        <a-form-item v-if="primaryPlayerId > 0" label="固排代入（可选）">
+          <a-space direction="vertical" fill>
+            <a-space wrap>
+              <a-button
+                v-for="mate in teammates"
+                :key="mate.player_id"
+                size="mini"
+                :type="
+                  preferredPlayerIds.includes(mate.player_id)
+                    ? 'primary'
+                    : 'outline'
+                "
+                @click="toggleTeammate(mate.player_id)"
+                >{{ mate.display_name }}（#{{ mate.player_id }}）</a-button
+              >
+              <a-typography-text
+                v-if="!teammatesLoading && teammates.length === 0"
+                type="secondary"
+                >主陪玩暂无已建立的固排</a-typography-text
+              >
+            </a-space>
+            <a-typography-text type="secondary">
+              点击固排成员即加入指定陪玩（主陪玩保持在第一位）；再点一次移除。
+            </a-typography-text>
+          </a-space>
         </a-form-item>
 
         <a-divider>报价构成</a-divider>
@@ -385,14 +419,25 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from 'vue';
+  import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
   import type { AttachmentResponse } from '@/types/api';
+  import PlayerMultiSelect from '../../components/PlayerMultiSelect.vue';
+  import type {
+    PlayerTeammateOption,
+    AgeCheck,
+    EsportsCustomer,
+    EsportsOrder,
+    EsportsSku,
+    OrderInput,
+    SkuQuotePreview,
+  } from '../../api';
   import {
+    listPlayerTeammatesForAdmin,
     createCustomer,
     createOrder,
     listCustomers,
@@ -402,14 +447,6 @@
     listPendingAgeChecks,
     reviewAgeCheck,
     submitAgeCheck,
-  } from '../../api';
-  import type {
-    AgeCheck,
-    EsportsCustomer,
-    EsportsOrder,
-    EsportsSku,
-    OrderInput,
-    SkuQuotePreview,
   } from '../../api';
 
   const { hasButtonPermission } = usePermission();
@@ -461,9 +498,53 @@
     quantity: 1,
   });
   const orderRequestKey = ref(crypto.randomUUID());
-  // 指定陪玩：0 表示不指定，由客服指派。
-  // 指定陪玩：留空（undefined）表示不指定；0 是合法 ID 占位，不能用它当「未填」。
-  const preferredPlayerId = ref<number>();
+  // 指定陪玩（可多选，第一个为主陪玩）：空数组表示不指定，由客服指派。
+  const preferredPlayerIds = ref<number[]>([]);
+  const primaryPlayerId = computed(() =>
+    preferredPlayerIds.value.length > 0 ? preferredPlayerIds.value[0] : 0
+  );
+  // 席位数上限：商品列表接口暂不返回 required_seats，前端不做硬限制，
+  // 由后端创建订单时校验「指定陪玩数 ≤ 商品席位数」并返回中文错误。
+  const seatLimit = computed(() => 0);
+  // 主陪玩的已确认固排：选中主陪玩后加载，点选可一键加入/移出。
+  const teammates = ref<PlayerTeammateOption[]>([]);
+  const teammatesLoading = ref(false);
+  const teammatesSeq = ref(0);
+  async function teamsRequest(playerId: number) {
+    teammates.value = [];
+    if (!playerId) return;
+    teammatesSeq.value += 1;
+    const token = teammatesSeq.value;
+    teammatesLoading.value = true;
+    try {
+      const res = await listPlayerTeammatesForAdmin(playerId);
+      if (token !== teammatesSeq.value) return;
+      teammates.value = res.data.data || [];
+    } catch {
+      if (token === teammatesSeq.value) teammates.value = [];
+    } finally {
+      if (token === teammatesSeq.value) teammatesLoading.value = false;
+    }
+  }
+  watch(primaryPlayerId, (playerId) => {
+    teamsRequest(playerId);
+  });
+  function toggleTeammate(playerId: number) {
+    if (preferredPlayerIds.value.includes(playerId)) {
+      preferredPlayerIds.value = preferredPlayerIds.value.filter(
+        (id) => id !== playerId
+      );
+      return;
+    }
+    if (
+      seatLimit.value > 0 &&
+      preferredPlayerIds.value.length >= seatLimit.value
+    ) {
+      Message.warning(`该商品最多指定 ${seatLimit.value} 个陪玩`);
+      return;
+    }
+    preferredPlayerIds.value = [...preferredPlayerIds.value, playerId];
+  }
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
   // 透出后端返回的中文错误信息（如客户归属校验），取不到时回退默认文案。
   const errorText = (err: unknown, fallback: string) => {
@@ -540,7 +621,7 @@
     orderForm.customer_id = undefined as unknown as number;
     orderForm.product_id = undefined as unknown as number;
     orderForm.quantity = 1;
-    preferredPlayerId.value = undefined;
+    preferredPlayerIds.value = [];
     manualAdjustYuan.value = 0;
     manualAdjustReason.value = '';
     quotes.value = {};
@@ -783,8 +864,11 @@
     }
     try {
       const payload: OrderInput = { ...orderForm };
-      if ((preferredPlayerId.value ?? 0) > 0) {
-        payload.preferred_player_id = preferredPlayerId.value;
+      if (preferredPlayerIds.value.length > 0) {
+        // 兼容单陪玩字段（主陪玩）+ 多陪玩数组（后端自动逐席位指派）。
+        const [firstPlayerId] = preferredPlayerIds.value;
+        payload.preferred_player_id = firstPlayerId;
+        payload.preferred_player_ids = preferredPlayerIds.value;
       }
       if (adjustCents !== 0) {
         payload.manual_adjust_cents = adjustCents;
@@ -794,7 +878,7 @@
       const created = (await createOrder(payload, orderRequestKey.value)).data
         .data;
       orderRequestKey.value = crypto.randomUUID();
-      preferredPlayerId.value = undefined;
+      preferredPlayerIds.value = [];
       orderVisible.value = false;
       // 成交价以后端 payable_cents 为准：与页面试算不一致时如实提示，不静默按试算值展示。
       if (created && expected > 0 && created.payable_cents !== expected) {
