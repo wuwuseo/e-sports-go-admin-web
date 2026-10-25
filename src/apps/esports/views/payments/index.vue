@@ -16,6 +16,11 @@
     </a-alert>
 
     <a-card class="general-card" title="收款方式启停">
+      <a-alert class="provider-alert" type="info" show-icon>
+        <template #title>动态聚合支付需先配置服务商</template>
+        在系统配置 app.esports.payment_providers 填写服务商（收钱吧 /
+        汇付天下）并完成联调；未配置时客户扫码支付走固定商家码 + 人工核验。
+      </a-alert>
       <div class="hint">
         仅工作室主体名下、经财务审核启用的收款账户可用于核销；客服提交账户资料但不具备启用权限。
         停用某收款方式后不再接受新的到账凭证，进行中的待核验收款仍由财务处理。
@@ -106,6 +111,20 @@
               channelText(record.channel)
             }}</template>
           </a-table-column>
+          <a-table-column title="收款码" :width="90">
+            <template #cell="{ record }">
+              <a-image
+                v-if="record.qr_url"
+                :src="record.qr_url"
+                :width="48"
+                :height="48"
+                :preview="true"
+                fit="cover"
+                class="qr-thumb"
+              />
+              <span v-else>-</span>
+            </template>
+          </a-table-column>
           <a-table-column data-index="subject_name" title="收款主体" />
           <a-table-column data-index="account_no" title="账号 / 商户号" />
           <a-table-column data-index="bank_name" title="开户行" :width="140" />
@@ -117,7 +136,7 @@
             </template>
           </a-table-column>
           <a-table-column data-index="review_resolution" title="审核说明" />
-          <a-table-column title="操作" :width="180">
+          <a-table-column title="操作" :width="210">
             <template #cell="{ record }">
               <a-button
                 v-if="record.status === 'pending_review' && canReviewAccount"
@@ -125,13 +144,22 @@
                 @click="openAccountReview(record)"
                 >审核</a-button
               >
-              <a-button
-                v-else-if="record.status === 'active' && canDisableAccount"
-                type="text"
-                status="danger"
-                @click="disableAccount(record)"
-                >停用</a-button
-              >
+              <template v-else-if="record.status === 'active'">
+                <a-button
+                  v-if="canCreateAccount || canDisableAccount"
+                  type="text"
+                  @click="openAccountRevise(record)"
+                  >修订</a-button
+                >
+                <a-button
+                  v-if="canDisableAccount"
+                  type="text"
+                  status="danger"
+                  @click="disableAccount(record)"
+                  >停用</a-button
+                >
+                <span v-if="!canCreateAccount && !canDisableAccount">-</span>
+              </template>
               <span v-else>-</span>
             </template>
           </a-table-column>
@@ -145,6 +173,7 @@
         :style="{ marginTop: '-12px' }"
         @change="onSettleTabChange"
       >
+        <a-tab-pane key="allTodos" title="全部待办" />
         <a-tab-pane key="proofs" title="待核验收款" />
         <a-tab-pane
           v-if="canListReversal"
@@ -156,9 +185,65 @@
           key="refundExecutions"
           title="退款执行批次"
         />
+        <a-tab-pane key="anomalies" title="异常到账" />
       </a-tabs>
 
-      <template v-if="settleTab === 'proofs'">
+      <template v-if="settleTab === 'allTodos'">
+        <a-alert class="todo-alert" type="info" show-icon>
+          <template #title>财务待办合并视图（后端接口开发中）</template>
+          订单 / 充值 /
+          礼物收款凭证与异常到账的统一待办视图正在开发；当前先接入现有待核验收款中的订单凭证，其余来源就绪后合并展示。
+        </a-alert>
+        <a-space class="toolbar">
+          <a-button :loading="todoProofsLoading" @click="loadTodoProofs"
+            >刷新</a-button
+          >
+        </a-space>
+        <a-table
+          :data="todoProofs"
+          :loading="todoProofsLoading"
+          row-key="id"
+          :pagination="{ pageSize: 10 }"
+        >
+          <template #columns>
+            <a-table-column title="来源" :width="100">
+              <template #cell><a-tag color="blue">订单凭证</a-tag></template>
+            </a-table-column>
+            <a-table-column data-index="proof_no" title="凭证号" :width="200" />
+            <a-table-column title="订单" :width="170">
+              <template #cell="{ record }">{{
+                record.order_no || '—'
+              }}</template>
+            </a-table-column>
+            <a-table-column title="收款方式" :width="150">
+              <template #cell="{ record }">{{
+                channelText(record.channel)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="到账金额" :width="120">
+              <template #cell="{ record }">{{
+                yuan(record.amount_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="状态" :width="110">
+              <template #cell="{ record }">
+                <a-tag :color="proofStatusColor(record.status)">{{
+                  proofStatusText(record.status)
+                }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="操作" :width="120">
+              <template #cell="{ record }">
+                <a-button type="text" @click="openProofDetail(record)"
+                  >查看凭证</a-button
+                >
+              </template>
+            </a-table-column>
+          </template>
+        </a-table>
+      </template>
+
+      <template v-else-if="settleTab === 'proofs'">
         <a-space class="toolbar">
           <a-select
             v-model="proofFilterStatus"
@@ -332,7 +417,7 @@
         </a-table>
       </template>
 
-      <template v-else>
+      <template v-else-if="settleTab === 'refundExecutions'">
         <a-space class="toolbar">
           <a-select
             v-model="refundFilterStatus"
@@ -401,6 +486,16 @@
           </template>
         </a-table>
       </template>
+
+      <template v-else>
+        <!-- TODO: 后端接口 GET /admin/payment-anomalies 就绪后，
+             在此接入异常到账列表与处置入口（合并进「全部待办」视图）。 -->
+        <a-result
+          status="info"
+          title="异常到账（接口开发中）"
+          subtitle="异常到账统一视图依赖后端接口 GET /admin/payment-anomalies。上线前请先在「撤销 / 拒付」页签处置已登记的渠道撤销与拒付。"
+        />
+      </template>
     </a-card>
 
     <a-modal
@@ -428,24 +523,50 @@
             placeholder="须为工作室主体名称"
           />
         </a-form-item>
-        <a-form-item
-          :label="
-            accountCreateForm.channel === 'corporate_transfer'
-              ? '对公账号'
-              : '商户号'
-          "
-          :required="accountCreateForm.channel === 'corporate_transfer'"
-        >
+        <a-form-item :label="accountNoLabel" :required="accountNoRequired">
           <a-input v-model="accountCreateForm.accountNo" :max-length="128" />
+          <a-typography-text
+            v-if="isMerchantQrChannel"
+            type="secondary"
+            class="form-tip"
+          >
+            商家码渠道的账号 /
+            商户号选填，但须至少提供收款码图片或商户号（后端校验）。
+          </a-typography-text>
         </a-form-item>
-        <a-form-item label="收款码地址">
-          <a-input
-            v-model="accountCreateForm.qrUrl"
-            :max-length="255"
-            placeholder="商户码 / 企微收款码图片地址"
-          />
+        <a-form-item label="收款码图片">
+          <a-space direction="vertical" fill>
+            <a-space wrap>
+              <AttachmentSelector
+                accept="image/*"
+                default-directory="public/esports-payment-qr"
+                trigger-text="上传 / 选择收款码"
+                @select="selectQrAttachment"
+              />
+              <a-button
+                v-if="accountCreateForm.qrUrl"
+                status="danger"
+                type="outline"
+                @click="accountCreateForm.qrUrl = ''"
+                >清除</a-button
+              >
+            </a-space>
+            <a-input
+              v-model="accountCreateForm.qrUrl"
+              :max-length="255"
+              allow-clear
+              placeholder="选图后自动回填；也可直接粘贴外部图片 URL"
+            />
+            <div v-if="accountCreateForm.qrUrl" class="qr-form-preview">
+              <a-image :src="accountCreateForm.qrUrl" :width="120" />
+            </div>
+            <a-typography-text type="secondary">
+              附件须为公开图片（public/esports-payment-qr），仅商家码 /
+              企微收款码需要。
+            </a-typography-text>
+          </a-space>
         </a-form-item>
-        <a-form-item label="开户行">
+        <a-form-item :label="bankNameLabel">
           <a-input v-model="accountCreateForm.bankName" :max-length="120" />
         </a-form-item>
         <a-form-item label="备注">
@@ -484,6 +605,55 @@
           }}）：提交人不得自审。
         </div>
       </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:visible="accountReviseVisible"
+      title="修订收款账户"
+      :width="560"
+      :footer="false"
+    >
+      <a-alert type="warning" show-icon>
+        <template #title>已启用账户不能直接改码</template>
+        后端修订接口尚未上线（TODO: POST /admin/payment-accounts/{id}/revise）。
+        当前请先停用该账户，再新建账户并重新审核；审核通过前新账户不可用于到账核销。
+      </a-alert>
+      <a-descriptions
+        v-if="accountReviseTarget"
+        class="revise-target"
+        :column="1"
+        size="small"
+        bordered
+      >
+        <a-descriptions-item label="收款方式">{{
+          channelText(accountReviseTarget.channel)
+        }}</a-descriptions-item>
+        <a-descriptions-item label="收款主体">{{
+          accountReviseTarget.subject_name
+        }}</a-descriptions-item>
+        <a-descriptions-item label="账号 / 商户号">{{
+          accountReviseTarget.account_no || '—'
+        }}</a-descriptions-item>
+      </a-descriptions>
+      <div class="hint">
+        新建账户时请重新填写收款码并留意账号 /
+        商户号唯一性，避免与既有记录重复。
+      </div>
+      <a-space class="revise-actions">
+        <a-button
+          v-if="canDisableAccount"
+          status="danger"
+          @click="disableFromRevise"
+          >停用当前账户</a-button
+        >
+        <a-button
+          v-if="canCreateAccount"
+          type="primary"
+          @click="createFromRevise"
+          >新建收款账户</a-button
+        >
+        <a-button @click="accountReviseVisible = false">关闭</a-button>
+      </a-space>
     </a-modal>
 
     <a-modal
@@ -734,6 +904,9 @@
   import { Message, Modal } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import AttachmentSelector from '@/components/attachment-selector/index.vue';
+  import { getAttachmentAccessInfo } from '@/services/attachment-access.service';
+  import type { AttachmentResponse } from '@/types/api';
   import {
     createPaymentAccount,
     decidePaymentReversal,
@@ -827,6 +1000,8 @@
   const channelMap: Record<PaymentChannel, string> = {
     wechat_work: '企业微信收款',
     merchant_qr: '工作室商户码',
+    wechat_merchant_qr: '微信商家码',
+    alipay_merchant_qr: '支付宝商家码',
     corporate_transfer: '对公转账',
   };
   const channelText = (channel: string) =>
@@ -962,6 +1137,56 @@
     submitNote: '',
   });
 
+  // 商家码类渠道（企微 / 工作室商户码 / 微信商家码 / 支付宝商家码）：
+  // 账号、开户行均可选填，后端校验至少提供收款码或商户号。
+  const isMerchantQrChannel = computed(() =>
+    [
+      'wechat_work',
+      'merchant_qr',
+      'wechat_merchant_qr',
+      'alipay_merchant_qr',
+    ].includes(accountCreateForm.channel)
+  );
+  const accountNoLabel = computed(() =>
+    accountCreateForm.channel === 'corporate_transfer'
+      ? '对公账号'
+      : '账号 / 商户号（选填）'
+  );
+  const accountNoRequired = computed(
+    () => accountCreateForm.channel === 'corporate_transfer'
+  );
+  const bankNameLabel = computed(() =>
+    accountCreateForm.channel === 'corporate_transfer'
+      ? '开户行'
+      : '开户行（选填）'
+  );
+
+  async function selectQrAttachment(
+    selection: AttachmentResponse | AttachmentResponse[]
+  ) {
+    const item = Array.isArray(selection) ? selection[0] : selection;
+    if (!item) return;
+    if (!item.mime_type?.startsWith('image/')) {
+      Message.warning('收款码须选择图片附件');
+      return;
+    }
+    try {
+      const access = await getAttachmentAccessInfo(item.id);
+      if (access.public !== true) {
+        Message.error('收款码图片必须存放在公开目录（public/...）');
+        return;
+      }
+      if (access.url.length > 255) {
+        Message.error('图片访问地址超过 255 字符，请粘贴更短的外链');
+        return;
+      }
+      accountCreateForm.qrUrl = access.url;
+      Message.success('已回填收款码图片地址');
+    } catch {
+      Message.error('获取附件访问地址失败，请重试');
+    }
+  }
+
   function openAccountCreate() {
     accountCreateForm.channel = 'wechat_work';
     accountCreateForm.subjectName = '';
@@ -1051,24 +1276,75 @@
     }
   }
 
-  async function disableAccount(record: PaymentAccount) {
+  async function disableAccount(record: PaymentAccount): Promise<boolean> {
     const ok = await confirmFundsAction(
       `确认停用收款账户「${record.subject_name}」？停用后不再接受新的到账核销。`,
       '停用收款账户'
     );
-    if (!ok) return;
+    if (!ok) return false;
     try {
       await disablePaymentAccount(record.id);
       Message.success('已停用该收款账户');
       await loadAccounts();
       await loadChannels();
+      return true;
     } catch (err) {
       Message.error(errorText(err, '停用失败，请刷新后重试'));
+      return false;
     }
   }
 
-  // ── 收款核验页签：待核验收款 / 撤销拒付 / 退款执行批次 ──
-  const settleTab = ref<'proofs' | 'reversals' | 'refundExecutions'>('proofs');
+  // 已启用账户的修订入口：后端暂未提供修订接口
+  // TODO: 后端提供 POST /admin/payment-accounts/{id}/revise 后，
+  // 改为在弹窗内直接提交改码申请并在原账户上走重新审核。
+  const accountReviseVisible = ref(false);
+  const accountReviseTarget = ref<PaymentAccount | null>(null);
+
+  function openAccountRevise(record: PaymentAccount) {
+    accountReviseTarget.value = record;
+    accountReviseVisible.value = true;
+  }
+
+  function createFromRevise() {
+    accountReviseVisible.value = false;
+    openAccountCreate();
+  }
+
+  async function disableFromRevise() {
+    const target = accountReviseTarget.value;
+    if (!target) return;
+    if (await disableAccount(target)) {
+      accountReviseVisible.value = false;
+    }
+  }
+
+  // ── 收款核验页签：全部待办 / 待核验收款 / 撤销拒付 / 退款执行批次 / 异常到账 ──
+  const settleTab = ref<
+    'allTodos' | 'proofs' | 'reversals' | 'refundExecutions' | 'anomalies'
+  >('proofs');
+
+  // ── 全部待办：订单 / 充值 / 礼物凭证与异常到账的合并视图（骨架）──
+  // 后端合并接口开发中；当前先接入现有待核验收款中的订单凭证，
+  // 异常到账部分见「异常到账」页签（TODO: GET /admin/payment-anomalies）。
+  const todoProofs = ref<OfflinePaymentProof[]>([]);
+  const todoProofsLoading = ref(false);
+
+  async function loadTodoProofs() {
+    todoProofsLoading.value = true;
+    try {
+      todoProofs.value =
+        (
+          await listOfflinePaymentProofs({
+            status: 'pending_verification',
+            limit: 200,
+          })
+        ).data.data || [];
+    } catch (err) {
+      Message.error(errorText(err, '加载财务待办失败'));
+    } finally {
+      todoProofsLoading.value = false;
+    }
+  }
 
   // ── 待核验收款 ──
   const proofs = ref<OfflinePaymentProof[]>([]);
@@ -1101,6 +1377,13 @@
     proofDetail.value = record;
     proofRejectForm.resolution = '';
     proofDetailVisible.value = true;
+  }
+
+  async function refreshProofLists() {
+    await loadProofs();
+    if (settleTab.value === 'allTodos') {
+      await loadTodoProofs();
+    }
   }
 
   const proofCreateVisible = ref(false);
@@ -1147,7 +1430,7 @@
       });
       proofCreateVisible.value = false;
       Message.success('已生成待核验收款，财务核验前不会派单');
-      await loadProofs();
+      await refreshProofLists();
     } catch (err) {
       Message.error(
         errorText(
@@ -1170,7 +1453,7 @@
       await verifyOfflinePaymentProof(record.id);
       Message.success('已核销，订单进入待派单');
       proofDetailVisible.value = false;
-      await loadProofs();
+      await refreshProofLists();
     } catch (err) {
       Message.error(
         errorText(err, '核销失败：提交人不得自审或订单已不满足核销条件')
@@ -1197,7 +1480,7 @@
       );
       Message.success('已驳回');
       proofDetailVisible.value = false;
-      await loadProofs();
+      await refreshProofLists();
     } catch (err) {
       Message.error(errorText(err, '驳回失败：提交人不得自审或状态已变化'));
     }
@@ -1259,6 +1542,10 @@
   }
 
   function onSettleTabChange(key: string | number) {
+    if (key === 'allTodos') {
+      // 每次进入合并待办都刷新，避免凭证核销后残留旧待办。
+      loadTodoProofs();
+    }
     if (key === 'reversals' && reversals.value.length === 0) {
       loadReversals();
     }
@@ -1392,6 +1679,36 @@
 
   .whitelist-alert {
     margin-bottom: 12px;
+  }
+
+  .provider-alert,
+  .todo-alert {
+    margin-bottom: 12px;
+  }
+
+  .qr-thumb {
+    overflow: hidden;
+    border: 1px solid var(--color-border-2);
+    border-radius: 4px;
+  }
+
+  .qr-form-preview {
+    padding: 6px;
+    border: 1px solid var(--color-border-2);
+    border-radius: 4px;
+  }
+
+  .form-tip {
+    display: block;
+    margin-top: 4px;
+  }
+
+  .revise-target {
+    margin: 12px 0;
+  }
+
+  .revise-actions {
+    margin-top: 12px;
   }
 
   .muted {

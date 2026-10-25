@@ -2849,9 +2849,13 @@ export const executeGiftDispute = (id: number) =>
 
 // ── 收款账户、收款方式启停与外部到账核销 ──
 
+// 商家码细分渠道（微信 / 支付宝商家码）由后端逐步接入；
+// 前端先支持展示、筛选与账户提交，未上线前由后端按渠道校验拒绝。
 export type PaymentChannel =
   | 'wechat_work'
   | 'merchant_qr'
+  | 'wechat_merchant_qr'
+  | 'alipay_merchant_qr'
   | 'corporate_transfer';
 export type PaymentAccountStatus =
   | 'pending_review'
