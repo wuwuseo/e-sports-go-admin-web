@@ -2146,6 +2146,153 @@ export const markWithdrawalPayoutFailed = (payoutId: number, reason: string) =>
     { silentError: true }
   );
 
+// ── 云账户批量代发 ──
+// 批次状态：submitting 提交中 / submitted 已提交 / partial 部分成功 / settled 已结清 / failed 失败。
+export type PayoutBatchStatus =
+  | 'submitting'
+  | 'submitted'
+  | 'partial'
+  | 'settled'
+  | 'failed';
+
+// 预览单笔：ready=false 时 skip_reason 给出不可代发原因。
+export interface PayoutBatchPreviewItem {
+  withdrawal_no: string;
+  player_id: number;
+  player_name: string;
+  net_cents: number;
+  account_type: string;
+  account_no_masked: string;
+  ready: boolean;
+  skip_reason?: string;
+}
+
+// 一周预览汇总：金额均为分。
+export interface PayoutBatchPreview {
+  week: string;
+  start_at: string;
+  end_at: string;
+  items: PayoutBatchPreviewItem[];
+  ready_count: number;
+  ready_total_cents: number;
+  skipped_count: number;
+  skipped_total_cents: number;
+}
+
+export interface PayoutBatch {
+  id: number;
+  batch_no: string;
+  idem_key: string;
+  provider: string;
+  status: PayoutBatchStatus;
+  total_count: number;
+  total_cents: number;
+  provider_batch_no: string | null;
+  fail_reason: string;
+  submitted_by_admin_id: number | null;
+  submitted_at: string | null;
+  settled_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  // 后端附带的提交人展示名（昵称优先，回落用户名）。
+  submitted_by: string;
+}
+
+export interface PayoutBatchItem {
+  payout_id: number;
+  payout_no: string;
+  withdrawal_id: number;
+  withdrawal_no: string;
+  player_id: number;
+  player_name: string;
+  amount_cents: number;
+  status: WithdrawalPayoutStatus;
+  provider_order_no: string;
+  provider_status: string;
+  fail_code: string;
+  fail_reason: string;
+  transaction_no: string;
+  paid_at: string | null;
+}
+
+export interface PayoutBatchSubmitResult {
+  id: number;
+  batch_no: string;
+  status: PayoutBatchStatus;
+  // 同一周重复提交时返回既有批次（幂等）。
+  existing: boolean;
+}
+
+export interface PayoutBatchSyncResult {
+  id: number;
+  batch_no: string;
+  status: PayoutBatchStatus;
+  changed_count: number;
+  paid_count: number;
+  failed_count: number;
+  pending_count: number;
+}
+
+export interface PayoutBatchRetryResult {
+  id: number;
+  batch_no: string;
+  status: PayoutBatchStatus;
+  source_batch_id: number;
+  existing: boolean;
+}
+
+// 周标识格式固定为 YYYY-Www（ISO 周），后端按 UTC 周一对齐。
+export const previewPayoutBatch = (week: string) =>
+  axios.get<ApiResponse<PayoutBatchPreview>>(`${base}/payout-batches/preview`, {
+    params: { week },
+    silentError: true,
+  });
+
+// withdrawal_ids 缺省时后端自行按预览口径代发本周全部可发单。
+export const createPayoutBatch = (input: {
+  week: string;
+  withdrawal_ids?: number[];
+}) =>
+  axios.post<ApiResponse<PayoutBatchSubmitResult>>(
+    `${base}/payout-batches`,
+    input,
+    { silentError: true }
+  );
+
+// 批次列表：显式传 page / page_size 时返回 { items, total, page, page_size }。
+export const listPayoutBatches = (params: {
+  status?: PayoutBatchStatus;
+  page: number;
+  page_size: number;
+}) =>
+  axios.get<ApiResponse<PageResult<PayoutBatch>>>(`${base}/payout-batches`, {
+    params,
+    silentError: true,
+  });
+
+// 批次详情：批次头 + 明细（含提现单号、陪玩名称、到账时间）。
+export const getPayoutBatch = (id: number) =>
+  axios.get<ApiResponse<{ batch: PayoutBatch; items: PayoutBatchItem[] }>>(
+    `${base}/payout-batches/${id}`,
+    { silentError: true }
+  );
+
+export const syncPayoutBatch = (id: number) =>
+  axios.post<ApiResponse<PayoutBatchSyncResult>>(
+    `${base}/payout-batches/${id}/sync`,
+    undefined,
+    { silentError: true }
+  );
+
+// 失败明细重试：新建独立批次，重复点击返回既有重试批次（existing=true）。
+export const retryPayoutBatch = (id: number) =>
+  axios.post<ApiResponse<PayoutBatchRetryResult>>(
+    `${base}/payout-batches/${id}/retry`,
+    undefined,
+    { silentError: true }
+  );
+
 // ── 优先派单权 + 派单候选排序 ──
 export type DispatchPriorityPeriod =
   | 'daily'

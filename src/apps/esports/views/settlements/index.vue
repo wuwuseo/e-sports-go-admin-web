@@ -636,6 +636,200 @@
           </a-table>
         </a-tab-pane>
 
+        <!-- 批量代发（云账户）：按 ISO 周预览可发单 → 一键提交 → 批次列表 / 明细 / 同步 / 重试 -->
+        <a-tab-pane key="payout_batches" title="批量代发">
+          <a-space class="toolbar" wrap>
+            <a-select
+              v-model="payoutBatchWeek"
+              :style="{ width: '220px' }"
+              @change="loadPayoutBatchPreview"
+            >
+              <a-option
+                v-for="option in payoutBatchWeekOptions"
+                :key="option.value"
+                :value="option.value"
+                >{{ option.label }}</a-option
+              >
+            </a-select>
+            <a-button
+              :loading="payoutBatchPreviewLoading"
+              @click="loadPayoutBatchPreview"
+              >刷新预览</a-button
+            >
+          </a-space>
+          <!-- 未启用 / 配置不完整 / 无权限：直接展示后端中文提示，主按钮随之为禁用。 -->
+          <a-alert
+            v-if="payoutBatchError"
+            type="warning"
+            class="payout-batch-alert"
+            >{{ payoutBatchError }}</a-alert
+          >
+          <a-space class="payout-batch-summary" wrap>
+            <a-typography-text>
+              本周可代发
+              <span class="config-value">{{
+                payoutBatchPreview?.ready_count || 0
+              }}</span>
+              笔，合计
+              <span class="config-value">{{
+                money(payoutBatchPreview?.ready_total_cents || 0)
+              }}</span>
+              ；跳过 {{ payoutBatchPreview?.skipped_count || 0 }} 笔（{{
+                money(payoutBatchPreview?.skipped_total_cents || 0)
+              }}）
+            </a-typography-text>
+            <a-button
+              type="primary"
+              :loading="payoutBatchSubmitting"
+              :disabled="!canSubmitPayoutBatch"
+              @click="confirmSubmitPayoutBatch"
+              >代发本周（{{ payoutBatchPreview?.ready_count || 0 }} 笔 /
+              {{
+                money(payoutBatchPreview?.ready_total_cents || 0)
+              }}）</a-button
+            >
+          </a-space>
+          <a-table
+            :data="payoutBatchPreview?.items || []"
+            :loading="payoutBatchPreviewLoading"
+            row-key="withdrawal_no"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #columns>
+              <a-table-column title="陪玩名称">
+                <template #cell="{ record }">{{
+                  record.player_name || `#${record.player_id}`
+                }}</template>
+              </a-table-column>
+              <a-table-column data-index="withdrawal_no" title="提现单号" />
+              <a-table-column title="净额">
+                <template #cell="{ record }">{{
+                  money(record.net_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="收款账户">
+                <template #cell="{ record }">
+                  <span v-if="record.account_no_masked">
+                    {{ accountTypeLabel(record.account_type) }}
+                    {{ record.account_no_masked }}
+                  </span>
+                  <span v-else class="text-secondary">未签约</span>
+                </template>
+              </a-table-column>
+              <a-table-column title="状态" :width="220">
+                <template #cell="{ record }">
+                  <a-tag v-if="record.ready" color="green">可代发</a-tag>
+                  <a-tag v-else color="gray"
+                    >跳过：{{ record.skip_reason }}</a-tag
+                  >
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+
+          <div class="section-title">代发批次</div>
+          <a-space class="toolbar" wrap>
+            <a-select
+              v-model="payoutBatchFilters.status"
+              placeholder="批次状态"
+              allow-clear
+              :style="{ width: '160px' }"
+              @change="reloadPayoutBatches"
+            >
+              <a-option
+                v-for="option in payoutBatchStatusOptions"
+                :key="option.value"
+                :value="option.value"
+                >{{ option.label }}</a-option
+              >
+            </a-select>
+            <a-button
+              :loading="payoutBatchesLoading"
+              @click="reloadPayoutBatches"
+              >查询</a-button
+            >
+          </a-space>
+          <a-table
+            :data="payoutBatches"
+            :loading="payoutBatchesLoading"
+            row-key="id"
+            :pagination="{
+              current: payoutBatchPage,
+              pageSize: payoutBatchPageSize,
+              total: payoutBatchTotal,
+              showTotal: true,
+            }"
+            @page-change="changePayoutBatchPage"
+          >
+            <template #columns>
+              <a-table-column data-index="batch_no" title="批次号" />
+              <a-table-column title="状态" :width="100">
+                <template #cell="{ record }">
+                  <a-tag :color="payoutBatchStatusColor(record.status)">{{
+                    payoutBatchStatusLabel(record.status)
+                  }}</a-tag>
+                </template>
+              </a-table-column>
+              <a-table-column
+                data-index="total_count"
+                title="笔数"
+                :width="80"
+              />
+              <a-table-column title="金额" :width="110">
+                <template #cell="{ record }">{{
+                  money(record.total_cents)
+                }}</template>
+              </a-table-column>
+              <a-table-column title="服务商批次号">
+                <template #cell="{ record }">{{
+                  record.provider_batch_no || '-'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="提交人">
+                <template #cell="{ record }">{{
+                  record.submitted_by || '-'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="提交时间">
+                <template #cell="{ record }">{{
+                  record.submitted_at || '-'
+                }}</template>
+              </a-table-column>
+              <a-table-column title="失败原因">
+                <template #cell="{ record }">{{
+                  record.fail_reason || '-'
+                }}</template>
+              </a-table-column>
+              <!-- 同步仅进行中批次可用；重试仅 partial / failed 且确有失败明细时可用。 -->
+              <a-table-column title="操作" :width="210">
+                <template #cell="{ record }">
+                  <a-button
+                    v-if="canPayoutBatchDetail"
+                    type="text"
+                    @click="openPayoutBatchDetail(record)"
+                    >查看明细</a-button
+                  >
+                  <a-button
+                    v-if="canPayoutBatchSync && payoutBatchCanSync(record)"
+                    type="text"
+                    :loading="payoutBatchActionId === record.id"
+                    @click="doSyncPayoutBatch(record)"
+                    >同步</a-button
+                  >
+                  <a-button
+                    v-if="canPayoutBatchRetry && payoutBatchCanRetry(record)"
+                    type="text"
+                    status="danger"
+                    :loading="payoutBatchActionId === record.id"
+                    @click="doRetryPayoutBatch(record)"
+                    >重试</a-button
+                  >
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+        </a-tab-pane>
+
         <!-- 结单规则（首版） -->
         <a-tab-pane key="close_rules" title="结单规则">
           <a-space class="toolbar">
@@ -1675,6 +1869,100 @@
       </a-typography-text>
     </a-drawer>
 
+    <!-- 批量代发明细：批次头 + 逐笔状态 / 服务商单号 / 失败码 / 到账时间 -->
+    <a-drawer
+      v-model:visible="payoutBatchDetailVisible"
+      title="代发批次明细"
+      :width="920"
+      :footer="false"
+    >
+      <a-spin :loading="payoutBatchDetailLoading" style="width: 100%">
+        <a-descriptions
+          v-if="payoutBatchDetailTarget"
+          :column="3"
+          size="small"
+          bordered
+        >
+          <a-descriptions-item label="批次号">{{
+            payoutBatchDetailTarget.batch_no
+          }}</a-descriptions-item>
+          <a-descriptions-item label="状态">
+            <a-tag
+              :color="payoutBatchStatusColor(payoutBatchDetailTarget.status)"
+              >{{
+                payoutBatchStatusLabel(payoutBatchDetailTarget.status)
+              }}</a-tag
+            >
+          </a-descriptions-item>
+          <a-descriptions-item label="笔数 / 金额"
+            >{{ payoutBatchDetailTarget.total_count }} 笔 /
+            {{
+              money(payoutBatchDetailTarget.total_cents)
+            }}</a-descriptions-item
+          >
+          <a-descriptions-item label="服务商批次号">{{
+            payoutBatchDetailTarget.provider_batch_no || '-'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="提交人">{{
+            payoutBatchDetailTarget.submitted_by || '-'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="提交时间">{{
+            payoutBatchDetailTarget.submitted_at || '-'
+          }}</a-descriptions-item>
+          <a-descriptions-item label="失败原因" :span="3">{{
+            payoutBatchDetailTarget.fail_reason || '-'
+          }}</a-descriptions-item>
+        </a-descriptions>
+        <a-table
+          :data="payoutBatchDetailItems"
+          row-key="payout_id"
+          :pagination="false"
+          class="payout-batch-detail-table"
+        >
+          <template #columns>
+            <a-table-column data-index="withdrawal_no" title="提现单号" />
+            <a-table-column title="陪玩">
+              <template #cell="{ record }">{{
+                record.player_name || `#${record.player_id}`
+              }}</template>
+            </a-table-column>
+            <a-table-column title="金额" :width="100">
+              <template #cell="{ record }">{{
+                money(record.amount_cents)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="状态" :width="100">
+              <template #cell="{ record }">
+                <a-tag :color="withdrawalPayoutStatusColor(record.status)">{{
+                  withdrawalPayoutStatusLabel(record.status)
+                }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="服务商单号">
+              <template #cell="{ record }">{{
+                record.provider_order_no || '-'
+              }}</template>
+            </a-table-column>
+            <a-table-column title="服务商状态">
+              <template #cell="{ record }">{{
+                record.provider_status || '-'
+              }}</template>
+            </a-table-column>
+            <a-table-column title="失败码">
+              <template #cell="{ record }">{{
+                record.fail_code || '-'
+              }}</template>
+            </a-table-column>
+            <a-table-column title="到账时间">
+              <template #cell="{ record }">{{
+                record.paid_at || '-'
+              }}</template>
+            </a-table-column>
+          </template>
+        </a-table>
+      </a-spin>
+    </a-drawer>
+
     <!-- 提交打款执行：金额固定为实际到账额，外部流水号幂等。 -->
     <a-modal
       v-model:visible="withdrawalPayoutRequestVisible"
@@ -1787,7 +2075,9 @@
 
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref } from 'vue';
-  import { Message } from '@arco-design/web-vue';
+  import { Message, Modal } from '@arco-design/web-vue';
+  import dayjs from 'dayjs';
+  import isoWeek from 'dayjs/plugin/isoWeek';
   import usePermission from '@/hooks/permission';
   import { getConfigByGroup } from '@/api/config';
   import yuanToCents from '@/utils/money';
@@ -1801,15 +2091,18 @@
     createCommissionRule,
     createCsCommissionRule,
     createCsSettlement,
+    createPayoutBatch,
     createSettlement,
     freezeOrderCommission,
     getCsCommissionSummary,
+    getPayoutBatch,
     getSettlement,
     listCloseRules,
     listCommissionEntries,
     listCommissionRules,
     listCsCommissionEntries,
     listCsCommissionRules,
+    listPayoutBatches,
     listSettlementCycles,
     listSettlements,
     listWithdrawalPayouts,
@@ -1823,13 +2116,16 @@
     listPlayerRecoveries,
     paySettlement,
     payWithdrawal,
+    previewPayoutBatch,
     rejectPlayerRecovery,
     requestWithdrawalPayout,
+    retryPayoutBatch,
     reviewWithdrawal,
     rollbackCloseRule,
     rollbackCommissionRule,
     rollbackCsCommissionRule,
     setSettlementCycleStatus,
+    syncPayoutBatch,
     updateCloseRule,
     unfreezeOrderCommission,
     updateSettlementCycle,
@@ -1846,6 +2142,10 @@
     CommissionUnitBasis,
     EsportsCloseRule,
     EsportsPlayerRecovery,
+    PayoutBatch,
+    PayoutBatchItem,
+    PayoutBatchPreview,
+    PayoutBatchStatus,
     Settlement,
     SettlementCycle,
     SettlementCyclePeriod,
@@ -1870,6 +2170,9 @@
     validateCloseConditionTree,
   } from '../../components/close-condition-designer/logic';
 
+  // ISO 周（周一为一周开始），与后端 YYYY-Www 口径一致。
+  dayjs.extend(isoWeek);
+
   const { hasButtonPermission } = usePermission();
   const canOperate = computed(() =>
     hasButtonPermission('esports:settlements:manage')
@@ -1887,6 +2190,25 @@
   );
   const canCsReopen = computed(() =>
     hasButtonPermission('esports:settlements:cs_reopen')
+  );
+  // 批量代发按钮级权限（后端 app.go 已声明同名 PermAPI code）。
+  const canPayoutBatchPreview = computed(() =>
+    hasButtonPermission('esports:settlements:payout_batches_preview')
+  );
+  const canPayoutBatchRead = computed(() =>
+    hasButtonPermission('esports:settlements:payout_batches_read')
+  );
+  const canPayoutBatchCreate = computed(() =>
+    hasButtonPermission('esports:settlements:payout_batches_create')
+  );
+  const canPayoutBatchDetail = computed(() =>
+    hasButtonPermission('esports:settlements:payout_batches_detail')
+  );
+  const canPayoutBatchSync = computed(() =>
+    hasButtonPermission('esports:settlements:payout_batches_sync')
+  );
+  const canPayoutBatchRetry = computed(() =>
+    hasButtonPermission('esports:settlements:payout_batches_retry')
   );
 
   // 结算单列表 / 详情记录：后端已返回 void 状态、version 与作废留痕，
@@ -3452,6 +3774,281 @@
     }
   }
 
+  // ── 批量代发（云账户） ──
+  // 周选择固定 YYYY-Www（ISO 周），与后端 payoutWeekWindow 口径一致；近 8 周足够覆盖补发场景。
+  const PAYOUT_BATCH_WEEK_FORMAT = 'GGGG-[W]WW';
+  const payoutBatchWeek = ref(dayjs().format(PAYOUT_BATCH_WEEK_FORMAT));
+  const payoutBatchWeekOptions = computed(() =>
+    Array.from({ length: 8 }, (_, index) => {
+      const day = dayjs().subtract(index, 'week');
+      const value = day.format(PAYOUT_BATCH_WEEK_FORMAT);
+      return {
+        label: `${value}（${day.startOf('isoWeek').format('MM-DD')} 起）`,
+        value,
+      };
+    })
+  );
+  const payoutBatchPreview = ref<PayoutBatchPreview | null>(null);
+  const payoutBatchPreviewLoading = ref(false);
+  // 未启用 / 配置不完整时后端返回 503，前端同时禁用提交入口。
+  const payoutBatchDisabled = ref(false);
+  const payoutBatchError = ref('');
+  const payoutBatchSubmitting = ref(false);
+
+  const payoutBatchStatusOptions: {
+    label: string;
+    value: PayoutBatchStatus;
+  }[] = [
+    { label: '提交中', value: 'submitting' },
+    { label: '已提交', value: 'submitted' },
+    { label: '部分成功', value: 'partial' },
+    { label: '已结清', value: 'settled' },
+    { label: '失败', value: 'failed' },
+  ];
+  const payoutBatchStatusLabel = (value: PayoutBatchStatus) =>
+    payoutBatchStatusOptions.find((option) => option.value === value)?.label ||
+    value;
+  const payoutBatchStatusColor = (value: PayoutBatchStatus) => {
+    switch (value) {
+      case 'submitting':
+        return 'arcoblue';
+      case 'submitted':
+        return 'blue';
+      case 'partial':
+        return 'orange';
+      case 'settled':
+        return 'green';
+      default:
+        return 'red';
+    }
+  };
+  const PAYOUT_ACCOUNT_TYPE_LABELS: Record<string, string> = {
+    bank_card: '银行卡',
+    alipay: '支付宝',
+  };
+  const accountTypeLabel = (value: string) =>
+    PAYOUT_ACCOUNT_TYPE_LABELS[value] || value || '-';
+
+  const payoutBatches = ref<PayoutBatch[]>([]);
+  const payoutBatchesLoading = ref(false);
+  const payoutBatchFilters = reactive<{ status?: PayoutBatchStatus }>({
+    status: undefined,
+  });
+  const payoutBatchPage = ref(1);
+  const payoutBatchPageSize = 10;
+  const payoutBatchTotal = ref(0);
+  // 行级同步 / 重试的加载态，避免同一批次连点重复提交。
+  const payoutBatchActionId = ref(0);
+
+  const payoutBatchDetailVisible = ref(false);
+  const payoutBatchDetailLoading = ref(false);
+  const payoutBatchDetailTarget = ref<PayoutBatch | null>(null);
+  const payoutBatchDetailItems = ref<PayoutBatchItem[]>([]);
+
+  const canSubmitPayoutBatch = computed(
+    () =>
+      canPayoutBatchCreate.value &&
+      !payoutBatchDisabled.value &&
+      (payoutBatchPreview.value?.ready_count || 0) > 0
+  );
+
+  // 503 或文案含「未启用 / 配置不完整」都按未启用处理。
+  const payoutBatchDisabledByError = (err: unknown) => {
+    const { response } = err as {
+      response?: { status?: number; data?: { message?: string } };
+    };
+    const message = response?.data?.message || '';
+    return (
+      response?.status === 503 ||
+      message.includes('未启用') ||
+      message.includes('配置不完整')
+    );
+  };
+
+  async function loadPayoutBatchPreview() {
+    if (!canPayoutBatchPreview.value) {
+      payoutBatchPreview.value = null;
+      payoutBatchError.value = '无批量代发预览权限，请联系管理员分配权限';
+      return;
+    }
+    payoutBatchPreviewLoading.value = true;
+    payoutBatchError.value = '';
+    try {
+      payoutBatchPreview.value = (
+        await previewPayoutBatch(payoutBatchWeek.value)
+      ).data.data;
+      payoutBatchDisabled.value = false;
+    } catch (err) {
+      const message = errorText(err, '加载代发预览失败，请稍后重试');
+      payoutBatchPreview.value = null;
+      payoutBatchDisabled.value = payoutBatchDisabledByError(err);
+      payoutBatchError.value = payoutBatchDisabled.value
+        ? `${message}。请前往「系统配置 → 云账户代发配置」开启云账户代发，并确认「陪玩打款渠道」为云账户代发。`
+        : message;
+    } finally {
+      payoutBatchPreviewLoading.value = false;
+    }
+  }
+
+  async function loadPayoutBatches() {
+    if (!canPayoutBatchRead.value) return;
+    payoutBatchesLoading.value = true;
+    try {
+      const page = (
+        await listPayoutBatches({
+          status: payoutBatchFilters.status || undefined,
+          page: payoutBatchPage.value,
+          page_size: payoutBatchPageSize,
+        })
+      ).data.data;
+      payoutBatches.value = page?.items || [];
+      payoutBatchTotal.value = page?.total || 0;
+    } catch (err) {
+      payoutBatches.value = [];
+      payoutBatchTotal.value = 0;
+      Message.error(errorText(err, '加载代发批次失败，请稍后重试'));
+    } finally {
+      payoutBatchesLoading.value = false;
+    }
+  }
+
+  function reloadPayoutBatches() {
+    payoutBatchPage.value = 1;
+    loadPayoutBatches();
+  }
+
+  function changePayoutBatchPage(page: number) {
+    payoutBatchPage.value = page;
+    loadPayoutBatches();
+  }
+
+  async function loadPayoutBatchDetail(id: number) {
+    payoutBatchDetailVisible.value = true;
+    payoutBatchDetailLoading.value = true;
+    payoutBatchDetailTarget.value = null;
+    payoutBatchDetailItems.value = [];
+    try {
+      const batchDetail = (await getPayoutBatch(id)).data.data;
+      payoutBatchDetailTarget.value = batchDetail.batch;
+      payoutBatchDetailItems.value = batchDetail.items || [];
+    } catch (err) {
+      payoutBatchDetailVisible.value = false;
+      Message.error(errorText(err, '加载批次明细失败，请稍后重试'));
+    } finally {
+      payoutBatchDetailLoading.value = false;
+    }
+  }
+
+  const openPayoutBatchDetail = (record: PayoutBatch) =>
+    loadPayoutBatchDetail(record.id);
+
+  // 同步仅进行中批次可用；重试入口只对 partial / failed 开放，失败明细数在点击时核实。
+  const payoutBatchCanSync = (record: PayoutBatch) =>
+    ['submitting', 'submitted', 'partial'].includes(record.status);
+  const payoutBatchCanRetry = (record: PayoutBatch) =>
+    record.status === 'partial' || record.status === 'failed';
+
+  async function confirmSubmitPayoutBatch() {
+    const preview = payoutBatchPreview.value;
+    if (!preview || !canSubmitPayoutBatch.value) return;
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title: '批量代发确认',
+        content: `本周将代发 ${preview.ready_count} 笔，合计 ${money(
+          preview.ready_total_cents
+        )}。\n确认后立即向云账户发起打款，提交后不可撤销。`,
+        okText: '确认代发',
+        cancelText: '取消',
+        closable: false,
+        maskClosable: false,
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+    if (!confirmed) return;
+    payoutBatchSubmitting.value = true;
+    try {
+      const result = (await createPayoutBatch({ week: payoutBatchWeek.value }))
+        .data.data;
+      if (result.existing) {
+        Message.info('该周批次已存在，已为你定位');
+      } else {
+        Message.success(`已向云账户发起代发：${result.batch_no}`);
+      }
+      payoutBatchPage.value = 1;
+      await loadPayoutBatches();
+      await loadPayoutBatchPreview();
+      // 定位：直接展开该批次明细（同一周重复提交时也指向既有批次）。
+      if (canPayoutBatchDetail.value) await loadPayoutBatchDetail(result.id);
+    } catch (err) {
+      Message.error(errorText(err, '提交批量代发失败，请稍后重试'));
+    } finally {
+      payoutBatchSubmitting.value = false;
+    }
+  }
+
+  async function doSyncPayoutBatch(record: PayoutBatch) {
+    payoutBatchActionId.value = record.id;
+    try {
+      const summary = (await syncPayoutBatch(record.id)).data.data;
+      Message.success(
+        `同步完成：变更 ${summary.changed_count} 笔，到账 ${summary.paid_count} 笔，失败 ${summary.failed_count} 笔，待确认 ${summary.pending_count} 笔`
+      );
+      await loadPayoutBatches();
+      if (
+        payoutBatchDetailVisible.value &&
+        payoutBatchDetailTarget.value?.id === record.id
+      ) {
+        await loadPayoutBatchDetail(record.id);
+      }
+    } catch (err) {
+      Message.error(errorText(err, '同步失败：请稍后重试或检查云账户配置'));
+    } finally {
+      payoutBatchActionId.value = 0;
+    }
+  }
+
+  async function doRetryPayoutBatch(record: PayoutBatch) {
+    payoutBatchActionId.value = record.id;
+    try {
+      // 先核对该批次确有 pay_failed 明细，避免无失败明细时发起无效重试。
+      const batchDetail = (await getPayoutBatch(record.id)).data.data;
+      const failedCount = (batchDetail.items || []).filter(
+        (item) => item.status === 'pay_failed'
+      ).length;
+      if (failedCount === 0) {
+        Message.warning('该批次没有可重试的失败明细');
+        return;
+      }
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: '重试失败明细',
+          content: `将重试批次 ${record.batch_no} 中 ${failedCount} 笔失败明细，重新向云账户发起打款（原失败记录保留用于审计）。`,
+          okText: '确认重试',
+          cancelText: '取消',
+          closable: false,
+          maskClosable: false,
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (!confirmed) return;
+      const result = (await retryPayoutBatch(record.id)).data.data;
+      Message.success(
+        result.existing
+          ? '该批次已重试过，已复用既有重试批次'
+          : `已创建重试批次：${result.batch_no}`
+      );
+      payoutBatchPage.value = 1;
+      await loadPayoutBatches();
+      if (canPayoutBatchDetail.value) await loadPayoutBatchDetail(result.id);
+    } catch (err) {
+      Message.error(errorText(err, '重试失败：请刷新后重试'));
+    } finally {
+      payoutBatchActionId.value = 0;
+    }
+  }
+
   // 切换页签时按需加载对应数据（定义在各 load* 之后，避免 no-use-before-define）。
   const onTabChange = (key: string | number) => {
     if (key === 'rules') loadRules();
@@ -3459,7 +4056,10 @@
     else if (key === 'cs_rules') loadCsRules();
     else if (key === 'cs_entries') loadCsEntries();
     else if (key === 'withdrawals') loadWithdrawals();
-    else if (key === 'recoveries') loadRecoveries();
+    else if (key === 'payout_batches') {
+      loadPayoutBatchPreview();
+      loadPayoutBatches();
+    } else if (key === 'recoveries') loadRecoveries();
     else if (key === 'settlement_cycles') loadCycles();
     else loadSettlements();
   };
@@ -3542,6 +4142,15 @@
 
   .detail-alert {
     margin: 12px 0;
+  }
+
+  .payout-batch-alert,
+  .payout-batch-summary {
+    margin-bottom: 12px;
+  }
+
+  .payout-batch-detail-table {
+    margin-top: 12px;
   }
 
   .section-title {
