@@ -15,7 +15,6 @@
         :pagination="{ pageSize: 20 }"
       >
         <template #columns>
-          <a-table-column data-index="id" title="客户 ID" />
           <a-table-column data-index="display_name" title="客户" />
           <a-table-column data-index="owner_admin_id" title="归属客服" />
           <a-table-column title="风险状态">
@@ -56,8 +55,13 @@
       @cancel="markVisible = false"
     >
       <a-form :model="markForm">
-        <a-form-item label="客户 ID">
-          <a-input :model-value="String(markForm.customerId)" disabled />
+        <a-form-item label="客户" required>
+          <OwnerSelect
+            v-model="markForm.customerId"
+            owner-type="customer"
+            :initial-label="markForm.customerName"
+            placeholder="搜索客户姓名或手机号"
+          />
         </a-form-item>
         <a-form-item label="风险状态" required>
           <a-select v-model="markForm.status">
@@ -83,6 +87,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import { listRiskCustomers, markCustomerRisk } from '../../api';
+  import OwnerSelect from '../../components/OwnerSelect.vue';
   import type { CustomerRiskStatus, EsportsCustomer } from '../../api';
 
   const riskLabels: Record<CustomerRiskStatus, string> = {
@@ -110,9 +115,10 @@
   const markVisible = ref(false);
   const markForm = reactive<{
     customerId: number;
+    customerName: string;
     status: CustomerRiskStatus;
     reason: string;
-  }>({ customerId: 0, status: 'watch', reason: '' });
+  }>({ customerId: 0, customerName: '', status: 'watch', reason: '' });
 
   async function load() {
     loading.value = true;
@@ -127,6 +133,7 @@
 
   function openMark(record: EsportsCustomer) {
     markForm.customerId = record.id;
+    markForm.customerName = record.display_name;
     markForm.status =
       record.risk_status === 'normal' ? 'watch' : record.risk_status;
     markForm.reason = record.risk_reason;
@@ -134,6 +141,10 @@
   }
 
   async function submitMark() {
+    if (!markForm.customerId) {
+      Message.warning('请选择客户');
+      return;
+    }
     if (markForm.status !== 'normal' && !markForm.reason.trim()) {
       Message.warning('标记风险须填写原因');
       return;

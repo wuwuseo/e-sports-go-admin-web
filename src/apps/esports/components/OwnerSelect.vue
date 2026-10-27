@@ -39,12 +39,15 @@
       disabled?: boolean;
       // 首次打开时预取的数量；后续搜索仍按关键词远程取数。
       limit?: number;
+      // 已知归属人的显示名（如从行数据带入）；避免回显成数字 ID。
+      initialLabel?: string;
     }>(),
     {
       modelValue: 0,
       placeholder: '',
       disabled: false,
       limit: 50,
+      initialLabel: '',
     }
   );
 
@@ -144,7 +147,12 @@
         return;
       }
       const option = options.value.find((item) => item.id === value) || null;
-      if (option) selected.value = option;
+      if (option) {
+        selected.value = option;
+      } else if (props.initialLabel) {
+        // 选项还没加载到该 ID 时先用外部传入的名称占位，加载后按 option 覆盖。
+        selected.value = { id: value, name: props.initialLabel };
+      }
     }
   );
 

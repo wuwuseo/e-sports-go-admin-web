@@ -281,12 +281,8 @@
             overview.summary.cancelled_count
           }}</a-descriptions-item>
         </a-descriptions>
-        <a-table
-          :data="overview.buckets"
-          row-key="bucket"
-          :pagination="false"
-          :style="{ marginTop: '12px' }"
-        >
+        <a-divider>周期汇总</a-divider>
+        <a-table :data="overview.buckets" row-key="bucket" :pagination="false">
           <template #columns>
             <a-table-column data-index="bucket" title="周期" />
             <a-table-column data-index="order_count" title="订单数" />
@@ -302,15 +298,14 @@
             </a-table-column>
           </template>
         </a-table>
+        <a-divider>订单明细</a-divider>
         <a-table
           :data="overview.details"
           row-key="id"
           :pagination="{ pageSize: 20 }"
-          :style="{ marginTop: '12px' }"
         >
           <template #columns>
             <a-table-column data-index="order_no" title="订单号" />
-            <a-table-column data-index="customer_id" title="客户 ID" />
             <a-table-column title="应付">
               <template #cell="{ record }">{{
                 money(record.payable_cents)
@@ -335,7 +330,6 @@
           :pagination="false"
         >
           <template #columns>
-            <a-table-column data-index="admin_id" title="客服 ID" />
             <a-table-column data-index="admin_name" title="客服" />
             <a-table-column data-index="order_count" title="订单数" />
             <a-table-column title="营收">
@@ -402,7 +396,6 @@
           :style="{ marginTop: '12px' }"
         >
           <template #columns>
-            <a-table-column data-index="admin_id" title="客服 ID" />
             <a-table-column data-index="admin_name" title="客服" />
             <a-table-column data-index="invite_count" title="邀请数" />
             <a-table-column data-index="accepted_count" title="已接单" />
@@ -433,12 +426,8 @@
             money(aftersale.summary.refund_cents)
           }}</a-descriptions-item>
         </a-descriptions>
-        <a-table
-          :data="kindRows"
-          row-key="key"
-          :pagination="false"
-          :style="{ marginTop: '12px' }"
-        >
+        <a-divider>售后类型分布</a-divider>
+        <a-table :data="kindRows" row-key="key" :pagination="false">
           <template #columns>
             <a-table-column title="售后类型">
               <template #cell="{ record }">{{
@@ -448,12 +437,8 @@
             <a-table-column data-index="count" title="数量" />
           </template>
         </a-table>
-        <a-table
-          :data="faultRows"
-          row-key="key"
-          :pagination="false"
-          :style="{ marginTop: '12px' }"
-        >
+        <a-divider>责任方分布</a-divider>
+        <a-table :data="faultRows" row-key="key" :pagination="false">
           <template #columns>
             <a-table-column title="责任方">
               <template #cell="{ record }">{{
@@ -463,11 +448,11 @@
             <a-table-column data-index="count" title="数量" />
           </template>
         </a-table>
+        <a-divider>售后单明细</a-divider>
         <a-table
           :data="aftersale.details"
           row-key="id"
           :pagination="{ pageSize: 20 }"
-          :style="{ marginTop: '12px' }"
         >
           <template #columns>
             <a-table-column data-index="id" title="ID" :width="80" />

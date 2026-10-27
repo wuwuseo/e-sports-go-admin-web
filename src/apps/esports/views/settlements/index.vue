@@ -737,8 +737,9 @@
           <a-typography-text type="secondary" class="close-rule-tip">
             按工作室发薪习惯配置日结 / 周结 / 月结 / 自定义间隔（天数，按 UTC
             自然日对齐切分）；同一维度同一键只保留一条配置，解析时按「单个陪玩 →
-            按等级 → 按游戏 → 全局默认」逐级覆盖，全部缺失时回落系统配置
-            app.esports.settlement_period。陪玩端「下次结算时间」与自动结算任务均按解析结果执行；
+            按等级 → 按游戏 → 全局默认」逐级覆盖，全部缺失时回落系统配置（
+            <span class="config-value">当前 {{ settlementPeriodText }}</span>
+            ）。陪玩端「下次结算时间」与自动结算任务均按解析结果执行；
             存在争议的被冻结明细不参与当期结算，争议终结后自动解冻。
           </a-typography-text>
           <a-table
@@ -1788,6 +1789,7 @@
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import { getConfigByGroup } from '@/api/config';
   import yuanToCents from '@/utils/money';
   import AdminSelect from '../../components/AdminSelect.vue';
   import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
@@ -3462,10 +3464,38 @@
     else loadSettlements();
   };
 
+  // 结算周期说明里直接显示系统配置当前值；读不到时只少这一处提示，不影响结算。
+  const settlementPeriodValue = ref('');
+  // 配置存的是 daily / weekly / monthly，展示转成中文；未知值原样显示不丢信息。
+  const SETTLEMENT_PERIOD_LABELS: Record<string, string> = {
+    daily: '日结',
+    weekly: '周结',
+    monthly: '月结',
+  };
+  const settlementPeriodText = computed(
+    () =>
+      SETTLEMENT_PERIOD_LABELS[settlementPeriodValue.value] ||
+      settlementPeriodValue.value ||
+      '-'
+  );
+  async function loadSettlementPeriodValue() {
+    try {
+      const { data } = await getConfigByGroup('esports');
+      const row = (data.data || []).find(
+        (item) => item.key === 'app.esports.settlement_period'
+      );
+      settlementPeriodValue.value = row?.value || '';
+    } catch {
+      // ponytail: 配置中心不可用时静默降级，页面其余数据照常加载。
+      settlementPeriodValue.value = '';
+    }
+  }
+
   onMounted(() => {
     fetchSkillLevels().then((items) => {
       skillLevels.value = items;
     });
+    loadSettlementPeriodValue();
     loadRules();
     loadCloseRules();
   });
@@ -3479,6 +3509,11 @@
   .close-rule-tip {
     display: block;
     margin-bottom: 12px;
+  }
+
+  .config-value {
+    color: rgb(var(--primary-6));
+    font-weight: 600;
   }
 
   /* 条件树摘要：单行省略，完整内容由 title 悬浮展示。 */

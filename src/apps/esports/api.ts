@@ -115,6 +115,8 @@ export interface EsportsOrder {
   id: number;
   order_no: string;
   customer_id: number;
+  // 列表接口批量补的客户显示名；查不到时为空，展示侧回落 #ID。
+  customer_name?: string;
   product_id: number;
   // 下单时的商品 / 规格名快照：读取时优先于 商品 实时标题，
   // 历史单可能为空串，调用方回落实时 商品 标题。
@@ -383,6 +385,8 @@ export interface EsportsDispatchBoard {
   member_dedicated_channel_order_ids: number[];
   // 公共池脱敏：非超管在公共池只看到脱敏摘要，客户身份与金额被掩码。
   masked_public_pool_ids: number[];
+  // 各订单桶的客户 ID → 客户显示名（后端批量补全；脱敏订单的 customer_id 为 0，查不到）。
+  customer_names?: Record<string, string>;
 }
 
 const base = '/api/v1/esports/admin';
@@ -961,6 +965,9 @@ export interface EsportsAfterSale {
   source_id: number;
   // 订单来源售后单附带：订单号。
   order_no?: string;
+  // 客户 / 陪玩显示名（后端批量补全，查不到为空串）。
+  customer_name?: string;
+  player_name?: string;
   kind: AfterSaleKind;
   channel: AfterSaleChannel;
   demand: string;
@@ -1058,10 +1065,13 @@ export interface EsportsAfterSaleAction {
   action_type: AfterSaleActionType;
   amount_cents: number;
   player_id: number | null;
+  // 承接陪玩 / 争议陪玩显示名（后端批量补全，查不到为空串）。
+  player_name?: string;
   seat_index: number | null;
   units: number;
   company_pay_cents: number;
   dispute_player_id: number | null;
+  dispute_player_name?: string;
   source_ref: string;
   idem_key: string;
   status: AfterSaleActionStatus;
@@ -1425,6 +1435,8 @@ export interface EsportsFulfillmentMakeup {
   order_id: number;
   kind: MakeupKind;
   player_id: number;
+  // 承接陪玩显示名（后端批量补全，查不到为空串）。
+  player_name?: string;
   seat_index: number;
   units: number;
   company_pay_cents: number;
@@ -2645,6 +2657,8 @@ export interface GiftOrder {
   gift_no: string;
   gift_id: number;
   customer_id: number;
+  // 列表接口批量补的客户显示名；查不到时为空，展示侧回落 #ID。
+  customer_name?: string;
   player_id: number;
   player_name: string;
   order_id: number | null;
@@ -2669,6 +2683,8 @@ export interface GiftOrder {
 export interface GiftIntent {
   id: number;
   customer_id: number;
+  // 列表接口批量补的客户显示名；查不到时为空，展示侧回落 #ID。
+  customer_name?: string;
   gift_id: number;
   gift_name: string;
   gift_version: number;
@@ -4722,7 +4738,8 @@ export interface EsportsAfterSaleRule {
 }
 
 export interface AfterSaleRuleInput {
-  code: string;
+  // 规则编码由后台自动生成：新建可省略，编辑时传回原值仅作校验。
+  code?: string;
   name: string;
   source_type: AfterSaleRuleSourceType;
   trigger_event: AfterSaleRuleTriggerEvent;

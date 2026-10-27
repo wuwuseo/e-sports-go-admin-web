@@ -4,6 +4,7 @@ import { fetchSseTicket, MessageRecord } from '@/api/message';
 // - message / system：业务消息推送（system 为系统公告）
 // - unread_count：未读数变更（后端会推送最新的未读数统计）
 // - message_deleted：消息被删除（用于多端同步删除状态）
+// - dispatch_changed：派单看板有业务变更（任一电竞写操作成功后广播），页面收到即重拉
 // - ready：连接就绪（后端推送的初始化事件）
 // - heartbeat：心跳保活
 // - error：连接错误（前端内部事件，非后端推送）
@@ -12,6 +13,7 @@ export type SseEventType =
   | 'system'
   | 'unread_count'
   | 'message_deleted'
+  | 'dispatch_changed'
   | 'ready'
   | 'heartbeat'
   | 'error';
@@ -22,6 +24,7 @@ const SERVER_EVENT_TYPES: Exclude<SseEventType, 'error'>[] = [
   'system',
   'unread_count',
   'message_deleted',
+  'dispatch_changed',
   'ready',
   'heartbeat',
 ];

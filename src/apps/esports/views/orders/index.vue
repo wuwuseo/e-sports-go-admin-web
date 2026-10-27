@@ -15,7 +15,11 @@
       >
         <template #columns>
           <a-table-column data-index="order_no" title="订单号" />
-          <a-table-column data-index="customer_id" title="客户 ID" />
+          <a-table-column title="客户">
+            <template #cell="{ record }">{{
+              record.customer_name || `#${record.customer_id}`
+            }}</template>
+          </a-table-column>
           <a-table-column title="商品">
             <template #cell="{ record }">{{ orderSkuLabel(record) }}</template>
           </a-table-column>

@@ -91,7 +91,11 @@
           >
             <template #columns>
               <a-table-column data-index="id" title="确认单 ID" />
-              <a-table-column data-index="customer_id" title="客户 ID" />
+              <a-table-column title="客户">
+                <template #cell="{ record }">{{
+                  record.customer_name || `#${record.customer_id}`
+                }}</template>
+              </a-table-column>
               <a-table-column title="礼物 / 收礼陪玩">
                 <template #cell="{ record }"
                   >{{ record.gift_name }} × {{ record.quantity }} →
@@ -161,7 +165,11 @@
           >
             <template #columns>
               <a-table-column data-index="id" title="确认单 ID" />
-              <a-table-column data-index="customer_id" title="客户 ID" />
+              <a-table-column title="客户">
+                <template #cell="{ record }">{{
+                  record.customer_name || `#${record.customer_id}`
+                }}</template>
+              </a-table-column>
               <a-table-column title="礼物">
                 <template #cell="{ record }"
                   >{{ record.gift_name }} × {{ record.quantity }}</template
@@ -248,9 +256,8 @@
           <a-table-column data-index="gift_no" title="礼物单号" :width="200" />
           <a-table-column title="客户 / 陪玩">
             <template #cell="{ record }"
-              >{{ record.customer_id }} → {{ record.player_name }}（{{
-                record.player_id
-              }}）</template
+              >{{ record.customer_name || `#${record.customer_id}` }} →
+              {{ record.player_name }}（{{ record.player_id }}）</template
             >
           </a-table-column>
           <a-table-column title="金额">
@@ -448,7 +455,8 @@
               :key="order.id"
               :value="order.id"
             >
-              {{ order.gift_no }} · 客户 {{ order.customer_id }} ·
+              {{ order.gift_no }} · 客户
+              {{ order.customer_name || `#${order.customer_id}` }} ·
               {{ yuan(order.amount_cents) }}
             </a-option>
           </a-select>

@@ -46,6 +46,7 @@
             </a-typography-text>
           </a-space>
           <a-table
+            title="会员优先预约：会员提交的专属预约意向，按会员等级置顶、同等级按提交时间排序"
             :data="bookings"
             :loading="bookingLoading"
             row-key="id"
@@ -101,39 +102,60 @@
             </template>
           </a-table>
 
-          <a-table
-            v-for="pool in pools"
-            :key="pool.key"
-            :data="pool.rows"
-            row-key="id"
-            :pagination="{ pageSize: 5 }"
-            :title="pool.title"
-            class="sub-card"
+          <a-divider>订单池（按流转阶段）</a-divider>
+          <a-tabs
+            v-model:active-key="activePoolKey"
+            type="card-gutter"
+            size="small"
           >
-            <template #columns>
-              <a-table-column data-index="order_no" title="订单号" />
-              <a-table-column data-index="customer_id" title="客户 ID" />
-              <a-table-column title="应付">
-                <template #cell="{ record }">{{
-                  moneyText(record.payable_cents)
-                }}</template>
-              </a-table-column>
-              <a-table-column
-                data-index="fulfillment_status"
-                title="履约状态"
-              />
-            </template>
-          </a-table>
+            <a-tab-pane
+              v-for="pool in pools"
+              :key="pool.key"
+              :title="`${pool.title}（${pool.rows.length}）`"
+            >
+              <a-table
+                :data="pool.rows"
+                row-key="id"
+                :pagination="{ pageSize: 10 }"
+                :title="`${pool.title}：订单按当前流转阶段分组，仅展示当前客服可见的订单`"
+                class="sub-card"
+              >
+                <template #columns>
+                  <a-table-column data-index="order_no" title="订单号" />
+                  <a-table-column title="客户">
+                    <template #cell="{ record }">{{
+                      customerNameOf(record.customer_id)
+                    }}</template>
+                  </a-table-column>
+                  <a-table-column title="应付">
+                    <template #cell="{ record }">{{
+                      moneyText(record.payable_cents)
+                    }}</template>
+                  </a-table-column>
+                  <a-table-column
+                    data-index="fulfillment_status"
+                    title="履约状态"
+                  />
+                </template>
+              </a-table>
+            </a-tab-pane>
+          </a-tabs>
 
+          <a-divider>公共池（脱敏摘要）</a-divider>
           <a-table
             :data="workbench?.order_pool?.public_pool || []"
             row-key="id"
             :pagination="{ pageSize: 5 }"
-            title="公共池（脱敏摘要）"
+            title="公共池（脱敏摘要）：超管可见客户名；非超管客户身份脱敏，仅见订单号与履约状态"
             class="sub-card"
           >
             <template #columns>
               <a-table-column data-index="order_no" title="订单号" />
+              <a-table-column title="客户">
+                <template #cell="{ record }">{{
+                  customerNameOf(record.customer_id)
+                }}</template>
+              </a-table-column>
               <a-table-column
                 data-index="fulfillment_status"
                 title="履约状态"
@@ -164,6 +186,7 @@
             </a-typography-text>
           </a-space>
           <a-table
+            title="到账凭证核销：外渠道收款凭证按状态筛选并核销，提交人不得自审"
             :data="proofs"
             :loading="proofLoading"
             row-key="id"
@@ -241,6 +264,7 @@
           </a-space>
 
           <a-table
+            title="我的客户：当前归属本客服的客户，可查看档案或转移归属"
             :data="customers"
             :loading="customerLoading"
             row-key="id"
@@ -314,6 +338,7 @@
           </a-space>
 
           <a-table
+            title="话术库：客服通用话术按分类维护，启用后可复用到沟通记录"
             :data="scripts"
             :loading="scriptLoading"
             row-key="id"
@@ -461,6 +486,7 @@
           仅展示当前账号可见的订单（负责或已授权协作），越权订单不会出现在此明细中。
         </a-typography-text>
         <a-table
+          title="历史订单：仅展示当前账号可见的订单（负责或已授权协作）"
           :data="profileOrders"
           :loading="profileOrderLoading"
           row-key="id"
@@ -835,6 +861,12 @@
   // ── 工作台 ──
   const loading = ref(false);
   const workbench = ref<CsWorkbench | null>(null);
+  // 订单池用 tabs 切换，默认停在待派单。
+  const activePoolKey = ref('pending_dispatch');
+  // 客户名：由看板一次性带出（customer_id → 显示名）；脱敏订单 id 为 0，显示 '-'。
+  const customerNameOf = (customerId: number) =>
+    workbench.value?.order_pool?.customer_names?.[String(customerId)] ||
+    (customerId > 0 ? `#${customerId}` : '-');
   const performanceRow = computed(() => {
     const rows = (workbench.value?.performance?.rows || []) as {
       order_count: number;

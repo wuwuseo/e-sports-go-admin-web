@@ -190,13 +190,13 @@
         </a-form-item>
         <a-form-item
           v-if="form.audience === 'specified'"
-          label="指定客户 ID"
+          label="指定客户"
           required
         >
-          <a-input-tag
+          <OwnerMultiSelect
             v-model="form.audienceCustomerIds"
-            placeholder="输入客户档案 ID，回车添加"
-            allow-clear
+            owner-type="customer"
+            placeholder="搜索并选择客户（可多选）"
           />
         </a-form-item>
         <a-form-item
@@ -244,6 +244,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import OwnerMultiSelect from '../../components/OwnerMultiSelect.vue';
   import {
     createCampaign,
     listCampaigns,
@@ -376,7 +377,7 @@
     tiers: CampaignTierForm[];
     stackRule: CampaignStackRule;
     audience: CampaignAudienceExt;
-    audienceCustomerIds: string[];
+    audienceCustomerIds: number[];
     audiencePlayerIds: string[];
     targetAccountType: CampaignTargetAccount;
     bonusValidDays: number;
@@ -458,9 +459,7 @@
     }));
     form.stackRule = record.stack_rule;
     form.audience = record.audience;
-    form.audienceCustomerIds = record.audience_customer_ids.map((id) =>
-      String(id)
-    );
+    form.audienceCustomerIds = record.audience_customer_ids || [];
     form.audiencePlayerIds = (ext.audience_player_ids || []).map((id) =>
       String(id)
     );
@@ -504,7 +503,7 @@
       }
     }
     if (form.audience === 'specified' && !form.audienceCustomerIds.length) {
-      Message.warning('请填写指定客户 ID');
+      Message.warning('请选择指定客户');
       return null;
     }
     if (form.audience === 'player' && !form.audiencePlayerIds.length) {
@@ -540,9 +539,7 @@
       audience: form.audience as CampaignAudience,
       audience_customer_ids:
         form.audience === 'specified'
-          ? form.audienceCustomerIds
-              .map((id) => Number(id))
-              .filter((id) => id > 0)
+          ? form.audienceCustomerIds.filter((id) => id > 0)
           : [],
       audience_player_ids:
         form.audience === 'player'

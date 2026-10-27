@@ -271,13 +271,43 @@
           </a-space>
           <a-typography-text type="secondary" class="toolbar">
             订单进入待派单时只通知本游戏分区名单内的陪玩，**其他人看不到该单**；名单内全部拒绝或超过通知时长（
-            <code>app.esports.dispatch_priority_notice_minutes</code>
+            <span class="config-value"
+              >当前
+              {{
+                priorityConfigValues[
+                  'app.esports.dispatch_priority_notice_minutes'
+                ] || '-'
+              }}
+              分钟</span
+            >
             ）后订单才释放到抢单大厅给所有人抢。每游戏每期名额上限取
-            <code>app.esports.dispatch_priority_quota</code>，周期重算任务
-            <code>esports_rebuild_dispatch_priority</code>，超时释放任务
-            <code>esports_expire_dispatch_priority_notice</code>。
+            <span class="config-value"
+              >当前
+              {{
+                priorityConfigValues['app.esports.dispatch_priority_quota'] ||
+                '-'
+              }}
+              人</span
+            >，周期重算任务（
+            <span class="config-value">{{
+              cronTextOf('esports_rebuild_dispatch_priority') || '-'
+            }}</span>
+            ），超时释放任务（
+            <span class="config-value">{{
+              cronTextOf('esports_expire_dispatch_priority_notice') || '-'
+            }}</span>
+            ）。
             名单的「游戏分区」是**准入校验字段**：必须与启用中的商品分类一致，填错后端直接拒绝。
-            连接异常（<code>protected_abnormal</code>，心跳超时且仍在途）的陪玩**不会**进入优先通知名单，也不会被派单。
+            连接异常（心跳超时
+            <span class="config-value"
+              >当前
+              {{
+                priorityConfigValues[
+                  'app.esports.player_heartbeat_timeout_minutes'
+                ] || '-'
+              }}
+              分钟</span
+            >且仍在途）的陪玩**不会**进入优先通知名单，也不会被派单。
           </a-typography-text>
           <a-table
             :data="priorityGrants"
@@ -476,9 +506,13 @@
       @cancel="closeTeamDispatch"
     >
       <a-form :model="teamForm" layout="vertical">
-        <a-form-item label="主陪玩档案 ID" required>
+        <a-form-item label="主陪玩" required>
           <a-space>
-            <a-input-number v-model="teamForm.mainPlayerId" :min="1" />
+            <OwnerSelect
+              v-model="teamForm.mainPlayerId"
+              owner-type="player"
+              :style="{ width: '220px' }"
+            />
             <a-button type="outline" @click="loadTeamCandidates"
               >加载固排</a-button
             >
@@ -581,8 +615,12 @@
         <a-form-item label="席位序号" required>
           <a-input-number v-model="assignForm.seatIndex" :min="1" />
         </a-form-item>
-        <a-form-item label="陪玩档案 ID" required>
-          <a-input-number v-model="assignForm.playerId" :min="1" />
+        <a-form-item label="陪玩" required>
+          <OwnerSelect
+            v-model="assignForm.playerId"
+            owner-type="player"
+            :style="{ width: '220px' }"
+          />
         </a-form-item>
         <a-form-item label="陪玩档期">
           <a-space direction="vertical" fill>
@@ -815,8 +853,12 @@
         >
           未取到任何游戏分区：当前账号可能缺少「查看产品分类」权限，或商品分类里还没有启用分区。请先在商品分类维护游戏分区后再授予。
         </a-typography-text>
-        <a-form-item label="陪玩档案 ID" required>
-          <a-input-number v-model="priorityGrantForm.playerId" :min="1" />
+        <a-form-item label="陪玩" required>
+          <OwnerSelect
+            v-model="priorityGrantForm.playerId"
+            owner-type="player"
+            :style="{ width: '220px' }"
+          />
         </a-form-item>
         <a-form-item label="周期" required>
           <a-select v-model="priorityGrantForm.period">
@@ -887,9 +929,12 @@
 <script setup lang="ts">
   import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
+  import axios from 'axios';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import useUserStore from '@/store/modules/user';
+  import { getConfigByGroup } from '@/api/config';
+  import sseService from '@/services/sse.service';
   import AdminSelect from '../../components/AdminSelect.vue';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
@@ -1192,6 +1237,55 @@
   // ── 优先派单权 ──
   const priorityGrants = ref<DispatchPriorityGrant[]>([]);
   const priorityLoading = ref(false);
+  // 说明文案里直接展示各项配置的当前值，省去运维来回翻「系统配置」页比对。
+  const priorityConfigValues = ref<Record<string, string>>({});
+  async function loadPriorityConfigValues() {
+    try {
+      const { data } = await getConfigByGroup('esports');
+      const map: Record<string, string> = {};
+      (data.data || []).forEach((item) => {
+        map[item.key] = item.value;
+      });
+      priorityConfigValues.value = map;
+    } catch {
+      // 读取配置失败不影响派单主流程，说明文案降级为只显示配置键。
+    }
+  }
+  // 说明文案里引用的两个定时任务：调度周期取任务列表的当前值，任务被停用时也能看出来。
+  const cronStatus = ref<
+    Record<string, { expression: string; enabled: boolean }>
+  >({});
+  async function loadCronStatus() {
+    try {
+      const { data } = await axios.get('/api/v1/admin/auth/cron-jobs', {
+        params: { page: 1, page_size: 100 },
+      });
+      const rows = (data.data?.data || []) as {
+        name: string;
+        expression: string;
+        enabled: boolean;
+      }[];
+      const map: Record<string, { expression: string; enabled: boolean }> = {};
+      rows.forEach((row) => {
+        map[row.name] = { expression: row.expression, enabled: row.enabled };
+      });
+      cronStatus.value = map;
+    } catch {
+      // 拿不到任务列表时文案回落为只显示任务名，不阻塞页面。
+    }
+  }
+  // ponytail: 只翻译本页涉及的两档周期，其余原样显示 cron 表达式；
+  // 若将来引用更多任务，改成接 cron 解析库。
+  function cronText(expression: string): string {
+    if (expression === '0 * * * * *') return '每分钟';
+    if (expression === '0 0 1 * * *') return '每日 01:00';
+    return expression;
+  }
+  function cronTextOf(name: string): string {
+    const item = cronStatus.value[name];
+    if (!item) return '';
+    return item.enabled ? cronText(item.expression) : '任务已停用';
+  }
   const priorityFilters = reactive<{
     game: string;
     status?: DispatchPriorityStatus;
@@ -1258,7 +1352,7 @@
     note: string;
   }>({
     game: '',
-    playerId: 1,
+    playerId: 0,
     period: 'weekly',
     source: 'manual',
     rank: 0,
@@ -1268,7 +1362,7 @@
 
   function openPriorityGrant() {
     priorityGrantForm.game = priorityFilters.game || '';
-    priorityGrantForm.playerId = 1;
+    priorityGrantForm.playerId = 0;
     priorityGrantForm.period = 'weekly';
     priorityGrantForm.source = 'manual';
     priorityGrantForm.rank = 0;
@@ -1279,7 +1373,7 @@
 
   async function submitPriorityGrant() {
     if (!priorityGrantForm.game || priorityGrantForm.playerId < 1) {
-      Message.warning('请填写游戏分区与陪玩档案 ID');
+      Message.warning('请选择游戏分区与陪玩');
       return;
     }
     try {
@@ -1530,7 +1624,7 @@
   }
 
   const assignVisible = ref(false);
-  const assignForm = reactive({ seatIndex: 1, playerId: 1 });
+  const assignForm = reactive({ seatIndex: 1, playerId: 0 });
   // 固排成队
   const teamVisible = ref(false);
   const teamForm = reactive({ mainPlayerId: 1 });
@@ -1593,7 +1687,7 @@
   }
 
   function openTeamDispatch() {
-    teamForm.mainPlayerId = 1;
+    teamForm.mainPlayerId = 0;
     teamCandidates.value = [];
     teamSelected.value = [];
     teamCandidatesLoaded.value = false;
@@ -1604,7 +1698,7 @@
     const order = seatOrder.value;
     if (!order) return;
     if (teamForm.mainPlayerId < 1) {
-      Message.warning('请填写有效的主陪玩档案 ID');
+      Message.warning('请选择有效的主陪玩');
       return;
     }
     try {
@@ -1622,7 +1716,7 @@
     const order = seatOrder.value;
     if (!order) return;
     if (teamForm.mainPlayerId < 1) {
-      Message.warning('请填写有效的主陪玩档案 ID');
+      Message.warning('请选择有效的主陪玩');
       return;
     }
     try {
@@ -1667,7 +1761,7 @@
   async function loadAvailability() {
     const { playerId } = assignForm;
     if (playerId < 1) {
-      Message.warning('请先填写陪玩档案 ID');
+      Message.warning('请先选择陪玩');
       return;
     }
     availabilityLoading.value = true;
@@ -1686,7 +1780,7 @@
   function openAssign(order: DispatchOrder) {
     activeOrder.value = order;
     assignForm.seatIndex = 1;
-    assignForm.playerId = 1;
+    assignForm.playerId = 0;
     candidates.value = [];
     preferredPlayerId.value = undefined;
     availability.value = null;
@@ -1887,23 +1981,54 @@
     }
   }
 
-  // 状态变更需秒级反映：固定 5 秒轮询，不再用 15 秒；页面不可见时跳过请求。
-  let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  // 状态变更走 SSE 实时同步：后端任一电竞写操作成功后广播 dispatch_changed，
+  // 页面收到即重拉；连接建立/重连成功也补一次，弥补断线期间丢掉的广播。
+  // ponytail: 事件只表示「有变化」不带快照，密集写操作靠 500ms 合并节流；
+  // 另留 60 秒轻量对账，防止 SSE 长期不可用（代理剥离长连接）时看板僵死。
+  let syncTimer: ReturnType<typeof setTimeout> | undefined;
+  let fallbackTimer: ReturnType<typeof setInterval> | undefined;
+  let offDispatchChange: (() => void) | undefined;
+  let offStatusChange: (() => void) | undefined;
+  function refreshAll() {
+    if (loading.value) return;
+    load(true);
+    loadPriority();
+    loadTransfers();
+    loadPresences();
+  }
+  function scheduleSync() {
+    if (syncTimer) return;
+    syncTimer = setTimeout(() => {
+      syncTimer = undefined;
+      refreshAll();
+    }, 500);
+  }
   onMounted(async () => {
     skillLevels.value = await fetchSkillLevels();
     await load();
     await loadPriority();
+    loadPriorityConfigValues();
+    loadCronStatus();
     await loadTransfers();
     await loadPresences();
     await loadGameOptions();
-    refreshTimer = setInterval(() => {
+    offDispatchChange = sseService.on('dispatch_changed', scheduleSync);
+    offStatusChange = sseService.onStatusChange((status) => {
+      if (status === 'open') refreshAll();
+    });
+    // 导航栏已负责建连，这里再调一次是幂等的，防止直接刷新本页时顺序不定。
+    sseService.connect();
+    fallbackTimer = setInterval(() => {
       if (!loading.value && document.visibilityState === 'visible') {
         load(true);
       }
-    }, 5_000);
+    }, 60_000);
   });
   onUnmounted(() => {
-    if (refreshTimer) clearInterval(refreshTimer);
+    if (syncTimer) clearTimeout(syncTimer);
+    if (fallbackTimer) clearInterval(fallbackTimer);
+    offDispatchChange?.();
+    offStatusChange?.();
   });
 </script>
 
@@ -1914,6 +2039,12 @@
 
   .toolbar {
     margin-bottom: 16px;
+  }
+
+  /* 配置当前值：与配置键区分开，避免和代码块混读。 */
+  .config-value {
+    color: rgb(var(--primary-6));
+    font-weight: 600;
   }
 
   .grant-tip {

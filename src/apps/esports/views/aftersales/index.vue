@@ -23,6 +23,7 @@
             >
           </a-space>
           <a-table
+            title="售后单列表：一张售后单对应一条来源单据与一个问题类型，状态从待受理走到完成 / 驳回 / 撤回"
             :data="items"
             :loading="loading"
             row-key="id"
@@ -196,8 +197,10 @@
               money(detail.refund_cents)
             }}</a-descriptions-item>
             <a-descriptions-item label="客户 / 陪玩"
-              >{{ detail.customer_id ?? '-' }} /
-              {{ detail.player_id ?? '-' }}</a-descriptions-item
+              >{{ nameOrId(detail.customer_name, detail.customer_id) }} /
+              {{
+                nameOrId(detail.player_name, detail.player_id)
+              }}</a-descriptions-item
             >
             <a-descriptions-item label="处理 / 审批 / 执行"
               >{{ detail.handler_admin_id ?? '-' }} /
@@ -228,6 +231,7 @@
               >
             </a-space>
             <a-table
+              title="方案动作项：多动作方案逐项执行，资金类（退款 / 补偿）与补履约类（补钟 / 换人）分别落账"
               :data="detailActions.actions"
               row-key="id"
               :pagination="false"
@@ -292,6 +296,7 @@
             </a-typography-text>
           </a-space>
           <a-table
+            title="结单复核记录：已终态售后凭新证据发起，须由非申请人且非原审批人的异人审查"
             :data="reviews"
             row-key="id"
             :pagination="false"
@@ -390,6 +395,7 @@
               待执行的外部退款单；财务核验后在这里执行，执行时会核销售后预占的退款额度并对齐订单退款状态。
             </a-typography-text>
             <a-table
+              title="外部退款单：没有余额核销的外渠道付款退款，财务核验后在这里逐单执行"
               :data="externalRefunds"
               row-key="id"
               :pagination="false"
@@ -454,6 +460,7 @@
             <template v-if="refundExecutions.length">
               <a-divider orientation="left">批次退款执行明细</a-divider>
               <a-table
+                title="批次退款执行明细：每一批对应一条财务流水，执行后核销该批次预占的退款额度"
                 :data="refundExecutions"
                 row-key="id"
                 :pagination="false"
@@ -530,6 +537,7 @@
               </a-typography-text>
             </a-space>
             <a-table
+              title="沟通记录：客服内部备注与客户可见消息分流展示，客户带附件的回复视为已补证"
               :data="messages"
               row-key="id"
               :pagination="false"
@@ -793,7 +801,14 @@
                   />
                 </a-form-item>
                 <a-form-item label="席位序号" required>
-                  <a-input-number v-model="planForm.makeupSeatIndex" :min="1" />
+                  <a-select v-model="planForm.makeupSeatIndex">
+                    <a-option
+                      v-for="seat in planSeatOptions"
+                      :key="seat"
+                      :value="seat"
+                      >{{ seat }} 号位</a-option
+                    >
+                  </a-select>
                 </a-form-item>
                 <a-form-item label="补足服务量">
                   <a-input-number v-model="planForm.makeupUnits" :min="0" />
@@ -859,27 +874,33 @@
                           placeholder="金额（元）"
                           :style="{ width: '140px' }"
                         />
-                        <a-input-number
+                        <OwnerSelect
                           v-if="action.actionType === 'refund'"
                           v-model="action.disputePlayerId"
-                          :min="0"
-                          placeholder="争议陪玩 ID"
-                          :style="{ width: '140px' }"
+                          owner-type="player"
+                          placeholder="争议陪玩（可选）"
+                          :style="{ width: '150px' }"
                         />
                       </template>
                       <template v-else>
-                        <a-input-number
+                        <OwnerSelect
                           v-model="action.playerId"
-                          :min="1"
-                          placeholder="承接陪玩 ID"
-                          :style="{ width: '140px' }"
+                          owner-type="player"
+                          placeholder="搜索承接陪玩"
+                          :style="{ width: '150px' }"
                         />
-                        <a-input-number
+                        <a-select
                           v-model="action.seatIndex"
-                          :min="1"
                           placeholder="席位"
-                          :style="{ width: '100px' }"
-                        />
+                          :style="{ width: '110px' }"
+                        >
+                          <a-option
+                            v-for="seat in planSeatOptions"
+                            :key="seat"
+                            :value="seat"
+                            >{{ seat }} 号位</a-option
+                          >
+                        </a-select>
                         <a-input-number
                           v-model="action.units"
                           :min="0"
@@ -996,6 +1017,7 @@
             补履约由公司承担报酬，**不增加原订单实收与成交额**。
           </a-typography-text>
           <a-table
+            title="补履约任务：售后方案执行后开始服务并由客服验收，报酬由公司承担、不计入原订单实收"
             :data="makeups"
             :loading="makeupLoading"
             row-key="id"
@@ -1015,7 +1037,8 @@
               </a-table-column>
               <a-table-column title="承接陪玩 / 席位">
                 <template #cell="{ record }"
-                  >{{ record.player_id }} / {{ record.seat_index }}</template
+                  >{{ nameOrId(record.player_name, record.player_id) }} /
+                  {{ record.seat_index }}</template
                 >
               </a-table-column>
               <a-table-column title="补足量">
@@ -1098,6 +1121,7 @@
             已产生命中留痕的规则不可删除，请改为停用（status=disabled）。
           </a-typography-text>
           <a-table
+            title="自动建单规则：多条同时命中按优先级取首条；关闭自动建单时只留痕并转客服待办"
             :data="rules"
             :loading="ruleLoading"
             row-key="id"
@@ -1234,6 +1258,7 @@
             ID）、命中时间与命中的售后单都可回查。
           </a-typography-text>
           <a-table
+            title="命中留痕：只增记录，可回查命中规则、来源单据、指标值与生成的售后单"
             :data="ruleHits"
             :loading="ruleHitLoading"
             row-key="id"
@@ -1254,10 +1279,9 @@
                 </template>
               </a-table-column>
               <a-table-column title="指标值 / 阈值">
-                <template #cell="{ record }"
-                  >{{ record.metric_value }} /
-                  {{ record.threshold_value }}</template
-                >
+                <template #cell="{ record }">{{
+                  ruleHitMetricText(record)
+                }}</template>
               </a-table-column>
               <a-table-column title="生成售后单">
                 <template #cell="{ record }">
@@ -1420,13 +1444,9 @@
       @cancel="ruleModalVisible = false"
     >
       <a-form :model="ruleForm">
-        <a-form-item label="规则编码" required>
-          <a-input
-            v-model="ruleForm.code"
-            :max-length="48"
-            :disabled="ruleForm.id > 0"
-            placeholder="小写字母 / 数字 / 下划线，创建后不可修改"
-          />
+        <!-- 规则编码由后台自动生成：新建时无需填写，编辑时只读展示生成结果。 -->
+        <a-form-item v-if="ruleForm.id > 0" label="规则编码">
+          <a-input v-model="ruleForm.code" disabled />
         </a-form-item>
         <a-form-item label="规则名称" required>
           <a-input v-model="ruleForm.name" :max-length="120" />
@@ -1464,10 +1484,13 @@
           <a-input-number
             v-model="ruleForm.thresholdValue"
             :min="0"
+            :precision="ruleThresholdPrecision"
             :disabled="ruleForm.metric === 'none'"
           />
           <a-typography-text type="secondary">
-            基点口径 1–10000；金额 / 时长口径须大于 0；不判定口径阈值必须为 0。
+            百分比口径按 % 填 0.01–100（保存自动 ×100
+            存基点）；金额口径按元填（保存自动 ×100
+            存分）；时长口径按分钟填；不判定口径固定 0。
           </a-typography-text>
         </a-form-item>
         <a-form-item label="观察窗口（分钟，0 = 不限时）">
@@ -1751,6 +1774,9 @@
         return 'orange';
     }
   };
+  // 管理端展示统一优先显示名称，缺名回落 #ID，都没有显示 '-'（后端已批量补全名字）。
+  const nameOrId = (name?: string, id?: number | null) =>
+    name || (id && id > 0 ? `#${id}` : '-');
   // 动作项参数摘要：资金类展示金额与争议陪玩，补履约类展示承接陪玩 / 席位 / 补足量 / 公司承担。
   const actionDetail = (action: EsportsAfterSaleAction) => {
     if (
@@ -1759,11 +1785,14 @@
     ) {
       const dispute =
         action.dispute_player_id && action.dispute_player_id > 0
-          ? `，争议陪玩 #${action.dispute_player_id}`
+          ? `，争议陪玩 ${nameOrId(
+              action.dispute_player_name,
+              action.dispute_player_id
+            )}`
           : '';
       return `金额 ${money(action.amount_cents)}${dispute}`;
     }
-    return `陪玩 #${action.player_id ?? '—'}，席位 ${
+    return `陪玩 ${nameOrId(action.player_name, action.player_id)}，席位 ${
       action.seat_index ?? '—'
     }，补足量 ${action.units}，公司承担 ${money(action.company_pay_cents)}`;
   };
@@ -2105,6 +2134,8 @@
 
   const planVisible = ref(false);
   const planTarget = ref<EsportsAfterSale | null>(null);
+  // 补履约席位候选：按售后单关联订单的 required_seats 生成 1..N，非订单来源回退单席位。
+  const planSeatOptions = ref<number[]>([1]);
   // 多动作方案的动作项草稿：金额 / 公司承担在前端按「元」录入，提交时转「分」。
   interface PlanActionDraft {
     key: string;
@@ -2309,7 +2340,23 @@
     planForm.recoveryPlayerId = 0;
     planForm.recoveryYuan = 0;
     planForm.disputePlayerId = 0;
+    planSeatOptions.value = [1];
     planVisible.value = true;
+    // 拉关联订单的席位数生成下拉候选；切单/关窗后返回的结果丢弃。
+    if (record.source_type === 'order' && record.source_id > 0) {
+      getOrder(record.source_id)
+        .then((res) => {
+          if (planTarget.value !== record) return;
+          const seats = res.data.data?.required_seats ?? 0;
+          if (seats > 0) {
+            planSeatOptions.value = Array.from(
+              { length: seats },
+              (_, i) => i + 1
+            );
+          }
+        })
+        .catch(() => undefined);
+    }
   }
 
   async function submitPlan() {
@@ -2777,7 +2824,22 @@
     if (record.metric === 'duration_shortage_minutes') {
       return `${metric} ≥ ${record.threshold_value} 分钟`;
     }
-    return `${metric} ≥ ${record.threshold_value} bp`;
+    return `${metric} ≥ ${record.threshold_value / 100}%`;
+  };
+  // 命中留痕只存度量值与阈值，按规则编码反查口径后换算成友好单位展示（分 → 元、基点 → %）。
+  const ruleHitMetricText = (record: AfterSaleRuleHit) => {
+    const metric = rules.value.find(
+      (item) => item.code === record.rule_code
+    )?.metric;
+    if (!metric) return `${record.metric_value} / ${record.threshold_value}`;
+    const text = (value: number) => {
+      if (metric === 'amount_over_cents') return money(value);
+      if (metric === 'amount_deviation_bp' || metric === 'duration_shortage_bp')
+        return `${value / 100}%`;
+      if (metric === 'duration_shortage_minutes') return `${value} 分钟`;
+      return String(value);
+    };
+    return `${text(record.metric_value)} / ${text(record.threshold_value)}`;
   };
   const ruleScopeLabel = (record: EsportsAfterSaleRule) => {
     const parts: string[] = [];
@@ -2853,7 +2915,8 @@
     sourceType: 'order' as AfterSaleRuleSourceType,
     triggerEvent: 'order_closed' as AfterSaleRuleTriggerEvent,
     metric: 'amount_deviation_bp' as AfterSaleRuleMetric,
-    thresholdValue: 500,
+    // 表单按百分比录入，默认 5%（保存时换算为 500 基点）。
+    thresholdValue: 5,
     windowMinutes: 1440,
     scopeGame: '',
     scopeSkuId: 0,
@@ -2903,7 +2966,7 @@
     switch (ruleForm.metric) {
       case 'amount_deviation_bp':
       case 'duration_shortage_bp':
-        return '阈值（基点，1–10000）';
+        return '阈值（%，0.01–100）';
       case 'amount_over_cents':
         return '阈值（元）';
       case 'duration_shortage_minutes':
@@ -2912,6 +2975,39 @@
         return '阈值（不判定口径固定 0）';
     }
   });
+  // 百分比 / 金额口径允许两位小数，时长口径只收整数分钟。
+  const ruleThresholdPrecision = computed(() =>
+    ruleForm.metric === 'duration_shortage_minutes' ? 0 : 2
+  );
+
+  // 阈值表单单位与后端存储单位不同：百分比 / 元口径 ×100 转换为基点 / 分，
+  // 时长口径两边都是分钟原样提交。表单展示时反向除回。
+  function thresholdToBackend(
+    metric: AfterSaleRuleMetric,
+    value: number
+  ): number {
+    if (
+      metric === 'amount_deviation_bp' ||
+      metric === 'duration_shortage_bp' ||
+      metric === 'amount_over_cents'
+    ) {
+      return Math.round(value * 100);
+    }
+    return Math.round(value);
+  }
+  function thresholdFromBackend(
+    metric: AfterSaleRuleMetric,
+    value: number
+  ): number {
+    if (
+      metric === 'amount_deviation_bp' ||
+      metric === 'duration_shortage_bp' ||
+      metric === 'amount_over_cents'
+    ) {
+      return value / 100;
+    }
+    return value;
+  }
 
   function onRuleSourceChange(value: unknown) {
     const source = String(value) as AfterSaleRuleSourceType;
@@ -2936,7 +3032,7 @@
     ruleForm.sourceType = 'order';
     ruleForm.triggerEvent = 'order_closed';
     ruleForm.metric = 'amount_deviation_bp';
-    ruleForm.thresholdValue = 500;
+    ruleForm.thresholdValue = 5;
     ruleForm.windowMinutes = 1440;
     ruleForm.scopeGame = '';
     ruleForm.scopeSkuId = 0;
@@ -2962,7 +3058,10 @@
       ruleForm.sourceType = item.source_type;
       ruleForm.triggerEvent = item.trigger_event;
       ruleForm.metric = item.metric;
-      ruleForm.thresholdValue = item.threshold_value;
+      ruleForm.thresholdValue = thresholdFromBackend(
+        item.metric,
+        item.threshold_value
+      );
       ruleForm.windowMinutes = item.window_minutes;
       ruleForm.scopeGame = item.scope_game;
       ruleForm.scopeSkuId = item.scope_product_id ?? 0;
@@ -2986,7 +3085,10 @@
       source_type: ruleForm.sourceType,
       trigger_event: ruleForm.triggerEvent,
       metric: ruleForm.metric,
-      threshold_value: ruleForm.thresholdValue,
+      threshold_value: thresholdToBackend(
+        ruleForm.metric,
+        ruleForm.thresholdValue
+      ),
       window_minutes: ruleForm.windowMinutes,
       scope_game: ruleForm.scopeGame.trim(),
       scope_product_id: ruleForm.scopeSkuId > 0 ? ruleForm.scopeSkuId : null,
@@ -3001,9 +3103,6 @@
   }
 
   function ruleFormError(): string {
-    if (!/^[a-z0-9_]{1,48}$/.test(ruleForm.code.trim())) {
-      return '规则编码必填，只允许小写字母、数字与下划线，且不超过 48 字符';
-    }
     if (!ruleForm.name.trim()) return '请填写规则名称';
     if (ruleForm.priority < 0 || ruleForm.priority > 1000) {
       return '优先级须为 0–1000';
