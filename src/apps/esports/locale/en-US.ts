@@ -20,4 +20,5 @@ export default {
   'menu.app.esports.cs.menu': 'CS Workbench',
   'menu.app.esports.close_form.menu': 'Close Form Builder',
   'menu.app.esports.risk.menu': 'Risk Customers',
+  'menu.app.esports.realname.menu': 'Real-name Verification',
 };

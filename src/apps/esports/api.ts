@@ -916,6 +916,86 @@ export const reviewPlayerIdentity = (
     input
   );
 
+// ── 统一实名（客户 / 陪玩共用档案）──
+export type RealNameSubjectType = 'customer' | 'player';
+export type RealNameChannel = 'wechat' | 'alipay' | 'third_party' | 'manual';
+export type RealNameStatus = 'pending' | 'verified' | 'rejected' | 'expired';
+export type RealNameAttemptStatus =
+  | 'pending'
+  | 'passed'
+  | 'failed'
+  | 'abandoned';
+
+export interface RealNameRecord {
+  id: number;
+  subject_type: RealNameSubjectType;
+  subject_id: number;
+  subject_name: string;
+  real_name: string;
+  id_number_masked: string;
+  channel: RealNameChannel;
+  method: 'two_factor' | 'face' | 'manual';
+  status: RealNameStatus;
+  fail_reason: string;
+  provider_ref?: string | null;
+  requested_by: number;
+  reviewed_by_admin_id?: number | null;
+  verified_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RealNameAttempt {
+  id: number;
+  subject_type: RealNameSubjectType;
+  subject_id: number;
+  channel: RealNameChannel;
+  method: string;
+  status: RealNameAttemptStatus;
+  provider_ref?: string | null;
+  fail_reason: string;
+  created_at: string;
+}
+
+export interface RealNameDetail extends RealNameRecord {
+  attempts: RealNameAttempt[];
+}
+
+export interface RealNameListParams {
+  subject_type?: RealNameSubjectType;
+  status?: RealNameStatus;
+  channel?: RealNameChannel;
+}
+
+export const listRealNames = (params: RealNameListParams = {}) =>
+  axios.get<ApiResponse<RealNameRecord[]>>(`${base}/realnames`, { params });
+
+export const getRealName = (id: number) =>
+  axios.get<ApiResponse<RealNameDetail>>(`${base}/realnames/${id}`);
+
+export const reviewRealName = (
+  id: number,
+  input: { approved: boolean; reject_reason?: string }
+) =>
+  axios.post<ApiResponse<RealNameRecord>>(
+    `${base}/realnames/${id}/review`,
+    input
+  );
+
+/** 管理端代提交：主体类型与 ID 放在请求体（渠道 / 方式缺省为人工审核）。 */
+export const submitRealNameByAdmin = (input: {
+  subject_type: RealNameSubjectType;
+  subject_id: number;
+  real_name: string;
+  id_number: string;
+  channel?: RealNameChannel;
+  method?: 'two_factor' | 'face' | 'manual';
+}) =>
+  axios.post<ApiResponse<{ id: number; status: string }>>(
+    `${base}/realnames/submit`,
+    input
+  );
+
 // ── 结单（客服手动结单）与售后 / 退款 ──
 
 export type AfterSaleKind =

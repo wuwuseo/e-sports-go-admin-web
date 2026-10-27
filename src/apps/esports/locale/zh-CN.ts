@@ -20,4 +20,5 @@ export default {
   'menu.app.esports.cs.menu': '客服工作台',
   'menu.app.esports.close_form.menu': '结单表单',
   'menu.app.esports.risk.menu': '风险客户',
+  'menu.app.esports.realname.menu': '实名认证',
 };
