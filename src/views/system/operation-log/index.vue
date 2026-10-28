@@ -65,12 +65,14 @@
           <a-table-column
             :title="$t('system.operationLog.module')"
             data-index="module"
-            :width="90"
+            :min-width="100"
           >
             <template #cell="{ record }">
-              <a-tag :color="moduleColorMap[record.module] || 'gray'">{{
-                moduleLabelMap[record.module] || record.module
-              }}</a-tag>
+              <a-tag
+                :color="moduleColorMap[record.module] || 'gray'"
+                style="white-space: nowrap"
+                >{{ moduleLabelMap[record.module] || record.module }}</a-tag
+              >
             </template>
           </a-table-column>
           <a-table-column
@@ -149,13 +151,14 @@
           </a-table-column>
           <a-table-column
             :title="$t('system.operationLog.operations')"
-            :width="100"
+            :min-width="110"
             fixed="right"
           >
             <template #cell="{ record }">
               <a-button
                 type="text"
                 size="small"
+                style="white-space: nowrap"
                 @click="handleViewDetail(record)"
               >
                 <template #icon><icon-eye /></template>
