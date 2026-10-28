@@ -458,6 +458,7 @@
 </template>
 
 <script setup lang="ts">
+  import { uuidV4 } from '@/utils/uuid';
   import {
     computed,
     markRaw,
@@ -720,7 +721,7 @@
         await rechargeWalletByCampaign(
           ownerId,
           { principal_cents: principalCents, note },
-          crypto.randomUUID()
+          uuidV4()
         );
         entryVisible.value = false;
         Message.success('已按活动入账');
@@ -749,7 +750,7 @@
     );
     if (!ok) return;
     try {
-      const key = crypto.randomUUID();
+      const key = uuidV4();
       if (entryMode.value === 'adjust') {
         await adjustWallet(accountType.value, ownerId, input, key);
       } else {

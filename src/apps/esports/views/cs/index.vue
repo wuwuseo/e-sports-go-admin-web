@@ -733,6 +733,7 @@
 </template>
 
 <script setup lang="ts">
+  import { uuidV4 } from '@/utils/uuid';
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
@@ -1268,7 +1269,7 @@
             backfillForm.fulfillmentStatus === 'completed' &&
             backfillForm.countCsCommission,
         },
-        crypto.randomUUID()
+        uuidV4()
       );
       backfillVisible.value = false;
       Message.success('补录成功');

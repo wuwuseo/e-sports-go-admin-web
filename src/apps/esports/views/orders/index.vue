@@ -1376,6 +1376,7 @@
 </template>
 
 <script setup lang="ts">
+  import { uuidV4 } from '@/utils/uuid';
   import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
@@ -2923,7 +2924,7 @@
         if (repriceQuote.value.requires_approval) {
           await requestPriceAdjustment(order.id, {
             ...payload,
-            request_key: crypto.randomUUID(),
+            request_key: uuidV4(),
           });
           submittedPriceApproval = true;
         } else {
@@ -3182,7 +3183,7 @@
           reason,
           count_cs_commission: countCsCommission,
         },
-        crypto.randomUUID()
+        uuidV4()
       );
       backfillVisible.value = false;
       Message.success('补录成功');

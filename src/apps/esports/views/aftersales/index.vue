@@ -1561,6 +1561,7 @@
 </template>
 
 <script setup lang="ts">
+  import { uuidV4 } from '@/utils/uuid';
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
@@ -2161,7 +2162,7 @@
   const isFundingAction = (value: AfterSaleActionType) =>
     value === 'refund' || value === 'compensate';
   const newPlanAction = (): PlanActionDraft => ({
-    key: crypto.randomUUID(),
+    key: uuidV4(),
     actionType: 'refund',
     amountYuan: 0,
     playerId: 0,

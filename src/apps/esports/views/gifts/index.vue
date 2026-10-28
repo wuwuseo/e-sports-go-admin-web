@@ -884,6 +884,7 @@
 </template>
 
 <script setup lang="ts">
+  import { uuidV4 } from '@/utils/uuid';
   import { computed, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
@@ -1436,7 +1437,7 @@
 
   function ensureSendClientKey(body: string) {
     if (!sendClientKey.value || sendKeyBody !== body) {
-      sendClientKey.value = crypto.randomUUID();
+      sendClientKey.value = uuidV4();
       sendKeyBody = body;
     }
     return sendClientKey.value;

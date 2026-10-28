@@ -423,6 +423,7 @@
 </template>
 
 <script setup lang="ts">
+  import { uuidV4 } from '@/utils/uuid';
   import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
@@ -501,7 +502,7 @@
     product_id: undefined as unknown as number,
     quantity: 1,
   });
-  const orderRequestKey = ref(crypto.randomUUID());
+  const orderRequestKey = ref(uuidV4());
   // 指定陪玩（可多选，第一个为主陪玩）：空数组表示不指定，由客服指派。
   const preferredPlayerIds = ref<number[]>([]);
   const primaryPlayerId = computed(() =>
@@ -629,7 +630,7 @@
     manualAdjustYuan.value = 0;
     manualAdjustReason.value = '';
     quotes.value = {};
-    orderRequestKey.value = crypto.randomUUID();
+    orderRequestKey.value = uuidV4();
     orderVisible.value = true;
   }
 
@@ -662,7 +663,7 @@
   const batchResults = ref<BatchResult[]>([]);
   const batchRows = ref<BatchRow[]>([]);
   const newBatchRow = (): BatchRow => ({
-    key: crypto.randomUUID(),
+    key: uuidV4(),
     quantity: 1,
   });
 
@@ -712,7 +713,7 @@
         return;
       }
       batchRows.value.push({
-        key: crypto.randomUUID(),
+        key: uuidV4(),
         customer_id: customerId,
         product_id: skuId,
         quantity,
@@ -783,7 +784,7 @@
             product_id: row.product_id as number,
             quantity: row.quantity,
           },
-          crypto.randomUUID()
+          uuidV4()
         )
       )
     );
@@ -884,7 +885,7 @@
       const expected = estimatedPayableCents.value;
       const created = (await createOrder(payload, orderRequestKey.value)).data
         .data;
-      orderRequestKey.value = crypto.randomUUID();
+      orderRequestKey.value = uuidV4();
       preferredPlayerIds.value = [];
       orderVisible.value = false;
       // 成交价以后端 payable_cents 为准：与页面试算不一致时如实提示，不静默按试算值展示。

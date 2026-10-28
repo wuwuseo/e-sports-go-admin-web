@@ -1,3 +1,4 @@
+import { uuidV4 } from '@/utils/uuid';
 import axios from 'axios';
 import type { AxiosResponse } from 'axios';
 import type { ApiResponse } from '@/types/api';
@@ -2622,7 +2623,7 @@ export const listCampaigns = (status = '') =>
 
 export const createCampaign = (input: Omit<CampaignInput, 'code'>) => {
   // 兼容尚未重启的旧后端；新版后端会忽略传入值并重新生成编码。
-  const code = `RC-${crypto.randomUUID().replace(/-/g, '').toUpperCase()}`;
+  const code = `RC-${uuidV4().replace(/-/g, '').toUpperCase()}`;
   return axios.post<ApiResponse<RechargeCampaign>>(`${base}/campaigns`, {
     ...input,
     code,
