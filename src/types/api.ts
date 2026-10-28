@@ -1180,3 +1180,32 @@ export interface UpdateSlideRequest {
   status?: number;
   remark?: string;
 }
+
+// ===== 幻灯片分组相关 =====
+export interface SlideGroupResponse {
+  id: number;
+  label: string;
+  value: string;
+  sort: number;
+  status: number;
+  remark?: string;
+  slide_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSlideGroupRequest {
+  label: string;
+  value: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+}
+
+export interface UpdateSlideGroupRequest {
+  label?: string;
+  value?: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+}

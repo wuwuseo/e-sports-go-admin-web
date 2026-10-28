@@ -36,4 +36,29 @@ export default {
   'system.slide.message.deleteSuccess': 'Slide deleted',
   'system.slide.message.enableSuccess': 'Enabled',
   'system.slide.message.disableSuccess': 'Disabled',
+  'system.slide.groupManage.entry': 'Manage Groups',
+  'system.slide.groupManage.title': 'Slide Groups',
+  'system.slide.groupManage.create': 'New Group',
+  'system.slide.groupManage.refresh': 'Refresh',
+  'system.slide.groupManage.label': 'Group Name',
+  'system.slide.groupManage.labelPlaceholder': 'Enter group name',
+  'system.slide.groupManage.labelRequired': 'Group name is required',
+  'system.slide.groupManage.value': 'Group Code',
+  'system.slide.groupManage.valuePlaceholder': 'Enter group code, e.g. home',
+  'system.slide.groupManage.valueRequired': 'Group code is required',
+  'system.slide.groupManage.valueInvalid':
+    'Group code must start with a letter and contain only letters, digits, underscores or hyphens',
+  'system.slide.groupManage.valueHint':
+    'The code is used as the group parameter of the public API. Changing it migrates all slides in this group.',
+  'system.slide.groupManage.count': 'Slides',
+  'system.slide.groupManage.empty':
+    'No groups yet. Click "New Group" to create one',
+  'system.slide.groupManage.deleteConfirm': 'Delete this group?',
+  'system.slide.groupManage.deleteBlocked':
+    'This group still contains slides. Move or delete them first.',
+  'system.slide.groupManage.form.createTitle': 'New Group',
+  'system.slide.groupManage.form.editTitle': 'Edit Group',
+  'system.slide.groupManage.message.createSuccess': 'Group created',
+  'system.slide.groupManage.message.updateSuccess': 'Group updated',
+  'system.slide.groupManage.message.deleteSuccess': 'Group deleted',
 };

@@ -51,6 +51,10 @@
               <template #icon><icon-plus /></template>
               {{ $t('system.slide.create') }}
             </a-button>
+            <a-button v-if="canManageGroup" @click="groupDrawerVisible = true">
+              <template #icon><icon-apps /></template>
+              {{ $t('system.slide.groupManage.entry') }}
+            </a-button>
           </a-space>
         </a-col>
       </a-row>
@@ -181,6 +185,11 @@
       :record="currentSlide"
       @saved="fetchData"
     />
+
+    <SlideGroupDrawer
+      v-model:visible="groupDrawerVisible"
+      @changed="loadGroupOptions"
+    />
   </div>
 </template>
 
@@ -194,6 +203,7 @@
   import { formatDateTime } from '@/utils';
   import usePermission from '@/hooks/permission';
   import SlideForm from './components/SlideForm.vue';
+  import SlideGroupDrawer from './components/SlideGroupDrawer.vue';
 
   const SLIDE_GROUP_DICT_TYPE = 'slide_group';
 
@@ -201,6 +211,7 @@
   const canAdd = computed(() => hasButtonPermission('slide:add'));
   const canEdit = computed(() => hasButtonPermission('slide:edit'));
   const canDelete = computed(() => hasButtonPermission('slide:delete'));
+  const canManageGroup = computed(() => hasButtonPermission('slide:group'));
 
   const { t } = useI18n();
 
@@ -208,6 +219,7 @@
   const slideList = ref<SlideResponse[]>([]);
   const groupOptions = ref<DictDataResponse[]>([]);
   const formVisible = ref(false);
+  const groupDrawerVisible = ref(false);
   const currentSlide = ref<SlideResponse | null>(null);
   const currentPage = ref(1);
   const pageSize = ref(10);
