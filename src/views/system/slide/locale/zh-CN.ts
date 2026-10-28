@@ -35,4 +35,28 @@ export default {
   'system.slide.message.deleteSuccess': '幻灯片删除成功',
   'system.slide.message.enableSuccess': '已启用',
   'system.slide.message.disableSuccess': '已禁用',
+  'system.slide.groupManage.entry': '分组管理',
+  'system.slide.groupManage.title': '幻灯片分组管理',
+  'system.slide.groupManage.create': '新增分组',
+  'system.slide.groupManage.refresh': '刷新',
+  'system.slide.groupManage.label': '分组名称',
+  'system.slide.groupManage.labelPlaceholder': '请输入分组名称',
+  'system.slide.groupManage.labelRequired': '分组名称不能为空',
+  'system.slide.groupManage.value': '分组编码',
+  'system.slide.groupManage.valuePlaceholder': '请输入分组编码,如 home',
+  'system.slide.groupManage.valueRequired': '分组编码不能为空',
+  'system.slide.groupManage.valueInvalid':
+    '分组编码需以字母开头,只能包含字母、数字、下划线和短横线',
+  'system.slide.groupManage.valueHint':
+    '编码用于前台接口的 group 参数,修改后会同步迁移该分组下的幻灯片',
+  'system.slide.groupManage.count': '幻灯片数',
+  'system.slide.groupManage.empty': '暂无分组,点击「新增分组」创建',
+  'system.slide.groupManage.deleteConfirm': '确认删除该分组吗?',
+  'system.slide.groupManage.deleteBlocked':
+    '分组下仍有幻灯片,请先移动或删除后再删除分组',
+  'system.slide.groupManage.form.createTitle': '新增分组',
+  'system.slide.groupManage.form.editTitle': '编辑分组',
+  'system.slide.groupManage.message.createSuccess': '分组创建成功',
+  'system.slide.groupManage.message.updateSuccess': '分组更新成功',
+  'system.slide.groupManage.message.deleteSuccess': '分组删除成功',
 };
