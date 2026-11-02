@@ -209,17 +209,32 @@
     >
       <a-form :model="submitForm">
         <a-form-item label="主体类型" required>
-          <a-radio-group v-model="submitForm.subject_type">
+          <a-radio-group
+            v-model="submitForm.subject_type"
+            @change="onSubjectTypeChange"
+          >
             <a-radio value="customer">客户</a-radio>
             <a-radio value="player">陪玩</a-radio>
           </a-radio-group>
         </a-form-item>
-        <a-form-item label="主体 ID" required>
-          <a-input-number
+        <a-form-item label="主体" required>
+          <a-select
             v-model="submitForm.subject_id"
-            :min="1"
-            placeholder="客户 / 陪玩档案 ID"
-          />
+            allow-search
+            :filter-option="false"
+            :loading="subjectLoading"
+            :placeholder="subjectPlaceholder"
+            @search="onSubjectSearch"
+            @popup-visible-change="onSubjectPopup"
+          >
+            <a-option
+              v-for="item in subjectOptions"
+              :key="item.value"
+              :value="item.value"
+            >
+              {{ item.label }}
+            </a-option>
+          </a-select>
         </a-form-item>
         <a-form-item label="真实姓名" required>
           <a-input
@@ -259,6 +274,8 @@
   import usePermission from '@/hooks/permission';
   import {
     getRealName,
+    listCustomers,
+    listPlayers,
     listRealNames,
     reviewRealName,
     submitRealNameByAdmin,
@@ -345,11 +362,76 @@
   const submitVisible = ref(false);
   const submitForm = reactive({
     subject_type: 'customer' as RealNameSubjectType,
-    subject_id: 0,
+    // 未选择时保持 undefined，避免下拉把 0 当成已选值显示出来。
+    subject_id: undefined as number | undefined,
     real_name: '',
     id_number: '',
     channel: 'manual' as RealNameChannel,
   });
+
+  // 代提交主体选择：按主体类型远程搜索客户 / 陪玩档案，避免手填 ID 选错人。
+  interface SubjectOption {
+    value: number;
+    label: string;
+  }
+
+  const subjectOptions = ref<SubjectOption[]>([]);
+  const subjectLoading = ref(false);
+  let subjectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const subjectPlaceholder = computed(() =>
+    submitForm.subject_type === 'customer'
+      ? '搜索客户昵称 / 手机号'
+      : '搜索陪玩昵称 / 手机号'
+  );
+
+  /** 按当前主体类型加载候选：客户列表无分页参数时返回数组，带 page 时返回 { items }。 */
+  async function loadSubjects(keyword = '') {
+    subjectLoading.value = true;
+    try {
+      if (submitForm.subject_type === 'customer') {
+        const res = await listCustomers({
+          keyword: keyword || undefined,
+          limit: 50,
+        });
+        const payload = res.data.data;
+        const list = Array.isArray(payload) ? payload : payload?.items || [];
+        subjectOptions.value = list.map((item) => ({
+          value: item.id,
+          label: `#${item.id} ${item.display_name}${
+            item.phone ? ` · ${item.phone}` : ''
+          }`,
+        }));
+      } else {
+        const res = await listPlayers(keyword);
+        subjectOptions.value = (res.data.data || []).map((item) => ({
+          value: item.id,
+          label: `#${item.id} ${item.display_name}${
+            item.user_phone ? ` · ${item.user_phone}` : ''
+          }`,
+        }));
+      }
+    } catch {
+      subjectOptions.value = [];
+      Message.error('加载主体候选失败，请稍后重试');
+    } finally {
+      subjectLoading.value = false;
+    }
+  }
+
+  function onSubjectSearch(keyword: string) {
+    if (subjectTimer) clearTimeout(subjectTimer);
+    subjectTimer = setTimeout(() => loadSubjects(keyword.trim()), 250);
+  }
+
+  function onSubjectPopup(visible: boolean) {
+    if (visible) loadSubjects('');
+  }
+
+  function onSubjectTypeChange() {
+    submitForm.subject_id = undefined;
+    loadSubjects('');
+  }
 
   async function load() {
     loading.value = true;
@@ -404,16 +486,19 @@
 
   function openSubmit() {
     submitForm.subject_type = 'customer';
-    submitForm.subject_id = 0;
+    submitForm.subject_id = undefined;
     submitForm.real_name = '';
     submitForm.id_number = '';
     submitForm.channel = 'manual';
+    // 候选按当前主体类型重新加载（弹层打开时也会拉一次，保证档期新增可见）。
+    subjectOptions.value = [];
     submitVisible.value = true;
   }
 
   async function submitByAdmin() {
-    if (!submitForm.subject_id) {
-      Message.warning('请填写主体 ID');
+    const subjectID = submitForm.subject_id;
+    if (!subjectID) {
+      Message.warning('请选择主体');
       return;
     }
     if (!submitForm.real_name.trim()) {
@@ -427,7 +512,7 @@
     try {
       await submitRealNameByAdmin({
         subject_type: submitForm.subject_type,
-        subject_id: submitForm.subject_id,
+        subject_id: subjectID,
         real_name: submitForm.real_name.trim(),
         id_number: submitForm.id_number.trim(),
         channel: submitForm.channel,

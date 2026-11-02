@@ -901,6 +901,11 @@
         title: '待接单',
         rows: board.pending_acceptance,
       },
+      {
+        key: 'pending_customer_confirm',
+        title: '待客户确认',
+        rows: board.pending_customer_confirm,
+      },
       { key: 'in_service', title: '服务中', rows: board.in_service },
       { key: 'pending_close', title: '待结单', rows: board.pending_close },
     ];

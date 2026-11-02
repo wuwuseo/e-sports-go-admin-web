@@ -372,6 +372,8 @@ export interface EsportsDispatchBoard {
   public_pool: EsportsOrder[];
   grabbing: EsportsOrder[];
   pending_acceptance: EsportsOrder[];
+  // 陪玩已抢单、等待客户确认的订单。
+  pending_customer_confirm: EsportsOrder[];
   accepted: EsportsOrder[];
   in_service: EsportsOrder[];
   pending_close: EsportsOrder[];

@@ -1019,6 +1019,7 @@
     | 'public_pool'
     | 'grabbing'
     | 'pending_acceptance'
+    | 'pending_customer_confirm'
     | 'accepted'
     | 'in_service'
     | 'pending_close'
@@ -1029,6 +1030,7 @@
     { key: 'public_pool', title: '公共池' },
     { key: 'grabbing', title: '抢单中' },
     { key: 'pending_acceptance', title: '待接单' },
+    { key: 'pending_customer_confirm', title: '待客户确认' },
     { key: 'accepted', title: '已接单' },
     { key: 'in_service', title: '服务中' },
     { key: 'pending_close', title: '待结单' },
