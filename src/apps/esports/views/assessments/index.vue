@@ -412,7 +412,7 @@
         <a-form-item
           label="游戏分区"
           required
-          tooltip="与商品分类的游戏名保持一致；抽查类型不绑分区"
+          tooltip="与商品分类的游戏名保持一致；所有考核均按分区定级或复核"
         >
           <a-input
             v-model="createForm.game"
@@ -884,10 +884,7 @@
   }
 
   async function submitCreate() {
-    if (
-      createForm.assessment_type !== 'spot_check' &&
-      !createForm.game.trim()
-    ) {
+    if (!createForm.game.trim()) {
       Message.warning('请填写考核的游戏分区');
       return;
     }
