@@ -993,9 +993,6 @@
             order_no: proofOrderNo.value.trim() || undefined,
           })
         ).data.data || [];
-      if (!proofs.value.length) {
-        Message.info('没有符合条件的到账凭证');
-      }
     } catch (err) {
       Message.error(errorText(err, '加载到账凭证失败'));
     } finally {
