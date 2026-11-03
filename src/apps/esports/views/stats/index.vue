@@ -104,8 +104,12 @@
             allow-clear
             :style="{ width: '140px' }"
           >
-            <a-option value="customer_balance">客户余额</a-option>
-            <a-option value="player_catfood">陪玩猫粮</a-option>
+            <a-option value="customer_balance">{{
+              displayName('customer_balance')
+            }}</a-option>
+            <a-option value="player_catfood">{{
+              displayName('player_catfood')
+            }}</a-option>
           </a-select>
           <a-select
             v-model="entryType"
@@ -486,14 +490,14 @@
           :column="4"
           bordered
           size="small"
-          title="客户余额资金（本金 + 赠送权益）"
+          :title="`${displayName('customer_balance')}（本金 + 赠送权益）`"
         >
           <a-descriptions-item
             v-for="row in customerWalletRows"
             :key="row.key"
             :label="walletEntryLabel(row.key)"
           >
-            {{ money(row.amount) }}
+            {{ walletAmount(row.amount, 'customer_balance') }}
           </a-descriptions-item>
         </a-descriptions>
         <a-descriptions
@@ -501,7 +505,7 @@
           :column="4"
           bordered
           size="small"
-          title="陪玩猫粮（本金 + 赠送权益）"
+          :title="`${displayName('player_catfood')}（本金 + 赠送权益）`"
           :style="{ marginTop: '12px' }"
         >
           <a-descriptions-item
@@ -509,7 +513,7 @@
             :key="row.key"
             :label="walletEntryLabel(row.key)"
           >
-            {{ money(row.amount) }}
+            {{ walletAmount(row.amount, 'player_catfood') }}
           </a-descriptions-item>
         </a-descriptions>
         <a-descriptions
@@ -575,6 +579,7 @@
   import { computed, onMounted, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import { useWalletDisplay } from '../../wallet-display';
   import AdminSelect from '../../components/AdminSelect.vue';
   import {
     exportEsportsReport,
@@ -594,6 +599,8 @@
     ReportQuery,
     ReportType,
   } from '../../api';
+
+  const { displayName, amountText: walletAmount } = useWalletDisplay();
 
   const payChannelMap: Record<string, string> = {
     wechat_work: '企业微信收款',

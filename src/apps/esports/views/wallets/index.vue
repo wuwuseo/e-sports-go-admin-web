@@ -32,12 +32,12 @@
               <template #cell="{ record }">
                 <a-space>
                   <component
-                    :is="walletIcon(record.display?.icon)"
-                    v-if="walletIcon(record.display?.icon)"
+                    :is="walletIcon(displayOf(record)?.icon)"
+                    v-if="walletIcon(displayOf(record)?.icon)"
                   />
                   <a-tooltip
-                    v-if="record.display?.description"
-                    :content="record.display.description"
+                    v-if="displayOf(record)?.description"
+                    :content="displayOf(record).description"
                   >
                     <span>{{ ownerName(record) }}</span>
                   </a-tooltip>
@@ -458,6 +458,7 @@
 </template>
 
 <script setup lang="ts">
+  import { walletUnitAmount, walletAmountText } from '@/utils/wallet-display';
   import { uuidV4 } from '@/utils/uuid';
   import {
     computed,
@@ -471,11 +472,15 @@
   import { Message, Modal } from '@arco-design/web-vue';
   import { IconGift, IconSafe } from '@arco-design/web-vue/es/icon';
   import usePermission from '@/hooks/permission';
-  import yuanToCents, { divideToInt } from '@/utils/money';
+  import yuanToCents from '@/utils/money';
+  import {
+    useWalletDisplay,
+    refreshWalletDisplay,
+    rememberWalletDisplay,
+  } from '../../wallet-display';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     adjustWallet,
-    getWalletDisplayConfig,
     getWalletRefundQuote,
     listLedgerAllocations,
     listLedgerReconcileAnomalies,
@@ -519,14 +524,11 @@
     hasButtonPermission('esports:wallets:reconcile_anomalies')
   );
 
-  // 展示口径：页签标题与账户类型选项跟随系统配置「钱包展示配置」；
+  // 展示口径统一读取带有效期的共享缓存。
   // 配置接口失败（无授权/网络）时回落硬编码文案，不影响页面可用。
-  const displayConfig = ref<Record<
-    WalletAccountType,
-    { display_name?: string }
-  > | null>(null);
+  const { displays: displayConfig } = useWalletDisplay();
   const displayTitle = (accountType: WalletAccountType, fallback: string) =>
-    displayConfig.value?.[accountType]?.display_name || fallback;
+    displayConfig.value[accountType]?.display_name || fallback;
 
   // 资金类动作统一二次确认，并显式提示以管理员身份执行（操作留痕）。
   const confirmFundsAction = (content: string, title = '资金类动作确认') =>
@@ -593,32 +595,28 @@
   const walletIcon = (icon?: string): Component | null =>
     icon ? walletIconMap[icon] || null : walletIconMap.wallet;
 
-  // 按账户单位倍率换算：cents / unitCents 保留两位，用高精度除法避免浮点误差。
-  const fmtByUnit = (cents: number, unitCents?: number) => {
-    const unit = unitCents && unitCents > 0 ? unitCents : 100;
-    const sign = cents < 0 ? '-' : '';
-    const abs = Math.abs(cents);
-    let intPart = Math.floor(abs / unit);
-    let fracPart = divideToInt(abs % unit, unit, 100);
-    if (fracPart === 100) {
-      intPart += 1;
-      fracPart = 0;
-    }
-    return `${sign}${intPart}.${String(fracPart).padStart(2, '0')}`;
-  };
+  // 换算口径与服务端一致，截断到两位小数。
+  const fmtByUnit = (cents: number, unitCents?: number) =>
+    walletUnitAmount(cents, { unit_cents: unitCents });
   // 表格金额：有展示配置时按单位换算并拼单位名，缺失回落旧 ¥ 逻辑。
+  const displayOf = (record: WalletAccount) =>
+    displayConfig.value[record.account_type];
   const amountText = (cents: number, record: WalletAccount) =>
-    record.display
-      ? `${fmtByUnit(cents, record.display.unit_cents)} ${
-          record.display.unit_name
-        }`
-      : money(cents);
+    walletAmountText(cents, displayOf(record));
   // 流水金额：按当前账户的展示单位换算，缺失回落 ¥ 逻辑。
-  const unitName = () => txTarget.value?.display?.unit_name;
+  const unitName = () =>
+    txTarget.value
+      ? displayConfig.value[txTarget.value.account_type].unit_name
+      : undefined;
   const moneyByUnit = (cents: number) => {
     const name = unitName();
     return name
-      ? `${fmtByUnit(cents, txTarget.value?.display?.unit_cents)} ${name}`
+      ? `${fmtByUnit(
+          cents,
+          txTarget.value
+            ? displayConfig.value[txTarget.value.account_type].unit_cents
+            : undefined
+        )} ${name}`
       : money(cents);
   };
   const signedByUnit = (cents: number) => {
@@ -626,7 +624,9 @@
     if (!name) return signed(cents);
     const text = `${fmtByUnit(
       cents,
-      txTarget.value?.display?.unit_cents
+      txTarget.value
+        ? displayConfig.value[txTarget.value.account_type].unit_cents
+        : undefined
     )} ${name}`;
     return cents > 0 ? `+${text}` : text;
   };
@@ -656,7 +656,11 @@
   async function load() {
     loading.value = true;
     try {
+      await refreshWalletDisplay();
       accounts.value = (await listWallets(accountType.value)).data.data || [];
+      accounts.value.forEach((account) => {
+        rememberWalletDisplay(account.account_type, account.display);
+      });
     } catch {
       Message.error('加载失败，请稍后重试');
     } finally {
@@ -971,13 +975,6 @@
 
   onMounted(() => {
     load();
-    getWalletDisplayConfig()
-      .then(({ data }) => {
-        displayConfig.value = data.data || null;
-      })
-      .catch(() => {
-        displayConfig.value = null;
-      });
   });
 
   onBeforeUnmount(() => {

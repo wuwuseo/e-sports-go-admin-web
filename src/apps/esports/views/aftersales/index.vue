@@ -957,8 +957,9 @@
                   :precision="2"
                 />
                 <a-typography-text type="secondary">
-                  售后执行会生成待审批的陪玩追偿单，审批通过后从陪玩猫粮扣回；
-                  与「退款冲回分成」相互独立，且不得超过赔付金额。
+                  售后执行会生成待审批的陪玩追偿单，审批通过后从陪玩{{
+                    walletName('player_catfood')
+                  }}扣回； 与「退款冲回分成」相互独立，且不得超过赔付金额。
                 </a-typography-text>
               </a-form-item>
               <a-form-item
@@ -1568,6 +1569,7 @@
   import yuanToCents from '@/utils/money';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import type { AttachmentResponse } from '@/types/api';
+  import { useWalletDisplay } from '../../wallet-display';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import SkuSelect from '../../components/SkuSelect.vue';
   import {
@@ -1636,6 +1638,8 @@
     EsportsSku,
     MakeupKind,
   } from '../../api';
+
+  const { displayName: walletName } = useWalletDisplay();
 
   const payChannelMap: Record<string, string> = {
     wechat_work: '企业微信收款',

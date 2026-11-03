@@ -997,7 +997,9 @@
             >
           </a-space>
           <a-typography-text type="secondary" class="tip">
-            客户赔付由陪玩承担时，售后执行会生成待审批的追偿单；由非申请人审批通过后从陪玩猫粮扣回（余额不足可待结算后再执行）。
+            客户赔付由陪玩承担时，售后执行会生成待审批的追偿单；由非申请人审批通过后从陪玩{{
+              walletName('player_catfood')
+            }}扣回（余额不足可待结算后再执行）。
             扣回与「退款冲回分成」相互独立。
           </a-typography-text>
           <a-table
@@ -1715,8 +1717,10 @@
           />
         </a-form-item>
         <a-typography-text type="secondary">
-          客服提成结算不写猫粮钱包：锁定后由财务打款，并在结算单上登记外部打款凭证。
-          也可由 `esports_generate_cs_settlements`
+          客服提成结算不写{{
+            walletName('player_catfood')
+          }}钱包：锁定后由财务打款，并在结算单上登记外部打款凭证。 也可由
+          `esports_generate_cs_settlements`
           任务按上一完整周期自动生成草稿结算单（幂等：同客服同周期已生成则跳过）。
         </a-typography-text>
       </a-form>
@@ -1754,7 +1758,9 @@
           <a-textarea v-model="withdrawalRejectForm.reason" :max-length="255" />
         </a-form-item>
         <a-typography-text type="secondary">
-          驳回会把申请金额退回陪玩的猫粮账户，退回只发生一次。
+          驳回会把申请金额退回陪玩的{{
+            walletName('player_catfood')
+          }}账户，退回只发生一次。
         </a-typography-text>
       </a-form>
     </a-modal>
@@ -1778,7 +1784,9 @@
           <a-input v-model="withdrawalPayForm.taxRef" :max-length="128" />
         </a-form-item>
         <a-typography-text type="secondary">
-          打款不再改动猫粮账户：申请时钱已离开猫粮，此处只登记到账凭证与时间。
+          打款不再改动{{ walletName('player_catfood') }}账户：申请时钱已离开{{
+            walletName('player_catfood')
+          }}，此处只登记到账凭证与时间。
           旧版入口会直接置为已打款；建议改用「提交打款」走打款执行状态机。
         </a-typography-text>
       </a-form>
@@ -2081,6 +2089,7 @@
   import usePermission from '@/hooks/permission';
   import { getConfigByGroup } from '@/api/config';
   import yuanToCents from '@/utils/money';
+  import { useWalletDisplay } from '../../wallet-display';
   import AdminSelect from '../../components/AdminSelect.vue';
   import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
   import {
@@ -2172,6 +2181,8 @@
 
   // ISO 周（周一为一周开始），与后端 YYYY-Www 口径一致。
   dayjs.extend(isoWeek);
+
+  const { displayName: walletName } = useWalletDisplay();
 
   const { hasButtonPermission } = usePermission();
   const canOperate = computed(() =>
@@ -3444,7 +3455,7 @@
         withdrawalRejectForm.reason
       );
       withdrawalRejectVisible.value = false;
-      Message.success('已驳回，申请金额已退回猫粮');
+      Message.success(`已驳回，申请金额已退回${walletName('player_catfood')}`);
       await loadWithdrawals();
     } catch (err) {
       Message.error(errorText(err, '驳回失败：状态已变化'));
@@ -3767,10 +3778,15 @@
   async function doExecuteRecovery(record: EsportsPlayerRecovery) {
     try {
       await executePlayerRecovery(record.id);
-      Message.success('已从陪玩猫粮扣回');
+      Message.success(`已从陪玩${walletName('player_catfood')}扣回`);
       await loadRecoveries();
     } catch (err) {
-      Message.error(errorText(err, '执行失败：猫粮余额不足或状态已变化'));
+      Message.error(
+        errorText(
+          err,
+          `执行失败：${walletName('player_catfood')}余额不足或状态已变化`
+        )
+      );
     }
   }
 

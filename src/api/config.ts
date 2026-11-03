@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { invalidateWalletDisplay } from '@/apps/esports/wallet-display';
 import type {
   ConfigResponse,
   CreateConfigRequest,
@@ -18,11 +19,15 @@ export function getConfigList(params?: ConfigQuery) {
 }
 
 // 创建动态配置
-export function createConfig(data: CreateConfigRequest) {
-  return axios.post<ApiResponse<ConfigResponse>>(
+export async function createConfig(data: CreateConfigRequest) {
+  const response = await axios.post<ApiResponse<ConfigResponse>>(
     '/api/v1/admin/auth/configs',
     data
   );
+  if (data.key === 'app.esports.wallet_display') {
+    await invalidateWalletDisplay();
+  }
+  return response;
 }
 
 // 按键获取配置
@@ -47,16 +52,24 @@ export function getConfigDetail(id: number) {
 }
 
 // 更新配置
-export function updateConfig(id: number, data: UpdateConfigRequest) {
-  return axios.put<ApiResponse<ConfigResponse>>(
+export async function updateConfig(id: number, data: UpdateConfigRequest) {
+  const response = await axios.put<ApiResponse<ConfigResponse>>(
     `/api/v1/admin/auth/configs/${id}`,
     data
   );
+  if (response.data.data?.key === 'app.esports.wallet_display') {
+    await invalidateWalletDisplay();
+  }
+  return response;
 }
 
 // 删除配置
-export function deleteConfig(id: number) {
-  return axios.delete<ApiResponse<null>>(`/api/v1/admin/auth/configs/${id}`);
+export async function deleteConfig(id: number) {
+  const response = await axios.delete<ApiResponse<null>>(
+    `/api/v1/admin/auth/configs/${id}`
+  );
+  await invalidateWalletDisplay();
+  return response;
 }
 
 // 获取配置分组选项

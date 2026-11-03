@@ -400,9 +400,12 @@
           <a-descriptions-item label="会员等级">{{
             profile.member_level_code || '未定级'
           }}</a-descriptions-item>
-          <a-descriptions-item label="当前余额">{{
-            moneyText(profile.balance_cents)
-          }}</a-descriptions-item>
+          <a-descriptions-item
+            :label="`当前${displayName('customer_balance')}`"
+            >{{
+              walletAmount(profile.balance_cents, 'customer_balance')
+            }}</a-descriptions-item
+          >
           <a-descriptions-item label="成长值">{{
             profile.growth_total
           }}</a-descriptions-item>
@@ -734,11 +737,15 @@
 
 <script setup lang="ts">
   import { uuidV4 } from '@/utils/uuid';
-  import { computed, onMounted, reactive, ref } from 'vue';
+  import { computed, onMounted, reactive, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import useUserStore from '@/store/modules/user';
+  import {
+    useWalletDisplay,
+    rememberWalletDisplay,
+  } from '../../wallet-display';
   import SkuSelect from '../../components/SkuSelect.vue';
   import {
     backfillOrder,
@@ -1070,7 +1077,14 @@
   const profileVisible = ref(false);
   const profileSaving = ref(false);
   const profileTarget = ref<EsportsCustomer | null>(null);
+  const { displayName, amountText: walletAmount } = useWalletDisplay();
   const profile = ref<CustomerProfileSummary | null>(null);
+  watch(
+    () => profile.value?.balance_display,
+    (display) => {
+      rememberWalletDisplay('customer_balance', display);
+    }
+  );
   const followUps = ref<CustomerFollowUp[]>([]);
   // 历史订单明细：按客户过滤，逐单套用「负责 OR 协作」可见性边界。
   const profileOrders = ref<EsportsOrder[]>([]);

@@ -118,15 +118,23 @@
         </a-form-item>
         <a-form-item
           label="奖励发放账户"
-          tooltip="猫粮奖励只能发给陪玩受众；客户余额活动不接受陪玩受众。"
+          :tooltip="`${displayName(
+            'player_catfood'
+          )}奖励只能发给陪玩受众；${displayName(
+            'customer_balance'
+          )}活动不接受陪玩受众。`"
           required
         >
           <a-select
             v-model="form.targetAccountType"
             @change="onTargetAccountChange"
           >
-            <a-option value="customer_balance">客户余额</a-option>
-            <a-option value="player_catfood">陪玩猫粮</a-option>
+            <a-option value="customer_balance">{{
+              displayName('customer_balance')
+            }}</a-option>
+            <a-option value="player_catfood">{{
+              displayName('player_catfood')
+            }}</a-option>
           </a-select>
         </a-form-item>
         <a-form-item label="阶梯档位" required>
@@ -185,7 +193,9 @@
             <a-option value="all">全部客户</a-option>
             <a-option value="new_customer">新客</a-option>
             <a-option value="specified">指定客户</a-option>
-            <a-option value="player">指定陪玩（猫粮奖励）</a-option>
+            <a-option value="player"
+              >指定陪玩（{{ displayName('player_catfood') }}奖励）</a-option
+            >
           </a-select>
         </a-form-item>
         <a-form-item
@@ -244,6 +254,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { useWalletDisplay } from '../../wallet-display';
   import OwnerMultiSelect from '../../components/OwnerMultiSelect.vue';
   import {
     createCampaign,
@@ -259,6 +270,8 @@
     CampaignStatus,
     RechargeCampaign,
   } from '../../api';
+
+  const { displayName } = useWalletDisplay();
 
   const { hasButtonPermission } = usePermission();
   const canManage = computed(() =>
@@ -312,12 +325,10 @@
     specified: '指定客户',
     player: '指定陪玩',
   };
-  const targetAccountMap: Record<string, string> = {
-    customer_balance: '客户余额',
-    player_catfood: '陪玩猫粮',
-  };
   const targetAccountLabel = (value?: string) =>
-    (value && targetAccountMap[value]) || targetAccountMap.customer_balance;
+    displayName(
+      value === 'player_catfood' ? 'player_catfood' : 'customer_balance'
+    );
   const statusLabel = (value: string) => statusMap[value] || value;
   const statusColor = (value: string) => statusColorMap[value] || 'gray';
   const activityLabel = (value: string) => activityMap[value] || value;
@@ -514,12 +525,18 @@
     if (form.targetAccountType === 'player_catfood') {
       if (form.audience !== 'player' && form.audience !== 'all') {
         Message.warning(
-          '陪玩猫粮奖励只能发给陪玩受众（含「指定陪玩」或「全部」）'
+          `${displayName(
+            'player_catfood'
+          )}奖励只能发给陪玩受众（含「指定陪玩」或「全部」）`
         );
         return null;
       }
     } else if (form.audience === 'player') {
-      Message.warning('客户余额活动不接受陪玩受众，请改选「陪玩猫粮」账户');
+      Message.warning(
+        `${displayName(
+          'customer_balance'
+        )}活动不接受陪玩受众，请改选「${displayName('player_catfood')}」账户`
+      );
       return null;
     }
     if (!form.startsAt || !form.endsAt) {

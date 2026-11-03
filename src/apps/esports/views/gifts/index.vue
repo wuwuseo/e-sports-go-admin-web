@@ -108,7 +108,9 @@
                 }}</template>
               </a-table-column>
               <a-table-column title="付款来源">
-                <template #cell>客户余额本金</template>
+                <template #cell
+                  >{{ walletName('customer_balance') }}本金</template
+                >
               </a-table-column>
               <a-table-column title="收款状态">
                 <template #cell="{ record }">{{
@@ -153,7 +155,9 @@
           </a-table>
           <div class="hint"
             >客户在移动端核对礼物、收礼人、数量和金额后确认；确认单 30
-            分钟内有效。客户余额本金不足时，由客服对确认单发起收款，收款核销后成单。</div
+            分钟内有效。{{
+              walletName('customer_balance')
+            }}本金不足时，由客服对确认单发起收款，收款核销后成单。</div
           >
         </a-tab-pane>
         <a-tab-pane key="payment" title="收款核验">
@@ -266,7 +270,7 @@
             }}</template>
           </a-table-column>
           <a-table-column title="付款来源">
-            <template #cell>客户余额本金</template>
+            <template #cell>{{ walletName('customer_balance') }}本金</template>
           </a-table-column>
           <a-table-column title="陪玩收入">
             <template #cell="{ record }">{{
@@ -858,7 +862,9 @@
         </a-form-item>
         <a-form-item label="付款来源" required>
           <a-radio-group v-model="sendForm.paymentSource">
-            <a-radio value="customer_balance_principal">客户余额本金</a-radio>
+            <a-radio value="customer_balance_principal"
+              >{{ walletName('customer_balance') }}本金</a-radio
+            >
           </a-radio-group>
         </a-form-item>
         <div class="hint"
@@ -889,6 +895,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { useWalletDisplay } from '../../wallet-display';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     createGift,
@@ -927,6 +934,8 @@
     GiftStatus,
     GiftTierInput,
   } from '../../api';
+
+  const { displayName: walletName } = useWalletDisplay();
 
   const { hasButtonPermission } = usePermission();
   const canManage = computed(() => hasButtonPermission('esports:gifts:manage'));

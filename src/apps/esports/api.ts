@@ -683,10 +683,19 @@ export const listWallets = (accountType: WalletAccountType, keyword = '') =>
 
 // 钱包展示口径：按账户类型返回完整展示配置，管理端页签标题 /
 // 账户类型选项跟随「钱包展示配置」（系统配置 app.esports.wallet_display）动态渲染。
-export const getWalletDisplayConfig = () =>
-  axios.get<ApiResponse<Record<WalletAccountType, WalletDisplay>>>(
-    `${base}/wallets/display`
-  );
+export const getWalletDisplayConfig = async () => {
+  try {
+    return await axios.get<
+      ApiResponse<Record<WalletAccountType, WalletDisplay>>
+    >('/api/v1/esports/wallets/display', { silentError: true });
+  } catch {
+    // 兼容尚未更新的服务端；该接口也仅返回展示元数据。
+    return axios.get<ApiResponse<Record<WalletAccountType, WalletDisplay>>>(
+      `${base}/wallets/display`,
+      { silentError: true }
+    );
+  }
+};
 
 export const listWalletTransactions = (
   accountType: WalletAccountType,
@@ -3868,6 +3877,7 @@ export interface CustomerProfileSummary {
   principal_cents: number;
   bonus_cents: number;
   balance_cents: number;
+  balance_display?: WalletDisplay;
   recharged_cents: number;
   consumed_cents: number;
   refunded_cents: number;
