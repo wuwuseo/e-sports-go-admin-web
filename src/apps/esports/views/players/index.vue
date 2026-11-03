@@ -36,6 +36,11 @@
               skillLevelName(skillLevels, record.level) || '—'
             }}</template>
           </a-table-column>
+          <a-table-column title="分区等级">
+            <template #cell="{ record }">{{
+              gameLevelsText(record.game_levels)
+            }}</template>
+          </a-table-column>
           <a-table-column title="资格">
             <template #cell="{ record }">{{
               qualificationLabel(record.qualification)
@@ -500,6 +505,18 @@
   const { hasButtonPermission } = usePermission();
   // 陪玩等级（技能等级，§5.5）：编码 → 中文显示名，公开读一次缓存。
   const skillLevels = ref<SkillLevel[]>([]);
+
+  /** 分区等级：按「分区 等级名」展示；无分区等级时显示 —。 */
+  function gameLevelsText(levels?: Record<string, string>): string {
+    const entries = Object.entries(levels || {});
+    if (entries.length === 0) return '—';
+    return entries
+      .map(
+        ([game, level]) =>
+          `${game} ${skillLevelName(skillLevels.value, level) || level}`
+      )
+      .join(' / ');
+  }
   // 期望报价复核 / 信用记载 / 档期查询三条路由在 app.go 里只有 PermAPI 权限码
   // （esports:players:expected_price_review、esports:players:credit_list、esports:players:credit_review、
   // esports:members:player_availability），hasButtonPermission 只命中 PermButton，
