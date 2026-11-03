@@ -411,7 +411,8 @@
         </a-form-item>
         <a-form-item
           label="游戏分区"
-          tooltip="与商品分类的游戏名保持一致；留空表示本次考核不绑分区"
+          required
+          tooltip="与商品分类的游戏名保持一致；抽查类型不绑分区"
         >
           <a-input
             v-model="createForm.game"
@@ -883,6 +884,13 @@
   }
 
   async function submitCreate() {
+    if (
+      createForm.assessment_type !== 'spot_check' &&
+      !createForm.game.trim()
+    ) {
+      Message.warning('请填写考核的游戏分区');
+      return;
+    }
     try {
       await createAssessment({
         player_id: createForm.player_id,
