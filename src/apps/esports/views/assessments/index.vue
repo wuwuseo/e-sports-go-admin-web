@@ -409,6 +409,16 @@
             >
           </a-select>
         </a-form-item>
+        <a-form-item
+          label="游戏分区"
+          tooltip="与商品分类的游戏名保持一致；留空表示本次考核不绑分区"
+        >
+          <a-input
+            v-model="createForm.game"
+            :max-length="64"
+            placeholder="如：王者荣耀"
+          />
+        </a-form-item>
         <a-form-item label="备注">
           <a-input v-model="createForm.note" :max-length="500" />
         </a-form-item>
@@ -857,6 +867,7 @@
     player_id: 0,
     assessment_type: 'entry' as AssessmentType,
     target_level: undefined as PlayerLevel | undefined,
+    game: '',
     note: '',
   });
 
@@ -865,6 +876,7 @@
       player_id: 0,
       assessment_type: 'entry',
       target_level: undefined,
+      game: '',
       note: '',
     });
     createVisible.value = true;
@@ -876,6 +888,7 @@
         player_id: createForm.player_id,
         assessment_type: createForm.assessment_type,
         target_level: createForm.target_level,
+        game: createForm.game,
         note: createForm.note,
       });
       Message.success('考核任务已创建');

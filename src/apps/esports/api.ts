@@ -3361,6 +3361,7 @@ export interface Assessment {
   player_id: number;
   assessment_type: AssessmentType;
   target_level: string;
+  game: string;
   status: AssessmentStatus;
   appeal_status: AssessmentAppealStatus;
   source: 'apply' | 'system';
@@ -3405,6 +3406,7 @@ export interface AssessmentInput {
   player_id: number;
   assessment_type: AssessmentType;
   target_level?: string;
+  game?: string;
   note?: string;
   examiner_admin_id?: number | null;
 }
