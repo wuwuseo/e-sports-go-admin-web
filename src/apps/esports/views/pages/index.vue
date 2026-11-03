@@ -30,7 +30,11 @@
           {{ doc.published_version_no || '未发布' }}</span
         >
         <a-button :loading="loading" @click="load">刷新</a-button>
-        <a-button :loading="saving" type="primary" @click="saveDraft"
+        <a-button
+          v-if="pageAccess.saveDraft"
+          :loading="saving"
+          type="primary"
+          @click="saveDraft"
           >保存草稿</a-button
         >
         <a-button @click="previewVisible = true">预览</a-button>
@@ -900,7 +904,7 @@
           </a-table>
         </a-tab-pane>
 
-        <a-tab-pane key="assets" title="素材库">
+        <a-tab-pane v-if="pageAccess.readAssets" key="assets" title="素材库">
           <a-space class="toolbar" wrap>
             <a-input
               v-model="assetForm.name"
@@ -1075,6 +1079,7 @@
   import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import { useUserStore } from '@/store';
   import { getAdmins } from '@/api/user';
   import { getAttachmentAccessUrl, uploadAttachment } from '@/api/attachment';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
@@ -1084,10 +1089,8 @@
     createEsportsPageAsset,
     createPagePreviewCode,
     deleteEsportsPageAsset,
-    getEsportsPage,
     getEsportsPageAssets,
     getEsportsPages,
-    getEsportsPageVersions,
     getPageTabbar,
     publishEsportsPage,
     reviewEsportsPagePublish,
@@ -1107,6 +1110,7 @@
   import ImageCropper from '../../components/page-designer/ImageCropper.vue';
   import LayoutSlots from '../../components/page-designer/LayoutSlots.vue';
   import PagePreview from '../../components/page-designer/PagePreview.vue';
+  import { getPageAccess, loadPageData } from './page-data';
 
   // ── 可视化属性面板 schema ──
   type PropFieldKind =
@@ -1508,6 +1512,10 @@
 
   // 发布权限：运营提交发布申请，有发布权限者（异人）审核发布，回滚同权限。
   const { hasButtonPermission } = usePermission();
+  const userStore = useUserStore();
+  const pageAccess = computed(() =>
+    getPageAccess(userStore.permissionTree, userStore.role === 'admin')
+  );
   const canSubmit = computed(() =>
     hasButtonPermission('esports:pages:publish_submit')
   );
@@ -2411,6 +2419,7 @@
     },
     options: { quiet?: boolean } = {}
   ): Promise<PageAsset | null> {
+    if (!pageAccess.value.createAssets) return null;
     const url = input.url.trim();
     const mime = normalizeAssetMime(input.mime);
     if (!url || !ASSET_MIME_WHITELIST.includes(mime)) return null;
@@ -2503,6 +2512,7 @@
   }
 
   async function syncComponentImagesToAssets() {
+    if (!pageAccess.value.createAssets) return;
     const urls = Array.from(new Set(collectPageImageUrls(components.value)));
     await Promise.all(
       urls.map(async (url) => {
@@ -2779,6 +2789,10 @@
 
   // 发布人昵称：取后台管理员列表建立 ID → 展示名映射，取不到时回落 #ID。
   const loadAdminNames = async () => {
+    if (!pageAccess.value.readAdminNames) {
+      adminNames.value = {};
+      return;
+    }
     try {
       const result = await getAdmins({ page: 1, page_size: 200 });
       const names: Record<number, string> = {};
@@ -2794,15 +2808,14 @@
   const load = async () => {
     loading.value = true;
     try {
-      const [page, versionList, assetList] = await Promise.all([
-        getEsportsPage(channel.value),
-        getEsportsPageVersions(channel.value),
-        getEsportsPageAssets(),
-      ]);
-      doc.value = page.data.data.document;
-      components.value = expandLegacySupportEntry(page.data.data.components);
-      versions.value = versionList.data.data;
-      assets.value = normalizePageAssets(assetList.data.data);
+      const result = await loadPageData(channel.value, pageAccess.value);
+      doc.value = result.page.document;
+      components.value = expandLegacySupportEntry(result.page.components);
+      versions.value = result.versions;
+      assets.value = normalizePageAssets(result.assets);
+      result.errors.forEach((err) => {
+        Message.warning(errorText(err, '加载装修配置失败'));
+      });
       selectedPathList.value = [];
       loadForm();
       diffLeftNo.value = undefined;
@@ -3007,6 +3020,7 @@
   };
 
   const saveDraft = async () => {
+    if (!pageAccess.value.saveDraft) return;
     saving.value = true;
     try {
       const res = await saveEsportsPageDraft(

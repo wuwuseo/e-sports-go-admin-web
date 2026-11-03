@@ -4,7 +4,8 @@ import NProgress from 'nprogress';
 import { useUserStore } from '@/store';
 import usePermission from '@/hooks/permission';
 import { isLogin, isAdminLogin } from '@/utils/auth';
-import { WHITE_LIST, NOT_FOUND } from '../constants';
+import { DEFAULT_ROUTE, WHITE_LIST, NOT_FOUND } from '../constants';
+import { canAccessRoute, findLoginFallback } from '../route-access';
 
 export default function setupPermissionGuard(router: Router) {
   router.beforeEach(async (to, _from, next) => {
@@ -71,31 +72,14 @@ export default function setupPermissionGuard(router: Router) {
       return;
     }
 
-    let permissionsAllow = true;
-
-    if (to.meta?.roles && to.meta.roles.length > 0) {
-      if (to.meta.roles.includes('*')) {
-        permissionsAllow = true;
-      } else if (!to.meta.roles.includes(userStore.role)) {
-        permissionsAllow = false;
-      }
-    }
-
-    if (permissionsAllow && to.meta?.requiresAuth) {
-      if (to.meta?.permissionCode) {
-        const permissionCode = to.meta.permissionCode as string | string[];
-        if (Array.isArray(permissionCode)) {
-          permissionsAllow = permission.hasAnyPermission(permissionCode);
-        } else {
-          permissionsAllow = permission.hasMenuPermission(permissionCode);
-        }
-      } else if (!(to.meta?.roles && to.meta.roles.includes('*')) && to.name) {
-        permissionsAllow = permission.hasMenuPermission(to.name.toString());
-      }
-    }
+    const access = { role: userStore.role, ...permission };
+    const permissionsAllow = canAccessRoute(to, access);
 
     if (permissionsAllow) {
       next();
+    } else if (to.path === DEFAULT_ROUTE.fullPath) {
+      const path = findLoginFallback(router, access);
+      next(path ? { path, replace: true } : NOT_FOUND);
     } else {
       next(NOT_FOUND);
     }
