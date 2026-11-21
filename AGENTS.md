@@ -7,7 +7,7 @@
 
 ## 1. 项目定位
 
-- 本仓库 `go-admin-web` 是电竞陪玩报单系统（EsportsPartner）的**管理端前端**，配套后端为同工作区的 `go-admin`（Go + Fiber，默认监听 `127.0.0.1:9501`）。
+- 本仓库 `e-sports-go-admin-web` 是电竞陪玩报单系统（EsportsPartner）的**管理端前端**，配套后端为同工作区的 `e-sports-go-admin`（Go + Fiber，默认监听 `127.0.0.1:9501`）。
 - 技术栈：Vue 3.5 + TypeScript 4.9 + Vite 3.2 + Arco Design Vue 2.58 + Pinia + Vue Router 4。
 - 接口统一以 `/api/v1` 开头；开发环境通过 Vite 代理（`/api`、`/api/v1/admin/sse`）转发到后端。
 - 构建产物 `dist/` 需同步到后端 `go-admin/web/dist`，由 `//go:embed` 打进二进制。**只改前端源码而不重新构建、不重新编译后端，线上不会生效。**

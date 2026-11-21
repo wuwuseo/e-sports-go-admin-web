@@ -1,6 +1,6 @@
 # 前端源码功能集
 
-`admin-web` 的源码功能集与 go-admin 的 `internal/apps/<code>` 一起发布。后端提供菜单和权限元数据；前端在构建时收录页面文件，登录后只为当前用户有权访问的功能集注册路由。后端的 `component` 是本地页面标识，不是远程脚本地址。
+`e-sports-go-admin-web` 的源码功能集与 e-sports-go-admin 的 `internal/apps/<code>` 一起发布。后端提供菜单和权限元数据；前端在构建时收录页面文件，登录后只为当前用户有权访问的功能集注册路由。后端的 `component` 是本地页面标识，不是远程脚本地址。
 
 ## 目录与命名
 
@@ -33,7 +33,7 @@ src/apps/demo/
 
 菜单**没有**子菜单时（单页功能集），前端将其渲染为单个可点击的入口，既可以是顶层菜单，也可以是某个父菜单下的末级项。此时 `source-apps.ts` 生成的菜单节点带的是空 `children` 数组，`use-menu-tree.ts` 必须把空数组等同于叶子节点处理，否则这类菜单会被静默丢弃（多级功能集的末级子菜单同理）。
 
-后端示例 `demo:menu` 的 `/demo`、`demo/index` 可直接接入。其 `GET /api/v1/demo/items` 返回原始数组，因此示例的 `api.ts` 按数组类型解析。只有已经编译进前端的页面才能加载；新增或改动页面后须重新构建并发布 `admin-web`。go-admin 在编译期用 `embed` 打包 `web/dist`，因此替换产物后必须重新编译并重启后端服务，否则浏览器仍会加载旧的前端代码。
+后端示例 `demo:menu` 的 `/demo`、`demo/index` 可直接接入。其 `GET /api/v1/demo/items` 返回原始数组，因此示例的 `api.ts` 按数组类型解析。只有已经编译进前端的页面才能加载；新增或改动页面后须重新构建并发布 `e-sports-go-admin-web`。e-sports-go-admin 在编译期用 `embed` 打包 `web/dist`，因此替换产物后必须重新编译并重启后端服务，否则浏览器仍会加载旧的前端代码。
 
 ## 加载流程
 

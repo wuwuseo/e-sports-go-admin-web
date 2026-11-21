@@ -1,4 +1,4 @@
-# go-admin-web
+# e-sports-go-admin-web
 
 > 电竞陪玩报单系统（EsportsPartner）的管理端前端，基于 Vue 3 + TypeScript + Vite + Arco Design Vue 构建。
 
@@ -29,7 +29,7 @@
 
 ## 项目简介
 
-本仓库是同工作区 `go-admin`（Go + Fiber）后端配套的管理端前端，承担以下职责：
+本仓库是同工作区 `e-sports-go-admin`（Go + Fiber）后端配套的管理端前端，承担以下职责：
 
 - 管理员/用户登录认证、图形与行为验证码、OAuth 单点登录回调；
 - 基于后端返回的混合权限树动态注册路由、生成菜单、控制按钮权限；
@@ -103,7 +103,7 @@
 | ---------- | ------------------------------------------------------- |
 | Node.js    | >= 14（建议 18 LTS 及以上）                             |
 | 包管理器   | pnpm（推荐，仓库含 `pnpm-lock.yaml`）/ npm              |
-| 后端服务   | `go-admin`，开发环境默认监听 `http://127.0.0.1:9501`    |
+| 后端服务   | `e-sports-go-admin`，开发环境默认监听 `http://127.0.0.1:9501`    |
 | 浏览器     | Chrome / Edge / Firefox / Safari 最新版                 |
 
 ---
@@ -138,7 +138,7 @@ npm run dev
 - `/api` — 普通 REST 接口（超时 5 分钟，支持大文件上传）；
 - `/api/v1/admin/sse` — SSE 长连接（禁用缓冲、无超时）。
 
-因此请先启动 `go-admin` 后端，否则登录与接口请求会失败。
+因此请先启动 `e-sports-go-admin` 后端，否则登录与接口请求会失败。
 
 ### 4. 生产构建
 
@@ -242,7 +242,7 @@ go-admin-web/
 
 1. 前端统一使用 `/api/v1/...` 接口前缀，登录成功后由请求拦截器附加 `Authorization: Bearer <token>`；
 2. 构建产物 `dist/` 需同步到后端 `go-admin/web/dist` 目录；
-3. `go-admin` 通过 `//go:embed web/dist` 嵌入静态资源，**替换产物后必须重新编译并重启后端**，否则浏览器仍会加载旧代码；
+3. `e-sports-go-admin` 通过 `//go:embed web/dist` 嵌入静态资源，**替换产物后必须重新编译并重启后端**，否则浏览器仍会加载旧代码；
 4. 开发阶段推荐直接使用 `npm run dev` + Vite 代理联调，无需重复编译后端。
 
 ---
