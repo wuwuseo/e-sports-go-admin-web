@@ -21,7 +21,9 @@ const useAppStore = defineStore('app', {
   actions: {
     // Update app settings
     updateSettings(partial: Partial<AppState>) {
-      // @ts-ignore-next-line
+      // AppState 含 RouteRecordNormalized，Pinia 的 _DeepPartial 推导会触发 TS2589，
+      // 这里只能整体赋值；用 @ts-expect-error 保证 Pinia 类型修复后能立刻发现。
+      // @ts-expect-error 深度 Partial 推导超限（TS2589）
       this.$patch(partial);
     },
 

@@ -639,6 +639,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { errorText } from '@/utils/error';
   import {
     activateCloseApprovalFlow,
     activateCloseFormTemplate,
@@ -756,12 +757,6 @@
       item.max_cents > 0 ? `¥${(item.max_cents / 100).toFixed(2)}` : '不限';
     return `${min} ~ ${max}`;
   };
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
-
   const { hasButtonPermission } = usePermission();
   const canManage = computed(() =>
     hasButtonPermission('esports:close_forms:manage')

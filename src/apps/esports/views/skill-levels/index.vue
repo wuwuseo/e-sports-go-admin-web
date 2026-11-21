@@ -95,6 +95,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue';
+  import { errorText } from '@/utils/error';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import { fetchSkillLevels } from '../../skill-levels';
@@ -122,11 +123,6 @@
     rowSeq += 1;
     return rowSeq;
   }
-
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
 
   async function load() {
     loading.value = true;

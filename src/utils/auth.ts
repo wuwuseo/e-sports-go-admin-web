@@ -2,39 +2,9 @@ const TOKEN_KEY = 'token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const ADMIN_LOGIN_KEY = 'is_admin_login';
 
-const decodeBase64Url = (value: string) => {
-  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = normalized.padEnd(
-    normalized.length + ((4 - (normalized.length % 4)) % 4),
-    '='
-  );
-  return atob(padded);
-};
-
-const isTokenValid = (token: string | null) => {
-  if (!token) return false;
-
-  try {
-    const payload = JSON.parse(decodeBase64Url(token.split('.')[1] || ''));
-    if (typeof payload.exp !== 'number') {
-      return false;
-    }
-    return payload.exp * 1000 > Date.now();
-  } catch {
-    return false;
-  }
-};
-
-const isLogin = () => {
-  const token = localStorage.getItem(TOKEN_KEY);
-  // 优先使用 JWT 校验（解析 exp 过期时间）
-  if (isTokenValid(token)) {
-    return true;
-  }
-  // 容错：如果 token 存在但非 JWT 格式（如纯随机字符串），也视为已登录
-  // 因为 token 刚由登录 API 设置，不应立即判为无效
-  return !!token;
-};
+// 仅判断「本地是否存有 token」，不解析 JWT 是否过期：过期 token 也返回 true，
+// 由接口 401 拦截器统一处理刷新与跳转。此前这里的 JWT 解析对结果没有任何影响。
+const isLogin = () => !!localStorage.getItem(TOKEN_KEY);
 
 const getToken = () => {
   return localStorage.getItem(TOKEN_KEY);

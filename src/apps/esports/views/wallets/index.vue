@@ -473,6 +473,7 @@
   import { IconGift, IconSafe } from '@arco-design/web-vue/es/icon';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { errorText } from '@/utils/error';
   import {
     useWalletDisplay,
     refreshWalletDisplay,
@@ -633,11 +634,6 @@
   const txTitle = computed(() =>
     txTarget.value ? `${txTarget.value.display_name} 的流水` : '钱包流水'
   );
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
   // 活动快照摘要（按活动充值的流水才有 rule_snapshot）。
   const snapshotNames = (snapshot: Record<string, unknown> | null) => {
     const campaigns = (snapshot?.campaigns || []) as { name?: string }[];

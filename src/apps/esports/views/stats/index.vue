@@ -577,6 +577,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue';
+  import { errorText } from '@/utils/error';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import { useWalletDisplay } from '../../wallet-display';
@@ -639,11 +640,6 @@
     return `${Math.round(seconds / 60)} 分钟`;
   };
   // 透出后端返回的中文错误信息（如「财务资金报表不支持按负责客服筛选」），取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
-
   // 报表页签 + 导出记录页签：导出记录不走 /reports/{type}，需要单独的联合类型。
   type ReportTab = ReportType | 'exports';
 

@@ -650,6 +650,7 @@
   import { getAttachmentAccessInfo } from '@/services/attachment-access.service';
   import type { AttachmentResponse } from '@/types/api';
   import yuanToCents from '@/utils/money';
+  import { errorText } from '@/utils/error';
   import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
   import {
     cancelSkuSuspension,
@@ -865,11 +866,6 @@
     ({ pending: '待处置', done: '已完成', failed: '失败' }[status] || status);
   const skuTitle = (id: number) =>
     skus.value.find((item) => item.id === id)?.title || `#${id}`;
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
-
   async function loadActive() {
     loading.value = true;
     try {

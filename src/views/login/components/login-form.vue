@@ -242,10 +242,12 @@
     return `data:${challenge.mimeType};base64,${challenge.image}`;
   });
 
+  // 默认不预填任何账号，也不默认勾选「记住密码」：勾选后密码会明文写入
+  // localStorage。开发环境保留 admin 预填，避免每次手输。
   const loginConfig = useStorage('login-config', {
-    rememberPassword: true,
-    username: 'admin',
-    password: 'admin',
+    rememberPassword: false,
+    username: import.meta.env.DEV ? 'admin' : '',
+    password: import.meta.env.DEV ? 'admin' : '',
   });
   const userInfo = reactive({
     username: loginConfig.value.username,

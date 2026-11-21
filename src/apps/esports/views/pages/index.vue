@@ -1077,6 +1077,7 @@
 
 <script setup lang="ts">
   import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+  import { errorText } from '@/utils/error';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import { useUserStore } from '@/store';
@@ -1675,10 +1676,6 @@
 
   const fmtTime = (value?: string | null) =>
     value ? new Date(value).toLocaleString() : '-';
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
   // 记录后端返回的校验原文：常驻展示在页面顶部与轮播图属性区，避免 toast 一闪而过被吞掉。
   const reportPageError = (err: unknown, fallback: string) => {
     pageError.value = errorText(err, fallback);

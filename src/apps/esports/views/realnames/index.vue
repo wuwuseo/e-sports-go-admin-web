@@ -270,6 +270,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref } from 'vue';
+  import { errorText } from '@/utils/error';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import {
@@ -327,12 +328,6 @@
   const attemptLabel = (value: string) => ATTEMPT_LABELS[value] || value;
   const subjectTypeLabel = (value: string) =>
     value === 'player' ? '陪玩' : '客户';
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
-
   const { hasButtonPermission } = usePermission();
   const canReview = computed(() =>
     hasButtonPermission('esports:realnames:review')

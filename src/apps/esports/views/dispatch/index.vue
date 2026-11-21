@@ -932,6 +932,7 @@
   import axios from 'axios';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { errorText } from '@/utils/error';
   import useUserStore from '@/store/modules/user';
   import { getConfigByGroup } from '@/api/config';
   import sseService from '@/services/sse.service';
@@ -1060,12 +1061,6 @@
   const board = ref<EsportsDispatchBoard | null>(null);
   // 催单优先级排序：后端 sort=remind_priority 时各订单桶按催单优先级降序重排。
   const remindPrioritySort = ref(false);
-
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
 
   async function load(silent = false) {
     loading.value = true;

@@ -1187,12 +1187,9 @@
     createArrayData.value.splice(index, 1);
   };
 
-  // 序列化创建对话框中的 Array 数据
-  const serializeCreateArray = (): string => {
-    return JSON.stringify(
-      createArrayData.value.map((item) => item.value).filter((v) => v)
-    );
-  };
+  // 序列化创建对话框中的 Array 数据（与编辑路径共用同一实现）
+  const serializeCreateArray = (): string =>
+    serializeArrayData(createArrayData.value);
 
   // 重置创建对话框中的 Array 数据
   const resetCreateArray = () => {
@@ -1208,10 +1205,9 @@
   >([{ key: '', values: [{ value: '', type: 'string' }] }]);
 
   // 获取创建对话框中 Array2D 的最大列数
-  const createArray2dMaxCols = computed(() => {
-    if (createArray2dData.value.length === 0) return 1;
-    return Math.max(...createArray2dData.value.map((row) => row.values.length));
-  });
+  const createArray2dMaxCols = computed(() =>
+    getArray2dMaxCols(createArray2dData.value)
+  );
 
   // 添加创建对话框中 Array2D 的行
   const addCreateArray2dRow = () => {
@@ -1246,44 +1242,9 @@
     });
   };
 
-  // 序列化创建对话框中的 Array2D 数据
-  const serializeCreateArray2d = (): string => {
-    const result: Record<string, any> = {};
-    createArray2dData.value.forEach((row) => {
-      if (!row.key) return;
-      const val = row.values[0];
-      if (!val) {
-        result[row.key] = '';
-        return;
-      }
-      switch (val.type) {
-        case 'array':
-          result[row.key] = (val as any).list
-            ? (val as any).list.map((item: any) => item.value)
-            : [];
-          break;
-        case 'array2d':
-          result[row.key] = {};
-          if ((val as any).subData) {
-            (val as any).subData.forEach((sd: any) => {
-              if (sd.key) {
-                result[row.key][sd.key] = sd.value;
-              }
-            });
-          }
-          break;
-        case 'number':
-          result[row.key] = val.value ? Number(val.value) : 0;
-          break;
-        case 'boolean':
-          result[row.key] = val.value === 'true';
-          break;
-        default:
-          result[row.key] = val.value;
-      }
-    });
-    return JSON.stringify(result);
-  };
+  // 序列化创建对话框中的 Array2D 数据（与编辑路径共用同一实现）
+  const serializeCreateArray2d = (): string =>
+    serializeArray2dData(createArray2dData.value);
 
   // 重置创建对话框中的 Array2D 数据
   const resetCreateArray2d = () => {

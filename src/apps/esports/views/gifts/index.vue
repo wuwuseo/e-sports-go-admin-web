@@ -895,6 +895,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { errorText } from '@/utils/error';
   import { useWalletDisplay } from '../../wallet-display';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
@@ -995,11 +996,6 @@
     gift.commission_mode === 'fixed'
       ? `${yuan(gift.commission_cents)} / 笔`
       : `${gift.commission_bp / 100}%`;
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
   const pad = (value: number) => String(value).padStart(2, '0');
   // 本地时区展示到分钟。
   const fmtMinute = (value: string | null | undefined) => {

@@ -904,6 +904,7 @@
   import { Message, Modal } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { errorText } from '@/utils/error';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import { getAttachmentAccessInfo } from '@/services/attachment-access.service';
   import type { AttachmentResponse } from '@/types/api';
@@ -978,10 +979,6 @@
   );
 
   const yuan = (value: number) => `¥${(value / 100).toFixed(2)}`;
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
   // 资金类动作统一二次确认，并显式提示以管理员身份执行（操作留痕）。
   const confirmFundsAction = (content: string, title = '资金类动作确认') =>
     new Promise<boolean>((resolve) => {

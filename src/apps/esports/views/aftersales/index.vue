@@ -1567,6 +1567,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { errorText } from '@/utils/error';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import type { AttachmentResponse } from '@/types/api';
   import { useWalletDisplay } from '../../wallet-display';
@@ -1735,12 +1736,6 @@
   });
 
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
-
   async function load() {
     loading.value = true;
     try {

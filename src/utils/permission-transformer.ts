@@ -202,12 +202,6 @@ export default class PermissionTransformer {
     );
   }
 
-  private static isPermissionArray(
-    data: unknown
-  ): data is PermissionResponse[] {
-    return PermissionTransformer.isPermissionLikeArray(data);
-  }
-
   private static isPermissionLikeArray(
     data: unknown
   ): data is PermissionLike[] {

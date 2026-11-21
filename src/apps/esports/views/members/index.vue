@@ -439,6 +439,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents, { scaleToInt } from '@/utils/money';
+  import { errorText } from '@/utils/error';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     createMemberLevel,
@@ -526,12 +527,6 @@
           detail.override_expires_at ?? null
         )}）`
       : '无生效覆盖';
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
-
   const formVisible = ref(false);
   const formTarget = ref<MemberLevel | null>(null);
   const form = reactive({

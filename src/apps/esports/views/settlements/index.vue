@@ -2089,6 +2089,7 @@
   import usePermission from '@/hooks/permission';
   import { getConfigByGroup } from '@/api/config';
   import yuanToCents from '@/utils/money';
+  import { errorText } from '@/utils/error';
   import { useWalletDisplay } from '../../wallet-display';
   import AdminSelect from '../../components/AdminSelect.vue';
   import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
@@ -2281,11 +2282,6 @@
     !!record.order_id;
 
   const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
   // 提现打款错误提示：后端对「审核人自打款 / 越权」返回 403，
   // 通用 businessError 文案是「无权访问该客户或订单」，这里替换为可操作的中文提示。
   const payoutErrorText = (err: unknown, fallback: string) => {

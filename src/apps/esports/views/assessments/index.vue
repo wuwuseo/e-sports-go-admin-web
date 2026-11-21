@@ -657,6 +657,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref } from 'vue';
+  import { errorText } from '@/utils/error';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import OwnerSelect from '../../components/OwnerSelect.vue';
@@ -777,12 +778,6 @@
     reviewStatusMap[value] || value;
   const reviewStatusColor = (value: ReviewStatus) =>
     reviewStatusColorMap[value] || 'gray';
-  // 透出后端返回的中文错误信息，取不到时回退默认文案。
-  const errorText = (err: unknown, fallback: string) => {
-    const { response } = err as { response?: { data?: { message?: string } } };
-    return response?.data?.message || fallback;
-  };
-
   // ── 权重配置 ──
   const rulesType = ref<AssessmentType>('entry');
   const ruleLoading = ref(false);
