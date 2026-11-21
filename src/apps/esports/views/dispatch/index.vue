@@ -933,6 +933,7 @@
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import { errorText } from '@/utils/error';
+  import { formatYuan } from '@/utils/format';
   import useUserStore from '@/store/modules/user';
   import { getConfigByGroup } from '@/api/config';
   import sseService from '@/services/sse.service';
@@ -1635,7 +1636,7 @@
   const remindVisible = ref(false);
   const remindForm = reactive({ level: 1, note: '' });
 
-  const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const money = formatYuan;
   const onlinePlayers = computed(() => board.value?.online_players ?? 0);
   const currentOrders = computed<DispatchOrder[]>(
     () => board.value?.[activeBucket.value] || []

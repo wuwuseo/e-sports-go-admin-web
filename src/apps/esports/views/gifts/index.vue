@@ -896,6 +896,7 @@
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import { errorText } from '@/utils/error';
+  import { formatYuan, fmtMinute } from '@/utils/format';
   import { useWalletDisplay } from '../../wallet-display';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
@@ -991,20 +992,11 @@
   const reviewColor = (value: GiftReviewStatus) =>
     reviewColorMap[value] || 'gray';
   // 金额以分存储，展示为元。
-  const yuan = (value: number) => `¥${(value / 100).toFixed(2)}`;
+  const yuan = formatYuan;
   const commissionText = (gift: Gift) =>
     gift.commission_mode === 'fixed'
       ? `${yuan(gift.commission_cents)} / 笔`
       : `${gift.commission_bp / 100}%`;
-  const pad = (value: number) => String(value).padStart(2, '0');
-  // 本地时区展示到分钟。
-  const fmtMinute = (value: string | null | undefined) => {
-    if (!value) return '-';
-    const d = new Date(value);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-      d.getDate()
-    )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
   // 礼物确认单视图已返回收款字段与档位快照，api.ts 的 GiftIntent
   // 尚未收录，页面侧就地补齐只读字段。
   type GiftIntentRow = GiftIntent & {

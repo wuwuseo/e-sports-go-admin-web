@@ -651,6 +651,7 @@
   import type { AttachmentResponse } from '@/types/api';
   import yuanToCents from '@/utils/money';
   import { errorText } from '@/utils/error';
+  import { formatYuan } from '@/utils/format';
   import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
   import {
     cancelSkuSuspension,
@@ -825,7 +826,7 @@
     start_at: string;
   }>({ action: 'cancel_refund', note: '', start_at: '' });
 
-  const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const money = formatYuan;
   const fmtTime = (value: string | null) =>
     value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—';
   const productStatusText = (status: EsportsSku['status']) =>

@@ -459,6 +459,7 @@
 
 <script setup lang="ts">
   import { walletUnitAmount, walletAmountText } from '@/utils/wallet-display';
+  import { formatYuan } from '@/utils/format';
   import { uuidV4 } from '@/utils/uuid';
   import {
     computed,
@@ -577,7 +578,7 @@
   const allocationsLoading = ref(false);
   const txTarget = ref<WalletAccount | null>(null);
 
-  const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const money = formatYuan;
   const signed = (cents: number) =>
     cents > 0 ? `+${money(cents)}` : money(cents);
   // 归属人列展示实际姓名；账户名称仍是钱包展示口径（余额 / 猫粮），不再占用归属人列。

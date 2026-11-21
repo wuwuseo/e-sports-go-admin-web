@@ -440,6 +440,7 @@
   import usePermission from '@/hooks/permission';
   import yuanToCents, { scaleToInt } from '@/utils/money';
   import { errorText } from '@/utils/error';
+  import { fmtMinute } from '@/utils/format';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
     createMemberLevel,
@@ -501,15 +502,6 @@
   const discountText = (value: number) =>
     value === 10000 ? '原价' : `${value / 1000} 折`;
   const signed = (value: number) => (value > 0 ? `+${value}` : String(value));
-  const pad = (value: number) => String(value).padStart(2, '0');
-  // 本地时区展示到分钟。
-  const fmtMinute = (value: string | null) => {
-    if (!value) return '-';
-    const d = new Date(value);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-      d.getDate()
-    )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
   const pendingText = (detail: CustomerMemberDetail) =>
     detail.pending_level_code
       ? `${detail.pending_level_code}（${fmtMinute(detail.downgrade_after)}）`

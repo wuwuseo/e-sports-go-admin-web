@@ -1568,6 +1568,7 @@
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import { errorText } from '@/utils/error';
+  import { formatYuan } from '@/utils/format';
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import type { AttachmentResponse } from '@/types/api';
   import { useWalletDisplay } from '../../wallet-display';
@@ -1735,7 +1736,7 @@
     return detail.value?.source_type === 'order' ? '—' : '—（非订单来源）';
   });
 
-  const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const money = formatYuan;
   async function load() {
     loading.value = true;
     try {

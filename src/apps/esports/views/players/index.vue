@@ -456,6 +456,7 @@
 <script setup lang="ts">
   import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
   import { errorText } from '@/utils/error';
+  import { formatYuan } from '@/utils/format';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import {
@@ -532,7 +533,7 @@
   const loading = ref(false);
   const keyword = ref('');
   const players = ref<PlayerRow[]>([]);
-  const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const money = formatYuan;
   // 用户列展示关联账号的可读名称，不再显示 user_id。
   const playerUserName = (player: EsportsPlayer) =>
     player.user_display_name ||

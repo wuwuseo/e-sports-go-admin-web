@@ -578,6 +578,7 @@
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue';
   import { errorText } from '@/utils/error';
+  import { formatYuan } from '@/utils/format';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import { useWalletDisplay } from '../../wallet-display';
@@ -634,7 +635,7 @@
     hasButtonPermission('esports:stats:manage')
   );
 
-  const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const money = formatYuan;
   const durationText = (seconds: number) => {
     if (seconds < 60) return `${seconds} 秒`;
     return `${Math.round(seconds / 60)} 分钟`;

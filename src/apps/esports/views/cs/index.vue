@@ -742,6 +742,8 @@
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import { errorText } from '@/utils/error';
+  import { fenToYuan, fmtMinute } from '@/utils/format';
+  import useAsync from '@/hooks/async';
   import useUserStore from '@/store/modules/user';
   import {
     useWalletDisplay,
@@ -852,17 +854,8 @@
   const sourceLabel = (value: string) => sourceMap[value] || value;
   // 金额分转元展示。
   const moneyText = (cents: number | undefined) =>
-    `${((cents || 0) / 100).toFixed(2)} 元`;
-  const pad = (value: number) => String(value).padStart(2, '0');
-  const fmtMinute = (value: string | null | undefined) => {
-    if (!value) return '-';
-    const d = new Date(value);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-      d.getDate()
-    )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
+    `${fenToYuan(cents || 0)} 元`;
   // ── 工作台 ──
-  const loading = ref(false);
   const workbench = ref<CsWorkbench | null>(null);
   // 订单池用 tabs 切换，默认停在待派单。
   const activePoolKey = ref('pending_dispatch');
@@ -913,31 +906,24 @@
     ];
   });
 
-  async function loadWorkbench() {
-    loading.value = true;
+  const { loading, run: loadWorkbench } = useAsync(async () => {
     try {
       workbench.value = (await getEsportsCsWorkbench()).data.data || null;
     } catch (err) {
       Message.error(errorText(err, '加载客服工作台失败'));
-    } finally {
-      loading.value = false;
     }
-  }
+  });
 
   // ── 会员优先预约处理──
-  const bookingLoading = ref(false);
   const bookings = ref<PriorityBooking[]>([]);
 
-  async function loadBookings() {
-    bookingLoading.value = true;
+  const { loading: bookingLoading, run: loadBookings } = useAsync(async () => {
     try {
       bookings.value = (await listPriorityBookings()).data.data || [];
     } catch (err) {
       Message.error(errorText(err, '加载会员优先预约失败'));
-    } finally {
-      bookingLoading.value = false;
     }
-  }
+  });
 
   // 处理结果只能置为 processed（已处理）或 cancelled（已取消），其余取值后端拒绝。
   async function processBooking(
@@ -959,7 +945,6 @@
   }
 
   // ── 对账 / 到账核销：工作台内直接查待核验凭证并核销 / 驳回 ──
-  const proofLoading = ref(false);
   const proofs = ref<OfflinePaymentProof[]>([]);
   // 订单号筛选（可选）：管理端统一按订单号定位订单，留空不过滤。
   const proofOrderNo = ref('');
@@ -985,8 +970,7 @@
     }
   };
 
-  async function loadProofs() {
-    proofLoading.value = true;
+  const { loading: proofLoading, run: loadProofs } = useAsync(async () => {
     try {
       proofs.value =
         (
@@ -997,10 +981,8 @@
         ).data.data || [];
     } catch (err) {
       Message.error(errorText(err, '加载到账凭证失败'));
-    } finally {
-      proofLoading.value = false;
     }
-  }
+  });
 
   async function verifyProof(record: OfflinePaymentProof) {
     try {
@@ -1042,20 +1024,18 @@
   }
 
   // ── 我的客户 ──
-  const customerLoading = ref(false);
   const customers = ref<EsportsCustomer[]>([]);
   const newCustomerName = ref('');
 
-  async function loadCustomers() {
-    customerLoading.value = true;
-    try {
-      customers.value = (await listCustomers()).data.data || [];
-    } catch (err) {
-      Message.error(errorText(err, '加载客户失败'));
-    } finally {
-      customerLoading.value = false;
+  const { loading: customerLoading, run: loadCustomers } = useAsync(
+    async () => {
+      try {
+        customers.value = (await listCustomers()).data.data || [];
+      } catch (err) {
+        Message.error(errorText(err, '加载客户失败'));
+      }
     }
-  }
+  );
 
   async function submitCustomer() {
     try {
@@ -1070,7 +1050,6 @@
 
   // ── 客户档案与跟进 ──
   const profileVisible = ref(false);
-  const profileSaving = ref(false);
   const profileTarget = ref<EsportsCustomer | null>(null);
   const { displayName, amountText: walletAmount } = useWalletDisplay();
   const profile = ref<CustomerProfileSummary | null>(null);
@@ -1146,9 +1125,8 @@
     }
   }
 
-  async function submitProfile() {
+  const { loading: profileSaving, run: submitProfile } = useAsync(async () => {
     if (!profileTarget.value) return;
-    profileSaving.value = true;
     try {
       await updateEsportsCustomerProfile(profileTarget.value.id, {
         phone: profileForm.phone,
@@ -1162,10 +1140,8 @@
       await loadCustomers();
     } catch (err) {
       Message.error(errorText(err, '保存档案失败'));
-    } finally {
-      profileSaving.value = false;
     }
-  }
+  });
 
   async function submitFollowUp() {
     if (!profileTarget.value) return;
@@ -1373,7 +1349,6 @@
   }
 
   // ── 话术库 ──
-  const scriptLoading = ref(false);
   const scripts = ref<CsScript[]>([]);
   const scriptCategory = ref('');
   const scriptVisible = ref(false);
@@ -1385,18 +1360,15 @@
     sortOrder: 0,
   });
 
-  async function loadScripts() {
-    scriptLoading.value = true;
+  const { loading: scriptLoading, run: loadScripts } = useAsync(async () => {
     try {
       scripts.value =
         (await getEsportsScripts({ category: scriptCategory.value })).data
           .data || [];
     } catch (err) {
       Message.error(errorText(err, '加载话术失败'));
-    } finally {
-      scriptLoading.value = false;
     }
-  }
+  });
 
   function openScript(target?: CsScript) {
     scriptTarget.value = target || null;

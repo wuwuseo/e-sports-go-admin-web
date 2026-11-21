@@ -1382,6 +1382,7 @@
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import { errorText } from '@/utils/error';
+  import { formatYuan } from '@/utils/format';
   import useUserStore from '@/store/modules/user';
   import { getAdmins } from '@/api/user';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
@@ -1689,7 +1690,7 @@
     { seatIndex: number; playerId: number; units: number; evidence: string }[]
   >([]);
 
-  const money = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const money = formatYuan;
   const isUnpaid = (order: EsportsOrder) =>
     order.payment_status === 'unpaid' &&
     order.fulfillment_status === 'pending_payment';

@@ -255,6 +255,7 @@
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
   import { errorText } from '@/utils/error';
+  import { fmtMinute } from '@/utils/format';
   import { useWalletDisplay } from '../../wallet-display';
   import OwnerMultiSelect from '../../components/OwnerMultiSelect.vue';
   import {
@@ -338,15 +339,6 @@
 
   // 金额以「分」存储，展示时换算为「元」并去掉多余小数。
   const yuanText = (cents: number) => String(cents / 100);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  // 本地时区展示到分钟。
-  const fmtMinute = (value: string) => {
-    if (!value) return '-';
-    const d = new Date(value);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-      d.getDate()
-    )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
   const tiersText = (record: RechargeCampaign) =>
     record.tiers.length
       ? record.tiers
