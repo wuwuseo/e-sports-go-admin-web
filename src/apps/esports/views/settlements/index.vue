@@ -2107,7 +2107,7 @@
     freezeOrderCommission,
     getCsCommissionSummary,
     getPayoutBatch,
-    getSettlement,
+    getSettlementDetail,
     listCloseRules,
     listCommissionEntries,
     listCommissionRules,
@@ -2235,13 +2235,8 @@
   };
 
   // 结算单详情包体（GET /admin/settlements/:id）：{ settlement, entries, entry_count, detail_truncated }。
-  type SettlementDetailRecord = Omit<Settlement, 'status'> & {
-    status: SettlementStatus | 'void';
-    version: number;
-    voided_by_admin_id: number | null;
-    voided_at: string | null;
-    void_reason: string;
-  };
+  // 详情记录与列表行结构一致，直接复用，避免后端补字段时两处漂移。
+  type SettlementDetailRecord = SettlementRow;
   // 明细读模型（commissionEntryView）：在明细原始字段上补规则数值、扣减项与到手净额。
   interface SettlementDetailEntry {
     id: number;
@@ -2368,7 +2363,7 @@
     try {
       closeRules.value = (await listCloseRules()).data.data || [];
     } catch {
-      Message.error('加载结单规则失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       closeRulesLoading.value = false;
     }
@@ -2533,7 +2528,7 @@
     try {
       cycles.value = (await listSettlementCycles()).data.data || [];
     } catch {
-      Message.error('加载结算周期失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       cyclesLoading.value = false;
     }
@@ -2656,7 +2651,7 @@
       rules.value =
         (await listCommissionRules(ruleNoFilter.value)).data.data || [];
     } catch {
-      Message.error('加载分成规则失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       rulesLoading.value = false;
     }
@@ -2778,7 +2773,7 @@
           })
         ).data.data || [];
     } catch {
-      Message.error('加载分成明细失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       entriesLoading.value = false;
     }
@@ -2825,7 +2820,7 @@
         await listSettlements(settlementPlayerId.value || undefined)
       ).data.data || []) as unknown as SettlementRow[];
     } catch {
-      Message.error('加载结算单失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       settlementsLoading.value = false;
     }
@@ -2834,7 +2829,7 @@
   // 详情接口返回 { settlement, entries, entry_count, detail_truncated }，
   // api.ts 目前按单个 Settlement 声明返回类型，这里按真实包体收敛解析。
   async function fetchSettlementDetail(id: number) {
-    const payload = (await getSettlement(id)).data
+    const payload = (await getSettlementDetail(id)).data
       .data as unknown as SettlementDetailPayload | null;
     if (!payload || !payload.settlement) return null;
     return {
@@ -3123,7 +3118,7 @@
       csRules.value =
         (await listCsCommissionRules(csRuleNoFilter.value)).data.data || [];
     } catch {
-      Message.error('加载客服提成规则失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       csRulesLoading.value = false;
     }
@@ -3275,7 +3270,7 @@
           })
         ).data.data || [];
     } catch {
-      Message.error('加载客服提成明细失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       csEntriesLoading.value = false;
     }
@@ -3286,7 +3281,7 @@
     try {
       csSummary.value = (await getCsCommissionSummary()).data.data || null;
     } catch {
-      Message.error('加载提成概览失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       csSummaryLoading.value = false;
     }
@@ -3407,7 +3402,7 @@
           })
         ).data.data || [];
     } catch {
-      Message.error('加载提现单失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       withdrawalsLoading.value = false;
     }
@@ -3733,7 +3728,7 @@
           })
         ).data.data || [];
     } catch {
-      Message.error('加载陪玩追偿失败，请稍后重试');
+      // 错误提示由 api 拦截器统一弹出，这里只负责复位 loading。
     } finally {
       recoveriesLoading.value = false;
     }

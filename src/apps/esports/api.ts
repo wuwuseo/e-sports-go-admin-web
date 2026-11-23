@@ -1869,9 +1869,6 @@ export const getSettlementDetail = (id: number, limit?: number) =>
     params: { limit },
   });
 
-// 兼容旧名：同一详情接口，返回类型已改为详情包体。
-export const getSettlement = getSettlementDetail;
-
 // 结算周期配置：日/周/月/自定义间隔，按 全局 → 游戏 → 等级 → 陪玩 逐级覆盖。
 export const listSettlementCycles = () =>
   axios.get<ApiResponse<SettlementCycle[]>>(`${base}/settlement-cycles`);

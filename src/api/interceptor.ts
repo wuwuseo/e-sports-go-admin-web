@@ -129,8 +129,12 @@ axios.interceptors.response.use(
     }
 
     if (!error.config?.silentError) {
+      // 有响应体时优先展示后端中文文案；网络中断 / 超时没有响应，
+      // error.message 是英文原文（如 Network Error），这里给中文兜底。
       Message.error({
-        content: res?.message || error.message || 'Request Error',
+        content:
+          res?.message ||
+          (error.response ? error.message : '网络异常，请稍后重试'),
         duration: 5 * 1000,
       });
     }
