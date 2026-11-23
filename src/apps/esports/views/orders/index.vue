@@ -1548,7 +1548,6 @@
   const priceDecisionApprove = ref(false);
   const priceDecisionNote = ref('');
 
-  // 透出后端返回的中文错误信息（如结单条件缺失），取不到时回退默认文案。
   async function loadPriceAdjustments() {
     priceLoading.value = true;
     try {

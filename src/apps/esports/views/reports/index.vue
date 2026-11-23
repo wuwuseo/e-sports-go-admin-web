@@ -163,14 +163,10 @@
           <a-space direction="vertical" fill>
             <OwnerMultiSelect
               v-model="preferredPlayerIds"
-              :max="seatLimit"
               placeholder="搜索并选择陪玩（第一个为主陪玩）"
             />
             <a-typography-text type="secondary">
-              指定后订单直接由客服指派，不进入优先通知窗口；陪玩须资质合格。<template
-                v-if="seatLimit > 0"
-                >最多可选 {{ seatLimit }} 个（商品席位数）。</template
-              >
+              指定后订单直接由客服指派，不进入优先通知窗口；陪玩须资质合格。
             </a-typography-text>
           </a-space>
         </a-form-item>
@@ -506,13 +502,12 @@
   });
   const orderRequestKey = ref(uuidV4());
   // 指定陪玩（可多选，第一个为主陪玩）：空数组表示不指定，由客服指派。
+  // 席位数上限由后端创建订单时校验「指定陪玩数 ≤ 商品席位数」并返回中文错误
+  // （商品列表接口暂不返回 required_seats，前端不做硬限制）。
   const preferredPlayerIds = ref<number[]>([]);
   const primaryPlayerId = computed(() =>
     preferredPlayerIds.value.length > 0 ? preferredPlayerIds.value[0] : 0
   );
-  // 席位数上限：商品列表接口暂不返回 required_seats，前端不做硬限制，
-  // 由后端创建订单时校验「指定陪玩数 ≤ 商品席位数」并返回中文错误。
-  const seatLimit = computed(() => 0);
   // 主陪玩的已确认固排：选中主陪玩后加载，点选可一键加入/移出。
   const teammates = ref<PlayerTeammateOption[]>([]);
   const teammatesLoading = ref(false);
@@ -541,13 +536,6 @@
       preferredPlayerIds.value = preferredPlayerIds.value.filter(
         (id) => id !== playerId
       );
-      return;
-    }
-    if (
-      seatLimit.value > 0 &&
-      preferredPlayerIds.value.length >= seatLimit.value
-    ) {
-      Message.warning(`该商品最多指定 ${seatLimit.value} 个陪玩`);
       return;
     }
     preferredPlayerIds.value = [...preferredPlayerIds.value, playerId];

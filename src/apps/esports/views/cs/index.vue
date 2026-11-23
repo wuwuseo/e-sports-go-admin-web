@@ -1062,8 +1062,6 @@
   const followUps = ref<CustomerFollowUp[]>([]);
   // 历史订单明细：按客户过滤，逐单套用「负责 OR 协作」可见性边界。
   const profileOrders = ref<EsportsOrder[]>([]);
-  const profileOrderLoading = ref(false);
-  const followSaving = ref(false);
   const profileForm = reactive({
     phone: '',
     birthday: '',
@@ -1084,22 +1082,21 @@
   }
 
   // 档案内的历史订单明细：复用订单列表接口的 customer_id 过滤，后端按可见性收敛。
-  async function loadProfileOrders(customerId: number) {
-    profileOrderLoading.value = true;
-    try {
-      const result = await listOrders({
-        customer_id: customerId,
-        page: 1,
-        page_size: 20,
-      });
-      profileOrders.value = result.data.data?.items || [];
-    } catch (err) {
-      profileOrders.value = [];
-      Message.error(errorText(err, '加载客户历史订单失败'));
-    } finally {
-      profileOrderLoading.value = false;
+  const { loading: profileOrderLoading, run: loadProfileOrders } = useAsync(
+    async (customerId: number) => {
+      try {
+        const result = await listOrders({
+          customer_id: customerId,
+          page: 1,
+          page_size: 20,
+        });
+        profileOrders.value = result.data.data?.items || [];
+      } catch (err) {
+        profileOrders.value = [];
+        Message.error(errorText(err, '加载客户历史订单失败'));
+      }
     }
-  }
+  );
 
   async function openProfile(customer: EsportsCustomer) {
     profileTarget.value = customer;
@@ -1143,9 +1140,8 @@
     }
   });
 
-  async function submitFollowUp() {
+  const { loading: followSaving, run: submitFollowUp } = useAsync(async () => {
     if (!profileTarget.value) return;
-    followSaving.value = true;
     try {
       await createEsportsCustomerFollowUp(profileTarget.value.id, {
         summary: followForm.summary,
@@ -1158,10 +1154,8 @@
       await loadCustomers();
     } catch (err) {
       Message.error(errorText(err, '记录跟进失败'));
-    } finally {
-      followSaving.value = false;
     }
-  }
+  });
 
   // ── 历史订单补录──
   // 数据边界（P0-13）：超管可为任意客户补录；非超管只能补录本人负责客户的订单。
@@ -1275,7 +1269,6 @@
   // 客服清单复用排单看板口径（listCsPresences 返回 admins），无需另建管理员查询接口。
   const presenceAdmins = ref<CsPresenceList | null>(null);
   const ownerTransferVisible = ref(false);
-  const ownerTransferSaving = ref(false);
   const ownerTransferTarget = ref<EsportsCustomer | null>(null);
   const ownerTransferForm = reactive<{
     targetAdminId?: number;
@@ -1313,40 +1306,40 @@
     if (!presenceAdmins.value) await loadPresenceAdmins();
   }
 
-  async function submitOwnerTransfer() {
-    const customer = ownerTransferTarget.value;
-    if (!customer) return;
-    if (!ownerTransferForm.targetAdminId) {
-      Message.warning('请选择目标客服');
-      return;
-    }
-    if (!ownerTransferForm.reason.trim()) {
-      Message.warning('请填写转移原因');
-      return;
-    }
-    ownerTransferSaving.value = true;
-    try {
-      await transferCustomerOwner(
-        customer.id,
-        ownerTransferForm.targetAdminId,
-        ownerTransferForm.reason.trim()
-      );
-      ownerTransferVisible.value = false;
-      Message.success('客户归属已转移');
-      await loadCustomers();
-      await loadWorkbench();
-      if (profileTarget.value?.id === customer.id) {
-        const detail = (await getEsportsCustomerProfile(customer.id)).data.data;
-        if (detail) profile.value = detail;
+  const { loading: ownerTransferSaving, run: submitOwnerTransfer } = useAsync(
+    async () => {
+      const customer = ownerTransferTarget.value;
+      if (!customer) return;
+      if (!ownerTransferForm.targetAdminId) {
+        Message.warning('请选择目标客服');
+        return;
       }
-    } catch (err) {
-      Message.error(
-        errorText(err, '转移失败：目标客服已是归属人或归属已被他人变更')
-      );
-    } finally {
-      ownerTransferSaving.value = false;
+      if (!ownerTransferForm.reason.trim()) {
+        Message.warning('请填写转移原因');
+        return;
+      }
+      try {
+        await transferCustomerOwner(
+          customer.id,
+          ownerTransferForm.targetAdminId,
+          ownerTransferForm.reason.trim()
+        );
+        ownerTransferVisible.value = false;
+        Message.success('客户归属已转移');
+        await loadCustomers();
+        await loadWorkbench();
+        if (profileTarget.value?.id === customer.id) {
+          const detail = (await getEsportsCustomerProfile(customer.id)).data
+            .data;
+          if (detail) profile.value = detail;
+        }
+      } catch (err) {
+        Message.error(
+          errorText(err, '转移失败：目标客服已是归属人或归属已被他人变更')
+        );
+      }
     }
-  }
+  );
 
   // ── 话术库 ──
   const scripts = ref<CsScript[]>([]);

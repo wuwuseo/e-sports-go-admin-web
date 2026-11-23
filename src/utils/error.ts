@@ -1,3 +1,4 @@
+/* eslint-disable import/prefer-default-export -- 全仓统一用具名导入，避免两种导入风格并存 */
 /**
  * 从后端统一响应体里提取可展示的错误文案。
  *
@@ -11,5 +12,3 @@ export const errorText = (err: unknown, fallback: string) => {
   };
   return response?.data?.message || fallback;
 };
-
-export default errorText;

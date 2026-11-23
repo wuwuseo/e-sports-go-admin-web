@@ -639,6 +639,7 @@
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
   import yuanToCents from '@/utils/money';
+  import { formatYuan } from '@/utils/format';
   import { errorText } from '@/utils/error';
   import {
     activateCloseApprovalFlow,
@@ -730,7 +731,7 @@
   };
   const approvalRoleLabel = (value: CloseApprovalRole) =>
     approvalRoleLabels[value] || value;
-  const amountText = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+  const amountText = formatYuan;
   // 节点链展示：序号.名称（角色）。
   const approvalNodesLabel = (item: EsportsCloseApprovalFlow) =>
     (item.nodes || [])
@@ -751,10 +752,8 @@
     return `${scope === 'game' ? '游戏分区' : '商品'}：${item.scope_key}`;
   };
   const amountRangeLabel = (item: EsportsCloseFormTemplate) => {
-    const min =
-      item.min_cents > 0 ? `¥${(item.min_cents / 100).toFixed(2)}` : '不限';
-    const max =
-      item.max_cents > 0 ? `¥${(item.max_cents / 100).toFixed(2)}` : '不限';
+    const min = item.min_cents > 0 ? formatYuan(item.min_cents) : '不限';
+    const max = item.max_cents > 0 ? formatYuan(item.max_cents) : '不限';
     return `${min} ~ ${max}`;
   };
   const { hasButtonPermission } = usePermission();
