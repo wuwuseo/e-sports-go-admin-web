@@ -1376,7 +1376,7 @@
             externalRefundExecuteForm.refundNo
           }}</a-descriptions-item>
           <a-descriptions-item label="渠道 / 金额"
-            >{{ externalRefundExecuteForm.channel }} /
+            >{{ channelLabel(externalRefundExecuteForm.channel) }} /
             {{
               money(externalRefundExecuteForm.amountCents)
             }}</a-descriptions-item

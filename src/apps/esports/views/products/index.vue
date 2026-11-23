@@ -569,8 +569,16 @@
       >
         <template #columns>
           <a-table-column data-index="order_no" title="订单号" />
-          <a-table-column data-index="order_status" title="履约状态" />
-          <a-table-column data-index="payment_status" title="支付状态" />
+          <a-table-column title="履约状态">
+            <template #cell="{ record }">{{
+              fulfillmentStatusText(record.order_status)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="支付状态">
+            <template #cell="{ record }">{{
+              paymentStatusText(record.payment_status)
+            }}</template>
+          </a-table-column>
           <a-table-column title="建议处置" :width="120">
             <template #cell="{ record }">{{
               disposalActionText(record.suggested_action)
@@ -652,6 +660,10 @@
   import yuanToCents from '@/utils/money';
   import { errorText } from '@/utils/error';
   import { formatYuan } from '@/utils/format';
+  import {
+    fulfillmentStatusText,
+    paymentStatusText,
+  } from '../../status-labels';
   import { fetchSkillLevels, type SkillLevel } from '../../skill-levels';
   import {
     cancelSkuSuspension,

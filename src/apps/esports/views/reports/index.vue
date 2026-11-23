@@ -50,8 +50,16 @@
               money(record.payable_cents)
             }}</template>
           </a-table-column>
-          <a-table-column data-index="payment_status" title="支付状态" />
-          <a-table-column data-index="fulfillment_status" title="履约状态" />
+          <a-table-column title="支付状态">
+            <template #cell="{ record }">{{
+              paymentStatusText(record.payment_status)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="履约状态">
+            <template #cell="{ record }">{{
+              fulfillmentStatusText(record.fulfillment_status)
+            }}</template>
+          </a-table-column>
         </template>
       </a-table>
       <a-table
@@ -64,7 +72,11 @@
         <template #columns>
           <a-table-column data-index="id" title="ID" />
           <a-table-column data-index="display_name" title="客户名称" />
-          <a-table-column data-index="age_status" title="年龄核验" />
+          <a-table-column title="年龄核验">
+            <template #cell="{ record }">{{
+              ageStatusText(record.age_status)
+            }}</template>
+          </a-table-column>
           <a-table-column v-if="canSubmitAge" title="操作">
             <template #cell="{ record }">
               <a-button type="text" @click="openAgeCheck(record)"
@@ -83,7 +95,11 @@
       >
         <template #columns>
           <a-table-column data-index="customer_name" title="客户" />
-          <a-table-column data-index="claimed_age_status" title="提交结论" />
+          <a-table-column title="提交结论">
+            <template #cell="{ record }">{{
+              ageStatusText(record.claimed_age_status)
+            }}</template>
+          </a-table-column>
           <a-table-column
             data-index="requested_by_admin_id"
             title="提交人 ID"
@@ -429,6 +445,11 @@
   import AttachmentSelector from '@/components/attachment-selector/index.vue';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
   import type { AttachmentResponse } from '@/types/api';
+  import {
+    ageStatusText,
+    fulfillmentStatusText,
+    paymentStatusText,
+  } from '../../status-labels';
   import OwnerMultiSelect from '../../components/OwnerMultiSelect.vue';
   import type {
     PlayerTeammateOption,

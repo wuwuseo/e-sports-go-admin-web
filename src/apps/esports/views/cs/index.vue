@@ -132,10 +132,11 @@
                       moneyText(record.payable_cents)
                     }}</template>
                   </a-table-column>
-                  <a-table-column
-                    data-index="fulfillment_status"
-                    title="履约状态"
-                  />
+                  <a-table-column title="履约状态">
+                    <template #cell="{ record }">{{
+                      fulfillmentStatusText(record.fulfillment_status)
+                    }}</template>
+                  </a-table-column>
                 </template>
               </a-table>
             </a-tab-pane>
@@ -156,10 +157,11 @@
                   customerNameOf(record.customer_id)
                 }}</template>
               </a-table-column>
-              <a-table-column
-                data-index="fulfillment_status"
-                title="履约状态"
-              />
+              <a-table-column title="履约状态">
+                <template #cell="{ record }">{{
+                  fulfillmentStatusText(record.fulfillment_status)
+                }}</template>
+              </a-table-column>
             </template>
           </a-table>
 
@@ -502,8 +504,16 @@
                 moneyText(record.payable_cents)
               }}</template>
             </a-table-column>
-            <a-table-column data-index="payment_status" title="支付状态" />
-            <a-table-column data-index="fulfillment_status" title="履约状态" />
+            <a-table-column title="支付状态">
+              <template #cell="{ record }">{{
+                paymentStatusText(record.payment_status)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="履约状态">
+              <template #cell="{ record }">{{
+                fulfillmentStatusText(record.fulfillment_status)
+              }}</template>
+            </a-table-column>
             <a-table-column title="下单时间">
               <template #cell="{ record }">{{
                 fmtMinute(record.created_at)
@@ -745,6 +755,10 @@
   import { fenToYuan, fmtMinute } from '@/utils/format';
   import useAsync from '@/hooks/async';
   import useUserStore from '@/store/modules/user';
+  import {
+    fulfillmentStatusText,
+    paymentStatusText,
+  } from '../../status-labels';
   import {
     useWalletDisplay,
     rememberWalletDisplay,

@@ -49,10 +49,11 @@
                   <template v-else>{{ money(record.payable_cents) }}</template>
                 </template>
               </a-table-column>
-              <a-table-column
-                data-index="fulfillment_status"
-                title="履约状态"
-              />
+              <a-table-column title="履约状态">
+                <template #cell="{ record }">{{
+                  fulfillmentStatusText(record.fulfillment_status)
+                }}</template>
+              </a-table-column>
               <a-table-column title="优先通知">
                 <template #cell="{ record }">
                   <template v-if="record.priority_notice_status === 'pending'">
@@ -467,10 +468,14 @@
               record.player_id || '—'
             }}</template>
           </a-table-column>
-          <a-table-column data-index="source" title="来源" />
+          <a-table-column title="来源">
+            <template #cell="{ record }">{{
+              dispatchSourceText(record.source)
+            }}</template>
+          </a-table-column>
           <a-table-column title="状态">
             <template #cell="{ record }">{{
-              seatStatusText(record.status)
+              dispatchSeatStatusText(record.status)
             }}</template>
           </a-table-column>
           <a-table-column title="邀请过期">
@@ -937,6 +942,11 @@
   import useUserStore from '@/store/modules/user';
   import { getConfigByGroup } from '@/api/config';
   import sseService from '@/services/sse.service';
+  import {
+    dispatchSeatStatusText,
+    dispatchSourceText,
+    fulfillmentStatusText,
+  } from '../../status-labels';
   import AdminSelect from '../../components/AdminSelect.vue';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import {
@@ -992,18 +1002,7 @@
     EsportsDispatchSeat,
     EsportsOrder,
   } from '../../api';
-  // 席位 / 转单状态中文映射（未知值原样回显）。
-  const seatStatusMap: Record<string, string> = {
-    open: '待指派',
-    invited: '已邀请',
-    accepted: '已接单',
-    rejected: '已拒绝',
-    expired: '已过期',
-    revoked: '已撤回',
-    released: '已释放',
-  };
-  const seatStatusText = (value?: string) =>
-    (value && seatStatusMap[value]) || value || '—';
+  // 席位状态映射统一走 status-labels，未知值原样回显。
   const transferStatusMap: Record<string, string> = {
     pending: '待确认',
     approved: '已通过',

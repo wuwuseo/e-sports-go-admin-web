@@ -320,8 +320,16 @@
                 money(record.refunded_cents)
               }}</template>
             </a-table-column>
-            <a-table-column data-index="payment_status" title="支付状态" />
-            <a-table-column data-index="fulfillment_status" title="履约状态" />
+            <a-table-column title="支付状态">
+              <template #cell="{ record }">{{
+                paymentStatusText(record.payment_status)
+              }}</template>
+            </a-table-column>
+            <a-table-column title="履约状态">
+              <template #cell="{ record }">{{
+                fulfillmentStatusText(record.fulfillment_status)
+              }}</template>
+            </a-table-column>
           </template>
         </a-table>
       </template>
@@ -581,6 +589,10 @@
   import { formatYuan } from '@/utils/format';
   import { Message } from '@arco-design/web-vue';
   import usePermission from '@/hooks/permission';
+  import {
+    fulfillmentStatusText,
+    paymentStatusText,
+  } from '../../status-labels';
   import { useWalletDisplay } from '../../wallet-display';
   import AdminSelect from '../../components/AdminSelect.vue';
   import {

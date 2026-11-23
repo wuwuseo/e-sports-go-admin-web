@@ -29,9 +29,21 @@
               money(record.payable_cents)
             }}</template>
           </a-table-column>
-          <a-table-column data-index="payment_status" title="支付状态" />
-          <a-table-column data-index="fulfillment_status" title="履约状态" />
-          <a-table-column data-index="refund_status" title="退款状态" />
+          <a-table-column title="支付状态">
+            <template #cell="{ record }">{{
+              paymentStatusText(record.payment_status)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="履约状态">
+            <template #cell="{ record }">{{
+              fulfillmentStatusText(record.fulfillment_status)
+            }}</template>
+          </a-table-column>
+          <a-table-column title="退款状态">
+            <template #cell="{ record }">{{
+              refundStatusText(record.refund_status)
+            }}</template>
+          </a-table-column>
           <a-table-column title="存单">
             <template #cell="{ record }">
               <a-tag v-if="record.deposit_status === 'frozen'" color="arcoblue"
@@ -317,11 +329,12 @@
           {{ detail.required_seats }}</a-descriptions-item
         >
         <a-descriptions-item label="支付 / 履约 / 退款"
-          >{{ detail.payment_status }} / {{ detail.fulfillment_status }} /
-          {{ detail.refund_status }}</a-descriptions-item
+          >{{ paymentStatusText(detail.payment_status) }} /
+          {{ fulfillmentStatusText(detail.fulfillment_status) }} /
+          {{ refundStatusText(detail.refund_status) }}</a-descriptions-item
         >
         <a-descriptions-item label="存单状态"
-          >{{ detail.deposit_status }}
+          >{{ depositStatusText(detail.deposit_status) }}
           {{
             detail.deposited_at ? `（${detail.deposited_at}）` : ''
           }}</a-descriptions-item
@@ -435,10 +448,14 @@
                 record.player_id || '—'
               }}</template>
             </a-table-column>
-            <a-table-column data-index="source" title="来源" :width="90" />
+            <a-table-column title="来源" :width="90">
+              <template #cell="{ record }">{{
+                dispatchSourceText(record.source)
+              }}</template>
+            </a-table-column>
             <a-table-column title="状态" :width="90">
               <template #cell="{ record }">
-                <a-tag>{{ record.status }}</a-tag>
+                <a-tag>{{ dispatchSeatStatusText(record.status) }}</a-tag>
               </template>
             </a-table-column>
             <a-table-column title="服务段操作" :width="230">
@@ -1386,6 +1403,14 @@
   import useUserStore from '@/store/modules/user';
   import { getAdmins } from '@/api/user';
   import { resolveAttachmentAccessUrl } from '@/services/attachment-access.service';
+  import {
+    depositStatusText,
+    dispatchSeatStatusText,
+    dispatchSourceText,
+    fulfillmentStatusText,
+    paymentStatusText,
+    refundStatusText,
+  } from '../../status-labels';
   import OwnerSelect from '../../components/OwnerSelect.vue';
   import SkuSelect from '../../components/SkuSelect.vue';
   import {
